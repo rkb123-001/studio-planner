@@ -260,6 +260,7 @@ const DEFAULT_PROFILE = {
     systems: 2,
     making: 1,
   },
+  restRatio: 1.0,  // 1.0 = 1:1 (1 hour rest per active hour). Range: 0.3 to 2.0
 };
 
 const loadProfile = () => {
@@ -632,6 +633,35 @@ function AuthScreen({ onSuccess }) {
                 </div>
               </div>
             ))}
+
+            <p style={{ ...sml, marginBottom: "12px", marginTop: "24px" }}>Rest needed per active hour</p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "16px", lineHeight: "1.6" }}>
+              How many hours of rest do you need per hour of active work? Used to determine if a day is balanced.
+            </p>
+            <div style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
+              <span style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", flex: 1 }}>
+                Rest ratio: <span style={{ color: LINK_BLUE }}>{profile.restRatio.toFixed(1)}:1</span>
+              </span>
+              <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                {[
+                  { val: 0.3, label: "0.3" },
+                  { val: 0.5, label: "0.5" },
+                  { val: 0.7, label: "0.7" },
+                  { val: 1.0, label: "1.0" },
+                  { val: 1.5, label: "1.5" },
+                  { val: 2.0, label: "2.0" },
+                ].map(r => (
+                  <span key={r.val} onClick={() => setProfile({ ...profile, restRatio: r.val })}
+                    style={{
+                      fontFamily: TNR, fontSize: "12px",
+                      padding: "4px 10px",
+                      border: `1px solid ${profile.restRatio === r.val ? LINK_BLUE : "#ddd"}`,
+                      color: profile.restRatio === r.val ? LINK_BLUE : "#888",
+                      cursor: "pointer",
+                    }}>{r.label}</span>
+                ))}
+              </div>
+            </div>
             
             {error && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b88686", marginTop: "8px" }}>{error}</p>}
             
@@ -706,6 +736,35 @@ function ProfileEditScreen({ profile, onSave, onCancel }) {
             </div>
           </div>
         ))}
+
+        <p style={{ ...sml, marginBottom: "12px", marginTop: "24px" }}>Rest needed per active hour</p>
+        <p style={{ fontFamily: TNR, fontSize: "11px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
+          Hours of rest per active hour. Sets your daily balance threshold.
+        </p>
+        <div style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
+          <span style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", flex: 1 }}>
+            Ratio: <span style={{ color: LINK_BLUE }}>{editProfile.restRatio?.toFixed(1) || "1.0"}:1</span>
+          </span>
+          <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+            {[
+              { val: 0.3, label: "0.3" },
+              { val: 0.5, label: "0.5" },
+              { val: 0.7, label: "0.7" },
+              { val: 1.0, label: "1.0" },
+              { val: 1.5, label: "1.5" },
+              { val: 2.0, label: "2.0" },
+            ].map(r => (
+              <span key={r.val} onClick={() => setEditProfile({ ...editProfile, restRatio: r.val })}
+                style={{
+                  fontFamily: TNR, fontSize: "12px",
+                  padding: "4px 10px",
+                  border: `1px solid ${editProfile.restRatio === r.val ? LINK_BLUE : "#ddd"}`,
+                  color: editProfile.restRatio === r.val ? LINK_BLUE : "#888",
+                  cursor: "pointer",
+                }}>{r.label}</span>
+            ))}
+          </div>
+        </div>
 
         <div style={{ marginTop: "40px", display: "flex", gap: "16px", justifyContent: "center" }}>
           <span onClick={() => onSave(editProfile)} style={{ ...boxBtn(true), padding: "8px 24px", fontSize: "14px" }}>
@@ -847,6 +906,18 @@ export default function WeeklyPlanner() {
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
+  // Get display label for a mode — office uses the user's "schedule around" value
+  const getModeLabel = (key) => {
+    if (key === "office" && profile.scheduleAround) {
+      // Capitalise first letter of each word for display
+      return profile.scheduleAround
+        .split(" ")
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+    }
+    return MODES[key]?.label || key;
+  };
+
   const assign = (day, slot) => {
     const current = schedule[day][slot];
     if (current === "office") return; // office blocks can't be overwritten
@@ -936,9 +1007,11 @@ export default function WeeklyPlanner() {
         if (v === "rest") { rest++; return; }
         active++;
       });
-      const ratio = active === 0 ? (rest > 0 ? 1 : null) : rest / active;
-      const balanced  = ratio !== null && ratio >= 0.8;
-      const overloaded = active > 0 && (ratio === null || ratio < 0.4);
+      const ratio = active === 0 ? (rest > 0 ? profile.restRatio : null) : rest / active;
+      // Balanced if rest/active ratio is at least 80% of the user's target
+      const balanced  = ratio !== null && ratio >= profile.restRatio * 0.8;
+      // Overloaded if ratio is less than 40% of the user's target
+      const overloaded = active > 0 && (ratio === null || ratio < profile.restRatio * 0.4);
       return { day: d, active, rest, office, ratio, balanced, overloaded };
     });
 
@@ -959,12 +1032,16 @@ export default function WeeklyPlanner() {
     const balancedDays  = dailyRatios.filter(r => r.balanced).length;
     const overloadedDays = dailyRatios.filter(r => r.overloaded).length;
     const weeklyActive  = filled - restBlocks;
-    const weeklyRatio   = weeklyActive === 0 ? 1 : restBlocks / weeklyActive;
+    const weeklyRatio   = weeklyActive === 0 ? profile.restRatio : restBlocks / weeklyActive;
 
+    // Score is based on how close the weekly ratio is to user's target
+    const targetRatio = profile.restRatio;
+    const lowerBound = targetRatio * 0.85;
+    const upperBound = targetRatio * 1.25;
     let score;
-    if (weeklyRatio >= 0.85 && weeklyRatio <= 1.25) score = 50;
-    else if (weeklyRatio < 0.85) score = Math.round(50 + ((0.85 - weeklyRatio) / 0.85) * 45);
-    else score = Math.round(50 - ((weeklyRatio - 1.25) / 0.75) * 30);
+    if (weeklyRatio >= lowerBound && weeklyRatio <= upperBound) score = 50;
+    else if (weeklyRatio < lowerBound) score = Math.round(50 + ((lowerBound - weeklyRatio) / lowerBound) * 45);
+    else score = Math.round(50 - ((weeklyRatio - upperBound) / upperBound) * 30);
 
     if (overloadedDays >= 3) score += 12;
     if (activeDaysWithNoRest >= 4) score += 10;
@@ -985,7 +1062,7 @@ export default function WeeklyPlanner() {
     const flags = [];
     if (activeDaysWithNoRest >= 3) flags.push(`${activeDaysWithNoRest} active days have no rest scheduled.`);
     if (overloadedDays >= 2)       flags.push(`${overloadedDays} days are under-rested.`);
-    if (weeklyRatio < 0.5 && weeklyActive > 4) flags.push(`Rest is at ${Math.round(weeklyRatio * 100)}% of activity — aim for 1:1.`);
+    if (weeklyRatio < profile.restRatio * 0.5 && weeklyActive > 4) flags.push(`Rest is at ${Math.round(weeklyRatio * 100)}% of activity — aim for ${profile.restRatio.toFixed(1)}:1.`);
     if (overSocial)    flags.push("Social looks heavy — protect some evenings.");
     if (exposureHeavy) flags.push("More exposure than making — rebalance if possible.");
     if (noRunway)      flags.push("Exposure with no support runway — add a Systems block.");
@@ -1053,22 +1130,53 @@ export default function WeeklyPlanner() {
     });
 
     if (!events.length) { setCalStatus("empty"); setIsExporting(false); return; }
+    
     try {
-      const resp = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514", max_tokens: 1000,
-          mcp_servers: [{ type: "url", url: "https://calendarmcp.googleapis.com/mcp/v1", name: "google-calendar" }],
-          messages: [{ role: "user", content: `Create Google Calendar events for week starting ${monday.toDateString()}. Title: "[Mode] — Studio Practice".\n${events.map(e => {
-            const d = new Date(monday); d.setDate(monday.getDate() + dayOffsets[e.day]);
-            const ds = d.toISOString().split("T")[0];
-            return `- ${MODES[e.mode].label} ${e.day}: ${ds}T${String(e.sh).padStart(2,"0")}:00:00 to ${ds}T${String(e.eh).padStart(2,"0")}:00:00`;
-          }).join("\n")}` }]
-        })
+      // Generate .ics calendar file
+      const formatDateTime = (d, hour) => {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hr = String(hour).padStart(2, '0');
+        return `${year}${month}${day}T${hr}0000`;
+      };
+      
+      let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Practice Planner//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\n";
+      
+      events.forEach((e, i) => {
+        const eventDate = new Date(monday);
+        eventDate.setDate(monday.getDate() + dayOffsets[e.day]);
+        const start = formatDateTime(eventDate, e.sh);
+        const end = formatDateTime(eventDate, e.eh);
+        const uid = `practice-planner-${monday.getTime()}-${i}@planner.local`;
+        ics += `BEGIN:VEVENT\r\n`;
+        ics += `UID:${uid}\r\n`;
+        ics += `DTSTAMP:${formatDateTime(new Date(), new Date().getHours())}\r\n`;
+        ics += `DTSTART:${start}\r\n`;
+        ics += `DTEND:${end}\r\n`;
+        ics += `SUMMARY:${MODES[e.mode].label} — Practice\r\n`;
+        ics += `DESCRIPTION:${MODES[e.mode].sub || ''}\r\n`;
+        ics += `END:VEVENT\r\n`;
       });
-      const data = await resp.json();
-      setCalStatus(data.content?.length ? "success" : "error");
-    } catch { setCalStatus("error"); }
+      
+      ics += "END:VCALENDAR\r\n";
+      
+      // Download the .ics file
+      const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `practice-planner-week-${monday.toISOString().split("T")[0]}.ics`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      setCalStatus("success");
+    } catch (err) {
+      console.error("Calendar export error:", err);
+      setCalStatus("error");
+    }
     setIsExporting(false);
   };
 
@@ -1406,7 +1514,7 @@ export default function WeeklyPlanner() {
                   color: activeMode === key ? MODE_COLORS[key] : "#1a1a1a",
                   fontFamily: TNR, fontSize: "14px", cursor: "pointer", userSelect: "none",
                 }}>
-                {m.label}
+                {getModeLabel(key)}
               </span>
             ))}
             <span onClick={clearAll}
@@ -1444,7 +1552,7 @@ export default function WeeklyPlanner() {
 
           {/* Per-day energy budget row — minimal Eilidh style */}
           <div style={{ overflowX: "auto", marginBottom: "12px" }}>
-            <table style={{ borderCollapse: "collapse", width: "100%", minWidth: "600px" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", minWidth: "600px", tableLayout: "fixed" }}>
               <thead>
                 <tr>
                   <th style={{ width: "52px" }}></th>
@@ -1459,11 +1567,11 @@ export default function WeeklyPlanner() {
                       setDayEnergyLevels(prev => ({ ...prev, [d]: next }));
                     };
                     return (
-                      <th key={d} style={{ padding: "0 4px 14px", textAlign: "center" }}>
-                        <div style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", marginBottom: "4px" }}>{d}</div>
+                      <th key={d} style={{ padding: "0 4px 14px", textAlign: "center", fontWeight: "normal" }}>
+                        <div style={{ fontFamily: TNR, fontSize: "14px", color: "#1a1a1a", marginBottom: "4px", fontWeight: "normal" }}>{d.charAt(0)}</div>
                         <div onClick={cycleEnergy} style={{ 
                           fontFamily: TNR, fontSize: "11px", 
-                          color: "#888", cursor: "pointer",
+                          color: "#888", cursor: "pointer", fontWeight: "normal",
                           textDecoration: "underline", textUnderlineOffset: "2px",
                           textDecorationColor: "#ddd",
                         }}>
@@ -1479,7 +1587,7 @@ export default function WeeklyPlanner() {
 
           {/* Grid */}
           <div style={{ overflowX: "auto", marginBottom: "36px" }}>
-            <table style={{ borderCollapse: "collapse", width: "100%", minWidth: "600px" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", minWidth: "600px", tableLayout: "fixed" }}>
               <tbody>
                 {TIME_SLOTS.map(slot => (
                   <tr key={slot}>
@@ -1505,8 +1613,8 @@ export default function WeeklyPlanner() {
                               transition: "all 0.08s",
                             }}>
                             {isOffice
-                              ? <span style={{ fontFamily: TNR, fontSize: "10px", color: "#999" }}>office</span>
-                              : val && <span style={{ fontFamily: TNR, fontSize: "11px", color: "#fff", letterSpacing: "0.02em" }}>{MODES[val].label.slice(0, 3).toLowerCase()}</span>}
+                              ? <span style={{ fontFamily: TNR, fontSize: "10px", color: "#999" }}>{getModeLabel("office").slice(0, 6).toLowerCase()}</span>
+                              : val && <span style={{ fontFamily: TNR, fontSize: "11px", color: "#fff", letterSpacing: "0.02em" }}>{getModeLabel(val).slice(0, 3).toLowerCase()}</span>}
                           </div>
                         </td>
                       );
@@ -1525,9 +1633,10 @@ export default function WeeklyPlanner() {
               const color = isWorkMode 
                 ? `rgba(26, 13, 171, ${intensity.opacity})`
                 : MODE_COLORS[key];
+              const label = getModeLabel(key);
               return (
                 <span key={key} style={{ fontFamily: TNR, fontSize: "13px", color }}>
-                  <span style={{ fontSize: "11px" }}>{m.label.slice(0, 3).toLowerCase()}</span>  {m.label}
+                  <span style={{ fontSize: "11px" }}>{label.slice(0, 3).toLowerCase()}</span>  {label}
                   {isWorkMode && <span style={{ fontFamily: TNR, fontSize: "10px", color: "#888" }}> ({intensity.desc})</span>}
                 </span>
               );
@@ -1536,14 +1645,16 @@ export default function WeeklyPlanner() {
 
           {/* Export */}
           <div style={{ textAlign: "center" }}>
-            <p style={{ ...sml, marginBottom: "8px" }}>Export studio blocks to Google Calendar</p>
-            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb", marginBottom: "14px" }}>Office shifts excluded. Contiguous blocks merge into single events.</p>
+            <p style={{ ...sml, marginBottom: "8px" }}>Export blocks to your calendar</p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb", marginBottom: "14px" }}>
+              Downloads an .ics file. Open it to add events to Google Calendar, Apple Calendar, or Outlook.
+            </p>
             <span onClick={!isExporting ? exportToCalendar : undefined}
               style={{ ...linkStyle, fontSize: "15px", color: isExporting ? "#bbb" : LINK_BLUE, textDecorationColor: isExporting ? "#bbb" : LINK_BLUE, cursor: isExporting ? "default" : "pointer" }}>
-              {isExporting ? "Syncing..." : "Export to Google Calendar ↗"}
+              {isExporting ? "Generating..." : "Download calendar file ↓"}
             </span>
-            {calStatus === "success" && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#0fa97f", marginTop: "10px" }}>Events added.</p>}
-            {calStatus === "error"   && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#ff3366", marginTop: "10px" }}>Could not connect.</p>}
+            {calStatus === "success" && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#0fa97f", marginTop: "10px" }}>File downloaded. Open it to import to your calendar.</p>}
+            {calStatus === "error"   && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#ff3366", marginTop: "10px" }}>Export failed. Try again.</p>}
             {calStatus === "empty"   && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#888", marginTop: "10px" }}>No exportable blocks found.</p>}
           </div>
         </>
@@ -1633,7 +1744,7 @@ export default function WeeklyPlanner() {
           <div style={{ marginBottom: "32px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
               <span style={sml}>Rest & daily balance</span>
-              <span style={{ fontFamily: TNR, fontSize: "12px", color: "#aaa" }}>aim 1:1</span>
+              <span style={{ fontFamily: TNR, fontSize: "12px", color: "#aaa" }}>aim {profile.restRatio.toFixed(1)}:1</span>
             </div>
             {capacity.dailyRatios.map(r => {
               const hasAny = r.active > 0 || r.rest > 0;
@@ -1651,7 +1762,7 @@ export default function WeeklyPlanner() {
             })}
             <div style={{ display: "flex", gap: "20px", padding: "10px 0 0" }}>
               <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888" }}>{capacity.weeklyActive} active · {capacity.restBlocks} rest</span>
-              <span style={{ fontFamily: TNR, fontSize: "13px", color: capacity.weeklyRatio >= 0.8 ? "#0fa97f" : capacity.weeklyRatio < 0.4 ? "#ff3366" : "#e8c070" }}>
+              <span style={{ fontFamily: TNR, fontSize: "13px", color: capacity.weeklyRatio >= profile.restRatio * 0.8 ? "#0fa97f" : capacity.weeklyRatio < profile.restRatio * 0.4 ? "#ff3366" : "#e8c070" }}>
                 {capacity.weeklyActive === 0 ? "—" : `${Math.round(capacity.weeklyRatio * 100)}% rest coverage`}
               </span>
             </div>

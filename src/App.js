@@ -192,16 +192,7 @@ const emptyProject = () => ({
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-// Pill buttons (used for tabs, mode selectors) — thin black border, rounded
-const pill = (active, color) => ({
-  display: "inline-block", padding: "4px 14px",
-  border: `1px solid ${active && color ? color : "#1a1a1a"}`,
-  borderRadius: "999px",
-  background: active && color ? color + "15" : "#fff",
-  color: active && color ? color : "#1a1a1a",
-  fontSize: "13px", fontFamily: TNR, cursor: "pointer",
-  userSelect: "none", transition: "all 0.12s", whiteSpace: "nowrap",
-});
+// Note: pill function was removed - using boxBtn instead
 
 // Boxed button in Eilidh Duffy style — thin black rectangular border, no pill
 const boxBtn = (active) => ({
@@ -725,7 +716,6 @@ export default function WeeklyPlanner() {
   // ── Project row renderer ─────────────────────────────────────────────────────
   const renderProjectRow = (p) => {
     const statusObj = Q_STATUSES.find(s => s.key === p.status) || Q_STATUSES[0];
-    const confObj   = CONFIDENCE.find(c => c.key === p.confidence);
     const isEditing = editingProject === p.id;
     const statusColor = {
       "on-track": "#0fa97f", "at-risk": "#e8c070", "behind": "#ff3366",
@@ -918,7 +908,6 @@ export default function WeeklyPlanner() {
               <div>
                 {todaySlots.map(({ slot, mode }) => {
                   const m = MODES[mode];
-                  const col = MODE_COLORS[mode];
                   return (
                     <div key={slot} style={{
                       display: "flex", alignItems: "baseline", gap: "16px",

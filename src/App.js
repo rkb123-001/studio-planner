@@ -34,15 +34,17 @@ const REST_TYPES = {
   gentle:   { label: "Gentle regulation",   sub: "walk, stretch, slow movement" },
 };
 
+// Work modes use hyperlink blue at exec-intensity opacity (matches grid)
+// Non-work modes have their own colors
 const MODE_COLORS = {
-  making:  "#e90064",  // hot pink/magenta
-  comms:   "#0fa97f",  // keep emerald
-  growth:  "#aed2ff",  // light blue
-  systems: "#1a0dab",  // hyperlink blue (base for executive functioning scale)
-  rest:    "#e0e0e0",  // light grey
-  social:  "#F72798",  // hot magenta/pink
-  health:  "#00a8ff",  // cyan
-  office:  "#aaaaaa",  // unchanged
+  making:  "rgba(26, 13, 171, 0.25)",  // low exec demand — light blue
+  comms:   "rgba(26, 13, 171, 0.75)",  // medium-high exec demand
+  growth:  "rgba(26, 13, 171, 1.0)",   // high exec demand — full blue
+  systems: "rgba(26, 13, 171, 0.5)",   // medium exec demand
+  rest:    "#888888",                   // muted grey
+  social:  "#F72798",                   // hot magenta/pink
+  health:  "#00a8ff",                   // cyan
+  office:  "#aaaaaa",                   // muted grey
 };
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -228,16 +230,162 @@ const inp = {
 
 const LS_KEY = "studio-planner-v1";
 
-// Supabase config — get these from https://supabase.com
-const SUPABASE_URL = "https://glfrnjconpelpeejvndz.supabase.co"; // paste your project URL here
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdsZnJuamNvbnBlbHBlZWp2bmR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyNzUyMDUsImV4cCI6MjA5Mjg1MTIwNX0.IVWq3GLdIiLOF9u24EdurqWgytPg7h1cNk9V5a1JpY4"; // paste your anon key here
+// Supabase config
+const SUPABASE_URL = "https://glfrnjconpelpeejvndz.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdsZnJuamNvbnBlbHBlZWp2bmR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyNzUyMDUsImV4cCI6MjA5Mjg1MTIwNX0.IVWq3GLdIiLOF9u24EdurqWgytPg7h1cNk9V5a1JpY4";
 const USE_SUPABASE = SUPABASE_URL && SUPABASE_KEY;
-const USER_ID = typeof window !== "undefined" ? localStorage.getItem("studio-planner-user-id") || ("user-" + Date.now()) : "user-default";
 
-// Store user ID so same device syncs as same user
-if (typeof window !== "undefined" && !localStorage.getItem("studio-planner-user-id")) {
-  localStorage.setItem("studio-planner-user-id", USER_ID);
+// Auth + profile keys
+const AUTH_TOKEN_KEY = "studio-planner-auth-token";
+const AUTH_EMAIL_KEY = "studio-planner-auth-email";
+const AUTH_USER_ID_KEY = "studio-planner-auth-user-id";
+const PROFILE_KEY = "studio-planner-profile";
+
+// Get current user ID (mutable — updated on login/logout)
+let USER_ID = typeof window !== "undefined" ? localStorage.getItem(AUTH_USER_ID_KEY) || ("user-" + Date.now()) : "user-default";
+
+if (typeof window !== "undefined" && !localStorage.getItem(AUTH_USER_ID_KEY)) {
+  localStorage.setItem(AUTH_USER_ID_KEY, USER_ID);
 }
+
+// Default profile structure
+const DEFAULT_PROFILE = {
+  name: "",
+  role: "",
+  plannerTitle: "Practice Planner",
+  scheduleAround: "office shifts",
+  modeIntensity: {
+    growth: 4,    // 1=low, 4=very high
+    comms: 3,
+    systems: 2,
+    making: 1,
+  },
+};
+
+const loadProfile = () => {
+  if (typeof window === "undefined") return DEFAULT_PROFILE;
+  try {
+    const p = localStorage.getItem(PROFILE_KEY);
+    return p ? { ...DEFAULT_PROFILE, ...JSON.parse(p) } : DEFAULT_PROFILE;
+  } catch { return DEFAULT_PROFILE; }
+};
+
+const saveProfile = (profile) => {
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch {}
+};
+
+// Auth helpers
+const hashPassword = async (password) => {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+};
+
+const generateSessionToken = () => 'token-' + Math.random().toString(36).substr(2, 20) + Date.now();
+
+const registerUser = async (email, password, profile) => {
+  if (!USE_SUPABASE) return { error: "Supabase not configured" };
+  try {
+    const passwordHash = await hashPassword(password);
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/auth_users`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+        "Prefer": "return=representation",
+      },
+      body: JSON.stringify({ email, password_hash: passwordHash }),
+    });
+    if (!resp.ok) {
+      const err = await resp.text();
+      return { error: err.includes("duplicate") ? "Email already registered" : "Registration failed" };
+    }
+    const users = await resp.json();
+    const user = users[0];
+    
+    const token = generateSessionToken();
+    await fetch(`${SUPABASE_URL}/rest/v1/user_sessions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+      },
+      body: JSON.stringify({ user_id: user.id, device_token: token }),
+    });
+    
+    localStorage.setItem(AUTH_TOKEN_KEY, token);
+    localStorage.setItem(AUTH_EMAIL_KEY, email);
+    localStorage.setItem(AUTH_USER_ID_KEY, user.id);
+    saveProfile(profile);
+    USER_ID = user.id;
+    
+    return { user, token, profile };
+  } catch (e) {
+    return { error: e.message };
+  }
+};
+
+const loginUser = async (email, password) => {
+  if (!USE_SUPABASE) return { error: "Supabase not configured" };
+  try {
+    const passwordHash = await hashPassword(password);
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/auth_users?email=eq.${encodeURIComponent(email)}`, {
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+      },
+    });
+    const users = await resp.json();
+    if (!users || users.length === 0) return { error: "User not found" };
+    
+    const user = users[0];
+    if (user.password_hash !== passwordHash) return { error: "Wrong password" };
+    
+    const token = generateSessionToken();
+    await fetch(`${SUPABASE_URL}/rest/v1/user_sessions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+      },
+      body: JSON.stringify({ user_id: user.id, device_token: token }),
+    });
+    
+    localStorage.setItem(AUTH_TOKEN_KEY, token);
+    localStorage.setItem(AUTH_EMAIL_KEY, email);
+    localStorage.setItem(AUTH_USER_ID_KEY, user.id);
+    USER_ID = user.id;
+    
+    return { user, token };
+  } catch (e) {
+    return { error: e.message };
+  }
+};
+
+const verifySession = async (token) => {
+  if (!USE_SUPABASE || !token) return false;
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/user_sessions?device_token=eq.${token}`, {
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+      },
+    });
+    const sessions = await resp.json();
+    return sessions && sessions.length > 0;
+  } catch (e) {
+    return false;
+  }
+};
+
+const logoutUser = () => {
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+  localStorage.removeItem(AUTH_EMAIL_KEY);
+};
 
 const getWeekStart = () => {
   const now = new Date(), monday = new Date(now);
@@ -352,9 +500,235 @@ const defaultSchedule = () => {
   return s;
 };
 
+// ── Auth Screen ─────────────────────────────────────────────────────────────
+
+function AuthScreen({ onSuccess }) {
+  const [mode, setMode] = useState("login"); // "login" | "signup" | "profile"
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [profile, setProfile] = useState(DEFAULT_PROFILE);
+
+  const handleLogin = async () => {
+    setError(""); setLoading(true);
+    const result = await loginUser(email, password);
+    setLoading(false);
+    if (result.error) {
+      setError(result.error);
+    } else {
+      onSuccess(loadProfile());
+    }
+  };
+
+  const handleSignupContinue = () => {
+    setError("");
+    if (!email || !password) {
+      setError("Email and password required");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+    setMode("profile");
+  };
+
+  const handleSignupComplete = async () => {
+    setError(""); setLoading(true);
+    const result = await registerUser(email, password, profile);
+    setLoading(false);
+    if (result.error) {
+      setError(result.error);
+      setMode("signup");
+    } else {
+      onSuccess(profile);
+    }
+  };
+
+  const inputAuth = {
+    fontFamily: TNR, fontSize: "15px", color: "#1a1a1a",
+    border: "1px solid #1a1a1a", padding: "10px 12px",
+    width: "100%", outline: "none", boxSizing: "border-box",
+    background: "#fff", marginBottom: "12px",
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#fff", color: "#1a1a1a", fontFamily: TNR, padding: "80px 32px", display: "flex", justifyContent: "center" }}>
+      <div style={{ maxWidth: "400px", width: "100%" }}>
+        <div style={{ textAlign: "center", marginBottom: "48px" }}>
+          <p style={{ ...sml, marginBottom: "20px" }}>Practice Planner</p>
+          <div style={{ fontSize: "16px", lineHeight: "2", color: "#1a1a1a" }}>
+            {mode === "login" && <><div>Sign in to access</div><div>your planner.</div></>}
+            {mode === "signup" && <><div>Create your account.</div></>}
+            {mode === "profile" && <><div>Tell us about yourself.</div></>}
+          </div>
+        </div>
+
+        {(mode === "login" || mode === "signup") && (
+          <>
+            <p style={{ ...sml, marginBottom: "8px" }}>Email</p>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputAuth} placeholder="you@email.com" />
+            
+            <p style={{ ...sml, marginBottom: "8px", marginTop: "8px" }}>Password</p>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={inputAuth} placeholder="••••••••" />
+            
+            {error && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b88686", marginTop: "8px", marginBottom: "16px" }}>{error}</p>}
+            
+            <div style={{ marginTop: "24px", textAlign: "center" }}>
+              <span onClick={!loading ? (mode === "login" ? handleLogin : handleSignupContinue) : undefined}
+                style={{ ...boxBtn(true), padding: "10px 32px", fontSize: "15px", display: "inline-block" }}>
+                {loading ? "..." : mode === "login" ? "Sign in" : "Continue"}
+              </span>
+            </div>
+            
+            <div style={{ textAlign: "center", marginTop: "32px" }}>
+              <span onClick={() => { setMode(mode === "login" ? "signup" : "login"); setError(""); }}
+                style={{ ...linkStyle, fontSize: "13px" }}>
+                {mode === "login" ? "Create an account" : "Already have an account? Sign in"}
+              </span>
+            </div>
+          </>
+        )}
+
+        {mode === "profile" && (
+          <>
+            <p style={{ ...sml, marginBottom: "8px" }}>Your name</p>
+            <input value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} style={inputAuth} placeholder="e.g. Rebekah Kosonen Bide" />
+            
+            <p style={{ ...sml, marginBottom: "8px" }}>Your role</p>
+            <input value={profile.role} onChange={(e) => setProfile({ ...profile, role: e.target.value })} style={inputAuth} placeholder="e.g. Fine artist" />
+            
+            <p style={{ ...sml, marginBottom: "8px" }}>What do you want to call your planner?</p>
+            <input value={profile.plannerTitle} onChange={(e) => setProfile({ ...profile, plannerTitle: e.target.value })} style={inputAuth} placeholder="e.g. Studio Practice Planner" />
+            
+            <p style={{ ...sml, marginBottom: "8px" }}>What do you schedule around?</p>
+            <input value={profile.scheduleAround} onChange={(e) => setProfile({ ...profile, scheduleAround: e.target.value })} style={inputAuth} placeholder="e.g. office shifts, classes, day job" />
+            
+            <p style={{ ...sml, marginBottom: "12px", marginTop: "20px" }}>Executive demand for each task type</p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "16px", lineHeight: "1.6" }}>
+              How much focus does each type require? 1 = lowest, 4 = highest.
+            </p>
+            
+            {[
+              { key: "growth", label: "Growth (content, outreach, press)" },
+              { key: "comms", label: "Comms & Admin (emails, invoices)" },
+              { key: "systems", label: "Systems (workflows, organising)" },
+              { key: "making", label: "Making (creating, building)" },
+            ].map(m => (
+              <div key={m.key} style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
+                <span style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", flex: 1 }}>{m.label}</span>
+                <div style={{ display: "flex", gap: "4px" }}>
+                  {[1, 2, 3, 4].map(n => (
+                    <span key={n} onClick={() => setProfile({ ...profile, modeIntensity: { ...profile.modeIntensity, [m.key]: n } })}
+                      style={{
+                        fontFamily: TNR, fontSize: "12px",
+                        padding: "4px 10px",
+                        border: `1px solid ${profile.modeIntensity[m.key] === n ? LINK_BLUE : "#ddd"}`,
+                        color: profile.modeIntensity[m.key] === n ? LINK_BLUE : "#888",
+                        cursor: "pointer",
+                      }}>{n}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+            
+            {error && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b88686", marginTop: "8px" }}>{error}</p>}
+            
+            <div style={{ marginTop: "32px", textAlign: "center" }}>
+              <span onClick={!loading ? handleSignupComplete : undefined}
+                style={{ ...boxBtn(true), padding: "10px 32px", fontSize: "15px", display: "inline-block" }}>
+                {loading ? "..." : "Create account"}
+              </span>
+            </div>
+            
+            <div style={{ textAlign: "center", marginTop: "20px" }}>
+              <span onClick={() => setMode("signup")} style={{ ...linkStyle, fontSize: "13px" }}>← Back</span>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Profile Edit Screen ─────────────────────────────────────────────────────
+
+function ProfileEditScreen({ profile, onSave, onCancel }) {
+  const [editProfile, setEditProfile] = useState(profile);
+
+  const inputAuth = {
+    fontFamily: TNR, fontSize: "15px", color: "#1a1a1a",
+    border: "1px solid #1a1a1a", padding: "10px 12px",
+    width: "100%", outline: "none", boxSizing: "border-box",
+    background: "#fff", marginBottom: "12px",
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(255,255,255,0.98)", zIndex: 100, overflowY: "auto", padding: "60px 32px" }}>
+      <div style={{ maxWidth: "440px", margin: "0 auto" }}>
+        <div style={{ textAlign: "center", marginBottom: "40px" }}>
+          <p style={{ ...sml }}>Edit profile</p>
+        </div>
+
+        <p style={{ ...sml, marginBottom: "8px" }}>Your name</p>
+        <input value={editProfile.name} onChange={(e) => setEditProfile({ ...editProfile, name: e.target.value })} style={inputAuth} />
+        
+        <p style={{ ...sml, marginBottom: "8px" }}>Your role</p>
+        <input value={editProfile.role} onChange={(e) => setEditProfile({ ...editProfile, role: e.target.value })} style={inputAuth} />
+        
+        <p style={{ ...sml, marginBottom: "8px" }}>Planner title</p>
+        <input value={editProfile.plannerTitle} onChange={(e) => setEditProfile({ ...editProfile, plannerTitle: e.target.value })} style={inputAuth} />
+        
+        <p style={{ ...sml, marginBottom: "8px" }}>What you schedule around</p>
+        <input value={editProfile.scheduleAround} onChange={(e) => setEditProfile({ ...editProfile, scheduleAround: e.target.value })} style={inputAuth} />
+
+        <p style={{ ...sml, marginBottom: "12px", marginTop: "24px" }}>Executive demand</p>
+        {[
+          { key: "growth", label: "Growth" },
+          { key: "comms", label: "Comms & Admin" },
+          { key: "systems", label: "Systems" },
+          { key: "making", label: "Making" },
+        ].map(m => (
+          <div key={m.key} style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", flex: 1 }}>{m.label}</span>
+            <div style={{ display: "flex", gap: "4px" }}>
+              {[1, 2, 3, 4].map(n => (
+                <span key={n} onClick={() => setEditProfile({ ...editProfile, modeIntensity: { ...editProfile.modeIntensity, [m.key]: n } })}
+                  style={{
+                    fontFamily: TNR, fontSize: "12px",
+                    padding: "4px 10px",
+                    border: `1px solid ${editProfile.modeIntensity[m.key] === n ? LINK_BLUE : "#ddd"}`,
+                    color: editProfile.modeIntensity[m.key] === n ? LINK_BLUE : "#888",
+                    cursor: "pointer",
+                  }}>{n}</span>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        <div style={{ marginTop: "40px", display: "flex", gap: "16px", justifyContent: "center" }}>
+          <span onClick={() => onSave(editProfile)} style={{ ...boxBtn(true), padding: "8px 24px", fontSize: "14px" }}>
+            Save changes
+          </span>
+          <span onClick={onCancel} style={{ ...linkStyle, fontSize: "14px", alignSelf: "center" }}>
+            Cancel
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function WeeklyPlanner() {
+  // Auth state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
+  const [profile, setProfile] = useState(loadProfile());
+  const [showProfileEdit, setShowProfileEdit] = useState(false);
+
   const saved = loadLocal();
 
   const [supabaseLoaded, setSupabaseLoaded] = useState(false);
@@ -369,6 +743,23 @@ export default function WeeklyPlanner() {
   const [weekNote, setWeekNote]           = useState(saved?.weekNote || "");
   const [tab, setTab]                     = useState("today");
   const [dayEnergyLevels, setDayEnergyLevels] = useState(saved?.dayEnergyLevels || DAYS.reduce((a, d) => ({ ...a, [d]: "medium" }), {}));
+
+  // Check session on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      const token = localStorage.getItem(AUTH_TOKEN_KEY);
+      if (token && USE_SUPABASE) {
+        const valid = await verifySession(token);
+        if (valid) {
+          setIsAuthenticated(true);
+        } else {
+          logoutUser();
+        }
+      }
+      setAuthChecking(false);
+    };
+    checkAuth();
+  }, []);
 
   // Stuck state
   const [stuckOpen, setStuckOpen]         = useState(false);
@@ -782,8 +1173,31 @@ export default function WeeklyPlanner() {
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
+  // Show loading while checking auth
+  if (authChecking) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: TNR, fontSize: "14px", color: "#888" }}>
+        Loading...
+      </div>
+    );
+  }
+
+  // Show login screen if not authenticated
+  if (!isAuthenticated) {
+    return <AuthScreen onSuccess={(p) => { setProfile(p); setIsAuthenticated(true); }} />;
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: "#fff", color: "#1a1a1a", fontFamily: TNR, padding: "60px 32px 100px" }}>
+
+      {/* ════ PROFILE EDIT OVERLAY ════ */}
+      {showProfileEdit && (
+        <ProfileEditScreen
+          profile={profile}
+          onSave={(p) => { setProfile(p); saveProfile(p); setShowProfileEdit(false); }}
+          onCancel={() => setShowProfileEdit(false)}
+        />
+      )}
 
       {/* ════ STUCK OVERLAY ════ */}
       {stuckOpen && (
@@ -845,24 +1259,32 @@ export default function WeeklyPlanner() {
 
       {/* ── Header ── */}
       <div style={{ textAlign: "center", marginBottom: "40px" }}>
-        <p style={{ ...sml, marginBottom: "20px" }}>Rebekah Kosonen Bide</p>
-        <p style={{ ...sml, marginBottom: "20px", letterSpacing: "0.06em" }}>Studio Practice Planner</p>
+        <p style={{ ...sml, marginBottom: "20px" }}>{profile.name || "Your Name"}</p>
+        <p style={{ ...sml, marginBottom: "20px", letterSpacing: "0.06em" }}>{profile.plannerTitle}</p>
         <div style={{ fontSize: "17px", lineHeight: "2", color: "#1a1a1a" }}>
           <div>A weekly planner for mapping making,</div>
           <div>admin, growth and systems work</div>
           <div>around occupied time.</div>
-          <div>Mark your office shifts,</div>
+          <div>Mark your {profile.scheduleAround},</div>
           <div>fill your free</div>
           <div>blocks.</div>
         </div>
-        <p style={{ fontFamily: TNR, fontSize: "14px", color: "#1a1a1a", marginTop: "24px", marginBottom: "6px" }}>Fine artist</p>
+        <p style={{ fontFamily: TNR, fontSize: "14px", color: "#1a1a1a", marginTop: "24px", marginBottom: "6px" }}>{profile.role || "Your Role"}</p>
       </div>
 
-      {/* ── Controls row — stuck as a blue link ── */}
-      <div style={{ textAlign: "center", marginBottom: "36px" }}>
+      {/* ── Controls row ── */}
+      <div style={{ textAlign: "center", marginBottom: "36px", display: "flex", gap: "20px", justifyContent: "center", alignItems: "center" }}>
         <span onClick={() => { setStuckOpen(true); setStuckStep(0); setStuckEnergy(null); }}
           style={{ ...linkStyle, fontSize: "14px" }}>
           Feeling stuck?
+        </span>
+        <span onClick={() => setShowProfileEdit(true)}
+          style={{ ...linkStyle, fontSize: "14px" }}>
+          Edit profile
+        </span>
+        <span onClick={() => { logoutUser(); setIsAuthenticated(false); }}
+          style={{ ...linkStyle, fontSize: "14px" }}>
+          Sign out
         </span>
       </div>
 
@@ -1020,8 +1442,8 @@ export default function WeeklyPlanner() {
             )}
           </div>
 
-          {/* Per-day energy budget row */}
-          <div style={{ overflowX: "auto", marginBottom: "8px" }}>
+          {/* Per-day energy budget row — minimal Eilidh style */}
+          <div style={{ overflowX: "auto", marginBottom: "12px" }}>
             <table style={{ borderCollapse: "collapse", width: "100%", minWidth: "600px" }}>
               <thead>
                 <tr>
@@ -1030,21 +1452,22 @@ export default function WeeklyPlanner() {
                     const de = getDayEnergy(d);
                     const db = getDayBudget(d);
                     const over = de > db;
+                    const currentLevel = dayEnergyLevels[d] || "medium";
+                    // Cycle through H/M/L on click
+                    const cycleEnergy = () => {
+                      const next = currentLevel === "high" ? "medium" : currentLevel === "medium" ? "low" : "high";
+                      setDayEnergyLevels(prev => ({ ...prev, [d]: next }));
+                    };
                     return (
-                      <th key={d} style={{ padding: "0 3px 10px", textAlign: "center" }}>
-                        <div style={{ fontFamily: TNR, fontSize: "11px", color: "#aaa", letterSpacing: "0.06em", marginBottom: "4px" }}>{d}</div>
-                        <div style={{ display: "flex", gap: "3px", justifyContent: "center" }}>
-                          {ENERGY_LEVELS.map(e => (
-                            <span key={e.key} onClick={() => setDayEnergyLevels(prev => ({ ...prev, [d]: e.key }))}
-                              style={{ fontFamily: TNR, fontSize: "9px", padding: "2px 5px", borderRadius: "999px", cursor: "pointer",
-                                border: `1px solid ${dayEnergyLevels[d] === e.key ? "#aaa" : "#eee"}`,
-                                color: dayEnergyLevels[d] === e.key ? "#666" : "#ccc",
-                                background: dayEnergyLevels[d] === e.key ? "#f5f5f5" : "#fff",
-                              }}>{e.label[0]}</span>
-                          ))}
-                        </div>
-                        <div style={{ fontFamily: TNR, fontSize: "9px", color: over ? "#b88686" : "#ccc", marginTop: "3px" }}>
-                          {de}/{db}
+                      <th key={d} style={{ padding: "0 4px 14px", textAlign: "center" }}>
+                        <div style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", marginBottom: "4px" }}>{d}</div>
+                        <div onClick={cycleEnergy} style={{ 
+                          fontFamily: TNR, fontSize: "11px", 
+                          color: "#888", cursor: "pointer",
+                          textDecoration: "underline", textUnderlineOffset: "2px",
+                          textDecorationColor: "#ddd",
+                        }}>
+                          {currentLevel} · <span style={{ color: over ? "#b88686" : "#888" }}>{de}/{db}</span>
                         </div>
                       </th>
                     );
@@ -1394,7 +1817,7 @@ export default function WeeklyPlanner() {
             <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
               <input 
                 type="text"
-                placeholder="respond to SSENSE email"
+                placeholder="input task here"
                 onKeyPress={(e) => {
                   if (e.key === "Enter" && taskInput.trim()) {
                     setTaskInput("");

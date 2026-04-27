@@ -229,8 +229,8 @@ const inp = {
 const LS_KEY = "studio-planner-v1";
 
 // Supabase config — get these from https://supabase.com
-const SUPABASE_URL = ""; // paste your project URL here
-const SUPABASE_KEY = ""; // paste your anon key here
+const SUPABASE_URL = "https://glfrnjconpelpeejvndz.supabase.co"; // paste your project URL here
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdsZnJuamNvbnBlbHBlZWp2bmR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyNzUyMDUsImV4cCI6MjA5Mjg1MTIwNX0.IVWq3GLdIiLOF9u24EdurqWgytPg7h1cNk9V5a1JpY4"; // paste your anon key here
 const USE_SUPABASE = SUPABASE_URL && SUPABASE_KEY;
 const USER_ID = typeof window !== "undefined" ? localStorage.getItem("studio-planner-user-id") || ("user-" + Date.now()) : "user-default";
 

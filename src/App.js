@@ -59,6 +59,12 @@ const SLOT_START = {
   "1–3pm": 13, "3–5pm": 15, "5–7pm": 17, "7–9pm": 19,
 };
 
+const WEEKLY_TARGETS_BASE = [
+  { mode: "making",  min: 2, label: "2–3 Making blocks" },
+  { mode: "comms",   min: 2, label: "2 Comms & Admin"   },
+  { mode: "growth",  min: 1, label: "1 Growth"          },
+  { mode: "systems", min: 1, label: "1 Systems"         },
+];
 
 const HEALTH_TARGETS = [
   { key: "psychoanalysis", label: "Psychoanalysis" },
@@ -461,6 +467,7 @@ const saveToSupabase = async (d) => {
         projects: d.projects,
         archive: d.archive,
         day_energy_levels: d.dayEnergyLevels,
+        profile: d.profile,
       }),
     });
     if (!resp.ok) {
@@ -484,6 +491,7 @@ const saveToSupabase = async (d) => {
             projects: d.projects,
             archive: d.archive,
             day_energy_levels: d.dayEnergyLevels,
+            profile: d.profile,
           }),
         });
       }
@@ -497,7 +505,8 @@ const loadFromSupabase = async () => {
   if (!USE_SUPABASE) return null;
   try {
     const weekStart = getWeekStart();
-    const resp = await fetch(
+    // First try this week's data
+    let resp = await fetch(
       `${SUPABASE_URL}/rest/v1/planner_data?user_id=eq.${USER_ID}&week_start=eq.${weekStart}`,
       {
         headers: {
@@ -506,7 +515,26 @@ const loadFromSupabase = async () => {
         },
       }
     );
-    const data = await resp.json();
+    let data = await resp.json();
+    
+    // If no data for this week, try to get profile from any previous week
+    let profileFallback = null;
+    if (!data || !data[0] || !data[0].profile) {
+      const allResp = await fetch(
+        `${SUPABASE_URL}/rest/v1/planner_data?user_id=eq.${USER_ID}&order=week_start.desc&limit=1`,
+        {
+          headers: {
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`,
+          },
+        }
+      );
+      const allData = await allResp.json();
+      if (allData && allData[0] && allData[0].profile) {
+        profileFallback = allData[0].profile;
+      }
+    }
+    
     if (data && data[0]) {
       return {
         schedule: data[0].schedule,
@@ -519,7 +547,11 @@ const loadFromSupabase = async () => {
         projects: data[0].projects,
         archive: data[0].archive,
         dayEnergyLevels: data[0].day_energy_levels,
+        profile: data[0].profile || profileFallback,
       };
+    } else if (profileFallback) {
+      // Return just profile if no week data exists
+      return { profile: profileFallback };
     }
   } catch (e) {
     console.log("Supabase load error (using local):", e);
@@ -1010,16 +1042,20 @@ export default function WeeklyPlanner() {
       if (USE_SUPABASE && !supabaseLoaded) {
         const cloudData = await loadFromSupabase();
         if (cloudData) {
-          setSchedule(cloudData.schedule);
-          setChecklist(cloudData.checklist);
-          setSuccessMetrics(cloudData.successMetrics);
-          setHealthTargets(cloudData.healthTargets);
-          setRestTargets(cloudData.restTargets);
-          setSocialDone(cloudData.socialDone);
-          setWeekNote(cloudData.weekNote);
-          setProjects(cloudData.projects);
-          setArchive(cloudData.archive);
-          setDayEnergyLevels(cloudData.dayEnergyLevels);
+          if (cloudData.schedule) setSchedule(cloudData.schedule);
+          if (cloudData.checklist) setChecklist(cloudData.checklist);
+          if (cloudData.successMetrics) setSuccessMetrics(cloudData.successMetrics);
+          if (cloudData.healthTargets) setHealthTargets(cloudData.healthTargets);
+          if (cloudData.restTargets) setRestTargets(cloudData.restTargets);
+          if (cloudData.socialDone !== undefined) setSocialDone(cloudData.socialDone);
+          if (cloudData.weekNote !== undefined) setWeekNote(cloudData.weekNote);
+          if (cloudData.projects) setProjects(cloudData.projects);
+          if (cloudData.archive) setArchive(cloudData.archive);
+          if (cloudData.dayEnergyLevels) setDayEnergyLevels(cloudData.dayEnergyLevels);
+          if (cloudData.profile) {
+            setProfile({ ...DEFAULT_PROFILE, ...cloudData.profile });
+            saveProfile({ ...DEFAULT_PROFILE, ...cloudData.profile });
+          }
         }
         setSupabaseLoaded(true);
       }
@@ -1029,17 +1065,17 @@ export default function WeeklyPlanner() {
 
   // Autosave to both local and cloud
   useEffect(() => {
-    const data = { schedule, checklist, successMetrics, healthTargets, restTargets, socialDone, weekNote, projects, archive, dayEnergyLevels };
+    const data = { schedule, checklist, successMetrics, healthTargets, restTargets, socialDone, weekNote, projects, archive, dayEnergyLevels, profile };
     saveLocal(data);
     saveToSupabase(data);
-  }, [schedule, checklist, successMetrics, healthTargets, restTargets, socialDone, weekNote, projects, archive, dayEnergyLevels]);
+  }, [schedule, checklist, successMetrics, healthTargets, restTargets, socialDone, weekNote, projects, archive, dayEnergyLevels, profile]);
 
   // Track last save time so we don't fight with our own saves
   const [lastSaveTime, setLastSaveTime] = useState(0);
 
   useEffect(() => {
     setLastSaveTime(Date.now());
-  }, [schedule, checklist, successMetrics, healthTargets, restTargets, socialDone, weekNote, projects, archive, dayEnergyLevels]);
+  }, [schedule, checklist, successMetrics, healthTargets, restTargets, socialDone, weekNote, projects, archive, dayEnergyLevels, profile]);
 
   // Real-time sync: poll Supabase every 5s + refresh on tab focus
   useEffect(() => {
@@ -1081,6 +1117,11 @@ export default function WeeklyPlanner() {
         }
         if (JSON.stringify(cloudData.dayEnergyLevels) !== JSON.stringify(dayEnergyLevels)) {
           setDayEnergyLevels(cloudData.dayEnergyLevels);
+        }
+        if (cloudData.profile && JSON.stringify(cloudData.profile) !== JSON.stringify(profile)) {
+          const merged = { ...DEFAULT_PROFILE, ...cloudData.profile };
+          setProfile(merged);
+          saveProfile(merged);
         }
       }
     };

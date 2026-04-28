@@ -59,12 +59,6 @@ const SLOT_START = {
   "1–3pm": 13, "3–5pm": 15, "5–7pm": 17, "7–9pm": 19,
 };
 
-const WEEKLY_TARGETS_BASE = [
-  { mode: "making",  min: 2, label: "2–3 Making blocks" },
-  { mode: "comms",   min: 2, label: "2 Comms & Admin"   },
-  { mode: "growth",  min: 1, label: "1 Growth"          },
-  { mode: "systems", min: 1, label: "1 Systems"         },
-];
 
 const HEALTH_TARGETS = [
   { key: "psychoanalysis", label: "Psychoanalysis" },

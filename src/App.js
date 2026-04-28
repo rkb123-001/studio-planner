@@ -255,12 +255,50 @@ const DEFAULT_PROFILE = {
   plannerTitle: "Practice Planner",
   scheduleAround: "office shifts",
   modeIntensity: {
-    growth: 4,    // 1=low, 4=very high
+    growth: 4,
     comms: 3,
     systems: 2,
     making: 1,
   },
-  restRatio: 1.0,  // 1.0 = 1:1 (1 hour rest per active hour). Range: 0.3 to 2.0
+  restRatio: 1.0,
+  // Mode descriptions — what each type of work involves for the user
+  modeDescriptions: {
+    making: "casting, wax work, fabrication",
+    comms: "emails, invoices, order tracking",
+    growth: "content, outreach, press, site",
+    systems: "workflows, pricing, proposals",
+  },
+  // Weekly targets — minimum blocks of each type per week
+  weeklyTargets: {
+    making: 2,
+    comms: 2,
+    growth: 1,
+    systems: 1,
+  },
+  // Fine art / protected practice — customisable terminology
+  protectedPractice: {
+    enabled: true,
+    label: "Fine art practice",
+    warningText: "No making blocks this week. At least one should go to fine art practice, not commissions.",
+  },
+  // Health goals — fully customisable list
+  healthGoals: ["Psychoanalysis", "Acupuncture", "Gym"],
+  // Social target
+  socialGoal: "1 meaningful connection this week",
+  // Week evaluation metrics
+  weekEvaluation: [
+    "Stayed within capacity",
+    "Avoided overload",
+    "Completed at least one meaningful task",
+    "Progressed a fine art project",
+  ],
+  // Weekly checklist
+  weeklyChecklist: [
+    "Client comms up to date",
+    "Orders progressed",
+    "1 visibility action",
+    "1 systems improvement",
+  ],
 };
 
 const loadProfile = () => {
@@ -766,6 +804,104 @@ function ProfileEditScreen({ profile, onSave, onCancel }) {
           </div>
         </div>
 
+        {/* What each mode means to you */}
+        <p style={{ ...sml, marginBottom: "12px", marginTop: "32px" }}>What each work type means to you</p>
+        {[
+          { key: "making", label: "Making" },
+          { key: "comms", label: "Comms & Admin" },
+          { key: "growth", label: "Growth" },
+          { key: "systems", label: "Systems" },
+        ].map(m => (
+          <div key={m.key} style={{ marginBottom: "10px" }}>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "4px" }}>{m.label}</p>
+            <input value={editProfile.modeDescriptions?.[m.key] || ""} onChange={(e) => setEditProfile({ ...editProfile, modeDescriptions: { ...editProfile.modeDescriptions, [m.key]: e.target.value } })} style={inputAuth} placeholder={`What does ${m.label.toLowerCase()} involve for you?`} />
+          </div>
+        ))}
+
+        {/* Weekly targets */}
+        <p style={{ ...sml, marginBottom: "12px", marginTop: "24px" }}>Weekly minimum blocks</p>
+        <p style={{ fontFamily: TNR, fontSize: "11px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
+          How many blocks of each type per week?
+        </p>
+        {[
+          { key: "making", label: "Making" },
+          { key: "comms", label: "Comms & Admin" },
+          { key: "growth", label: "Growth" },
+          { key: "systems", label: "Systems" },
+        ].map(m => (
+          <div key={m.key} style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", flex: 1 }}>{m.label}</span>
+            <div style={{ display: "flex", gap: "4px" }}>
+              {[0, 1, 2, 3, 4, 5].map(n => (
+                <span key={n} onClick={() => setEditProfile({ ...editProfile, weeklyTargets: { ...editProfile.weeklyTargets, [m.key]: n } })}
+                  style={{
+                    fontFamily: TNR, fontSize: "12px",
+                    padding: "4px 10px",
+                    border: `1px solid ${editProfile.weeklyTargets?.[m.key] === n ? LINK_BLUE : "#ddd"}`,
+                    color: editProfile.weeklyTargets?.[m.key] === n ? LINK_BLUE : "#888",
+                    cursor: "pointer",
+                  }}>{n}</span>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {/* Protected practice */}
+        <p style={{ ...sml, marginBottom: "12px", marginTop: "24px" }}>Protected practice</p>
+        <div style={{ marginBottom: "10px", display: "flex", alignItems: "center", gap: "10px" }}>
+          <input type="checkbox" checked={editProfile.protectedPractice?.enabled ?? true} onChange={(e) => setEditProfile({ ...editProfile, protectedPractice: { ...editProfile.protectedPractice, enabled: e.target.checked } })} />
+          <span style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a" }}>Enable protected practice tracking</span>
+        </div>
+        {(editProfile.protectedPractice?.enabled ?? true) && (
+          <>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "4px", marginTop: "8px" }}>What you call this practice</p>
+            <input value={editProfile.protectedPractice?.label || ""} onChange={(e) => setEditProfile({ ...editProfile, protectedPractice: { ...editProfile.protectedPractice, label: e.target.value } })} style={inputAuth} placeholder="e.g. Fine art practice, Personal projects" />
+            
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "4px" }}>Warning shown when not scheduled</p>
+            <textarea value={editProfile.protectedPractice?.warningText || ""} onChange={(e) => setEditProfile({ ...editProfile, protectedPractice: { ...editProfile.protectedPractice, warningText: e.target.value } })} style={{ ...inputAuth, minHeight: "60px", resize: "vertical" }} placeholder="Custom warning message" />
+          </>
+        )}
+
+        {/* Health goals */}
+        <p style={{ ...sml, marginBottom: "12px", marginTop: "24px" }}>Health goals</p>
+        <p style={{ fontFamily: TNR, fontSize: "11px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
+          What health practices do you want to track? One per line.
+        </p>
+        <textarea 
+          value={(editProfile.healthGoals || []).join("\n")}
+          onChange={(e) => setEditProfile({ ...editProfile, healthGoals: e.target.value.split("\n").filter(l => l.trim()) })}
+          style={{ ...inputAuth, minHeight: "80px", resize: "vertical" }}
+          placeholder="Psychoanalysis&#10;Acupuncture&#10;Gym"
+        />
+
+        {/* Social goal */}
+        <p style={{ ...sml, marginBottom: "8px", marginTop: "16px" }}>Social goal</p>
+        <input value={editProfile.socialGoal || ""} onChange={(e) => setEditProfile({ ...editProfile, socialGoal: e.target.value })} style={inputAuth} placeholder="e.g. 1 meaningful connection this week" />
+
+        {/* Week evaluation */}
+        <p style={{ ...sml, marginBottom: "12px", marginTop: "16px" }}>Week evaluation</p>
+        <p style={{ fontFamily: TNR, fontSize: "11px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
+          What does a successful week look like? One item per line.
+        </p>
+        <textarea 
+          value={(editProfile.weekEvaluation || []).join("\n")}
+          onChange={(e) => setEditProfile({ ...editProfile, weekEvaluation: e.target.value.split("\n").filter(l => l.trim()) })}
+          style={{ ...inputAuth, minHeight: "100px", resize: "vertical" }}
+          placeholder="Stayed within capacity&#10;Avoided overload&#10;Completed at least one meaningful task"
+        />
+
+        {/* Weekly checklist */}
+        <p style={{ ...sml, marginBottom: "12px", marginTop: "16px" }}>Weekly checklist</p>
+        <p style={{ fontFamily: TNR, fontSize: "11px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
+          Recurring weekly tasks. One per line.
+        </p>
+        <textarea 
+          value={(editProfile.weeklyChecklist || []).join("\n")}
+          onChange={(e) => setEditProfile({ ...editProfile, weeklyChecklist: e.target.value.split("\n").filter(l => l.trim()) })}
+          style={{ ...inputAuth, minHeight: "100px", resize: "vertical" }}
+          placeholder="Client comms up to date&#10;Orders progressed&#10;1 visibility action"
+        />
+
         <div style={{ marginTop: "40px", display: "flex", gap: "16px", justifyContent: "center" }}>
           <span onClick={() => onSave(editProfile)} style={{ ...boxBtn(true), padding: "8px 24px", fontSize: "14px" }}>
             Save changes
@@ -950,7 +1086,13 @@ export default function WeeklyPlanner() {
 
   const today = getToday();
 
-  const WEEKLY_TARGETS = WEEKLY_TARGETS_BASE.map(t => ({ ...t }));
+  // Build weekly targets from profile
+  const WEEKLY_TARGETS = [
+    { mode: "making",  min: profile.weeklyTargets?.making  ?? 2, label: `${profile.weeklyTargets?.making  ?? 2} Making blocks` },
+    { mode: "comms",   min: profile.weeklyTargets?.comms   ?? 2, label: `${profile.weeklyTargets?.comms   ?? 2} Comms & Admin` },
+    { mode: "growth",  min: profile.weeklyTargets?.growth  ?? 1, label: `${profile.weeklyTargets?.growth  ?? 1} Growth` },
+    { mode: "systems", min: profile.weeklyTargets?.systems ?? 1, label: `${profile.weeklyTargets?.systems ?? 1} Systems` },
+  ];
 
   const progress = WEEKLY_TARGETS.map(t => ({ ...t, current: countBlocks(t.mode), met: countBlocks(t.mode) >= t.min }));
 
@@ -1229,11 +1371,11 @@ export default function WeeklyPlanner() {
             {p.dueMonth || "—"}
           </span>
           <span style={{ flex: 1, display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
-            {p.isProtectedFineArt && <span style={{ fontFamily: TNR, fontSize: "11px", color: "#e87a2a" }}>[protected]</span>}
-            {p.isFineArt && !p.isProtectedFineArt && <span style={{ fontFamily: TNR, fontSize: "11px", color: "#e87a2a" }}>[fine art]</span>}
-            <span style={{ fontFamily: TNR, fontSize: "15px", color: p.title ? (p.isFineArt ? "#e87a2a" : "#1a1a1a") : "#888",
+            {p.isProtectedFineArt && <span style={{ fontFamily: TNR, fontSize: "11px", color: "#d63031" }}>[protected]</span>}
+            {p.isFineArt && !p.isProtectedFineArt && <span style={{ fontFamily: TNR, fontSize: "11px", color: "#d63031" }}>[fine art]</span>}
+            <span style={{ fontFamily: TNR, fontSize: "15px", color: p.title ? (p.isFineArt ? "#d63031" : "#1a1a1a") : "#888",
               textDecoration: p.title ? "underline" : "none", textUnderlineOffset: "2px",
-              textDecorationColor: p.isFineArt ? "#e87a2a" : "#1a1a1a",
+              textDecorationColor: p.isFineArt ? "#d63031" : "#1a1a1a",
             }}>{p.title || "Untitled goal"}</span>
             {p.nextAction && <span style={{ fontFamily: TNR, fontSize: "12px", color: "#888" }}>→ {p.nextAction.slice(0, 40)}{p.nextAction.length > 40 ? "…" : ""}</span>}
           </span>
@@ -1255,19 +1397,19 @@ export default function WeeklyPlanner() {
             </div>
             {/* Next physical action — plain, no card */}
             <div style={{ marginBottom: "14px" }}>
-              <p style={{ ...sml, marginBottom: "5px", color: "#e87a2a" }}>Next physical action</p>
+              <p style={{ ...sml, marginBottom: "5px", color: "#d63031" }}>Next physical action</p>
               <input style={inp} value={p.nextAction} onChange={e => updateProject(p.id, "nextAction", e.target.value)} placeholder="e.g. open the wax file and cut one shape" />
               {!p.nextAction && <p style={{ fontFamily: TNR, fontSize: "12px", color: "#e8c070", marginTop: "5px" }}>Required — what is the very next physical action?</p>}
             </div>
             <div style={{ marginBottom: "12px" }}><p style={{ ...sml, marginBottom: "5px" }}>Notes</p><textarea value={p.notes} onChange={e => updateProject(p.id, "notes", e.target.value)} placeholder="Context, risks, reflections..." style={{ ...inp, minHeight: "52px", resize: "vertical", lineHeight: "1.6" }} /></div>
             <div style={{ display: "flex", gap: "20px", alignItems: "center", flexWrap: "wrap" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: "7px", cursor: "pointer", fontFamily: TNR, fontSize: "13px", color: p.isFineArt ? "#e87a2a" : "#888" }}>
-                <input type="checkbox" checked={p.isFineArt} onChange={e => updateProject(p.id, "isFineArt", e.target.checked)} style={{ accentColor: "#e87a2a" }} />
+              <label style={{ display: "flex", alignItems: "center", gap: "7px", cursor: "pointer", fontFamily: TNR, fontSize: "13px", color: p.isFineArt ? "#d63031" : "#888" }}>
+                <input type="checkbox" checked={p.isFineArt} onChange={e => updateProject(p.id, "isFineArt", e.target.checked)} style={{ accentColor: "#d63031" }} />
                 Fine art practice
               </label>
               {p.isFineArt && (
-                <label style={{ display: "flex", alignItems: "center", gap: "7px", cursor: "pointer", fontFamily: TNR, fontSize: "13px", color: p.isProtectedFineArt ? "#e87a2a" : "#888" }}>
-                  <input type="checkbox" checked={p.isProtectedFineArt} onChange={e => updateProject(p.id, "isProtectedFineArt", e.target.checked)} style={{ accentColor: "#e87a2a" }} />
+                <label style={{ display: "flex", alignItems: "center", gap: "7px", cursor: "pointer", fontFamily: TNR, fontSize: "13px", color: p.isProtectedFineArt ? "#d63031" : "#888" }}>
+                  <input type="checkbox" checked={p.isProtectedFineArt} onChange={e => updateProject(p.id, "isProtectedFineArt", e.target.checked)} style={{ accentColor: "#d63031" }} />
                   Protected (cannot be displaced)
                 </label>
               )}
@@ -1495,10 +1637,10 @@ export default function WeeklyPlanner() {
       {/* ════ GRID ════ */}
       {tab === "grid" && (
         <>
-          {fineArtWarning && (
+          {fineArtWarning && profile.protectedPractice?.enabled && (
             <div style={{ maxWidth: "600px", margin: "0 auto 24px", textAlign: "center" }}>
-              <p style={{ fontFamily: TNR, fontSize: "14px", color: "#e87a2a", margin: 0 }}>
-                — No making blocks this week. At least one should go to fine art practice, not commissions.
+              <p style={{ fontFamily: TNR, fontSize: "14px", color: "#d63031", margin: 0 }}>
+                — {profile.protectedPractice.warningText}
               </p>
             </div>
           )}
@@ -1542,7 +1684,7 @@ export default function WeeklyPlanner() {
           )}
 
           <div style={{ textAlign: "center", fontFamily: TNR, fontSize: "13px", color: "#bbb", marginBottom: "20px" }}>
-            {activeMode === "rest" ? REST_TYPES[restSubtype]?.sub : MODES[activeMode]?.sub}
+            {activeMode === "rest" ? REST_TYPES[restSubtype]?.sub : (profile.modeDescriptions?.[activeMode] || MODES[activeMode]?.sub)}
             {MODES[activeMode] && (
               <span style={{ marginLeft: "12px", color: "#ddd" }}>
                 friction: {MODES[activeMode].friction} · sensory: {MODES[activeMode].sensory}
@@ -1715,27 +1857,36 @@ export default function WeeklyPlanner() {
             );
           })}
 
-          {/* Fine art protected — plain row */}
-          <div style={{ display: "flex", alignItems: "baseline", gap: "20px", padding: "10px 0", borderBottom: "1px solid #f0f0f0" }}>
-            <span style={{ fontFamily: TNR, fontSize: "15px", color: "#1a1a1a", flex: 1 }}>Fine art practice (protected)</span>
-            <span style={{ fontFamily: TNR, fontSize: "13px", color: protectedFineArtMet ? "#e87a2a" : "#888" }}>
-              {protectedFineArtMet ? "active" : "not set"}
-            </span>
-          </div>
-          <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginTop: "6px", marginBottom: "36px" }}>
-            Flag a Quarterly goal as "Protected fine art" to activate.
-            </p>
+          {/* Protected practice — only show if enabled */}
+          {profile.protectedPractice?.enabled && (
+            <>
+              <div style={{ display: "flex", alignItems: "baseline", gap: "20px", padding: "10px 0", borderBottom: "1px solid #f0f0f0" }}>
+                <span style={{ fontFamily: TNR, fontSize: "15px", color: "#1a1a1a", flex: 1 }}>{profile.protectedPractice.label} (protected)</span>
+                <span style={{ fontFamily: TNR, fontSize: "13px", color: protectedFineArtMet ? "#d63031" : "#888" }}>
+                  {protectedFineArtMet ? "active" : "not set"}
+                </span>
+              </div>
+              <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginTop: "6px", marginBottom: "36px" }}>
+                Flag a Quarterly goal as "Protected" to activate.
+              </p>
+            </>
+          )}
 
           {/* Health */}
           <div style={{ marginBottom: "32px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
               <span style={sml}>Health</span>
-              <span style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb" }}>{healthTargets.filter(Boolean).length}/{HEALTH_TARGETS.length}</span>
+              <span style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb" }}>{healthTargets.filter(Boolean).length}/{(profile.healthGoals || []).length}</span>
             </div>
-            {HEALTH_TARGETS.map((ht, i) => (
-              <div key={ht.key} onClick={() => setHealthTargets(prev => prev.map((v, j) => j === i ? !v : v))}
+            {(profile.healthGoals || []).map((label, i) => (
+              <div key={i} onClick={() => setHealthTargets(prev => {
+                const next = [...prev];
+                while (next.length < (profile.healthGoals || []).length) next.push(false);
+                next[i] = !next[i];
+                return next;
+              })}
                 style={{ display: "flex", alignItems: "baseline", gap: "14px", padding: "8px 0", borderBottom: "1px solid #f0f0f0", cursor: "pointer" }}>
-                <span style={{ fontFamily: TNR, fontSize: "15px", color: healthTargets[i] ? "#888" : "#1a1a1a", textDecoration: healthTargets[i] ? "line-through" : "none" }}>{ht.label}</span>
+                <span style={{ fontFamily: TNR, fontSize: "15px", color: healthTargets[i] ? "#888" : "#1a1a1a", textDecoration: healthTargets[i] ? "line-through" : "none" }}>{label}</span>
               </div>
             ))}
           </div>
@@ -1787,7 +1938,7 @@ export default function WeeklyPlanner() {
             </div>
             <div onClick={() => setSocialDone(v => !v)}
               style={{ display: "flex", alignItems: "baseline", gap: "14px", padding: "8px 0", borderBottom: "1px solid #f0f0f0", cursor: "pointer" }}>
-              <span style={{ fontFamily: TNR, fontSize: "14px", color: socialDone ? "#888" : "#1a1a1a", textDecoration: socialDone ? "line-through" : "none" }}>1 meaningful connection this week</span>
+              <span style={{ fontFamily: TNR, fontSize: "14px", color: socialDone ? "#888" : "#1a1a1a", textDecoration: socialDone ? "line-through" : "none" }}>{profile.socialGoal || "1 meaningful connection this week"}</span>
             </div>
             {countSlots("social") > 3 && <p style={{ fontFamily: TNR, fontSize: "12px", color: "#c8a050", marginTop: "8px" }}>{countSlots("social")} social slots — protect some evenings.</p>}
           </div>
@@ -1796,12 +1947,17 @@ export default function WeeklyPlanner() {
           <div style={{ marginBottom: "32px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
               <span style={sml}>Week evaluation</span>
-              <span style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb" }}>{successMetrics.filter(Boolean).length}/{SUCCESS_METRICS.length}</span>
+              <span style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb" }}>{successMetrics.filter(Boolean).length}/{(profile.weekEvaluation || []).length}</span>
             </div>
-            {SUCCESS_METRICS.map((sm, i) => (
-              <div key={sm.key} onClick={() => setSuccessMetrics(prev => prev.map((v, j) => j === i ? !v : v))}
+            {(profile.weekEvaluation || []).map((label, i) => (
+              <div key={i} onClick={() => setSuccessMetrics(prev => {
+                const next = [...prev];
+                while (next.length < (profile.weekEvaluation || []).length) next.push(false);
+                next[i] = !next[i];
+                return next;
+              })}
                 style={{ display: "flex", alignItems: "baseline", gap: "14px", padding: "8px 0", borderBottom: "1px solid #f0f0f0", cursor: "pointer" }}>
-                <span style={{ fontFamily: TNR, fontSize: "15px", color: successMetrics[i] ? "#888" : "#1a1a1a", textDecoration: successMetrics[i] ? "line-through" : "none" }}>{sm.label}</span>
+                <span style={{ fontFamily: TNR, fontSize: "15px", color: successMetrics[i] ? "#888" : "#1a1a1a", textDecoration: successMetrics[i] ? "line-through" : "none" }}>{label}</span>
               </div>
             ))}
           </div>
@@ -1810,10 +1966,15 @@ export default function WeeklyPlanner() {
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
               <span style={sml}>Checklist</span>
-              <span style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb" }}>{checklist.filter(Boolean).length}/{CHECKLIST.length}</span>
+              <span style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb" }}>{checklist.filter(Boolean).length}/{(profile.weeklyChecklist || []).length}</span>
             </div>
-            {CHECKLIST.map((item, i) => (
-              <div key={i} onClick={() => setChecklist(prev => prev.map((v, j) => j === i ? !v : v))}
+            {(profile.weeklyChecklist || []).map((item, i) => (
+              <div key={i} onClick={() => setChecklist(prev => {
+                const next = [...prev];
+                while (next.length < (profile.weeklyChecklist || []).length) next.push(false);
+                next[i] = !next[i];
+                return next;
+              })}
                 style={{ display: "flex", alignItems: "baseline", gap: "14px", padding: "8px 0", borderBottom: "1px solid #f0f0f0", cursor: "pointer" }}>
                 <span style={{ fontFamily: TNR, fontSize: "15px", color: checklist[i] ? "#888" : "#1a1a1a", textDecoration: checklist[i] ? "line-through" : "none" }}>{item}</span>
               </div>
@@ -1900,7 +2061,7 @@ export default function WeeklyPlanner() {
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "8px" }}>
                               <span style={{
                                 fontFamily: TNR, fontSize: "14px",
-                                color: p.isFineArt ? "#e87a2a" : LINK_BLUE,
+                                color: p.isFineArt ? "#d63031" : LINK_BLUE,
                                 textDecoration: "underline", textUnderlineOffset: "2px",
                               }}>{p.title || "Untitled"}</span>
                               <span style={{ fontFamily: TNR, fontSize: "11px", color: sc, flexShrink: 0 }}>{p.progress}%</span>

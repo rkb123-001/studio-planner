@@ -609,6 +609,7 @@ function AuthScreen({ onSuccess }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
+  const [consentGiven, setConsentGiven] = useState(false);
   const [profile, setProfile] = useState(DEFAULT_PROFILE);
 
   const handleLogin = async () => {
@@ -630,6 +631,10 @@ function AuthScreen({ onSuccess }) {
     }
     if (password.length < 6) {
       setError("Password must be at least 6 characters");
+      return;
+    }
+    if (!consentGiven) {
+      setError("Please consent to data usage to continue");
       return;
     }
     setMode("profile");
@@ -761,10 +766,42 @@ function AuthScreen({ onSuccess }) {
         {(mode === "login" || mode === "signup") && (
           <>
             <p style={{ ...sml, marginBottom: "8px" }}>Email</p>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputAuth} placeholder="you@email.com" />
+            <input 
+              type="email" 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)} 
+              style={inputAuth} 
+              placeholder="you@email.com"
+              autoComplete={mode === "login" ? "email" : "username"}
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck="false"
+            />
             
             <p style={{ ...sml, marginBottom: "8px", marginTop: "8px" }}>Password</p>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={inputAuth} placeholder="••••••••" />
+            <input 
+              type="password" 
+              value={password} 
+              onChange={(e) => setPassword(e.target.value)} 
+              style={inputAuth} 
+              placeholder="••••••••"
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
+            />
+            
+            {mode === "signup" && (
+              <div style={{ marginTop: "12px", marginBottom: "8px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                <input 
+                  type="checkbox" 
+                  checked={consentGiven} 
+                  onChange={(e) => setConsentGiven(e.target.checked)}
+                  style={{ marginTop: "4px", cursor: "pointer", flexShrink: 0 }}
+                  id="consent-checkbox"
+                />
+                <label htmlFor="consent-checkbox" style={{ fontFamily: TNR, fontSize: "12px", color: "#555", lineHeight: "1.5", cursor: "pointer" }}>
+                  I consent to my data being stored to provide this service. My planner data is saved securely and used only to sync my account across my devices. I can delete my account at any time.
+                </label>
+              </div>
+            )}
             
             {error && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b01904", marginTop: "8px", marginBottom: "16px" }}>{error}</p>}
             
@@ -796,10 +833,27 @@ function AuthScreen({ onSuccess }) {
         {mode === "forgot" && (
           <>
             <p style={{ ...sml, marginBottom: "8px" }}>Email</p>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputAuth} placeholder="you@email.com" />
+            <input 
+              type="email" 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)} 
+              style={inputAuth} 
+              placeholder="you@email.com"
+              autoComplete="email"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck="false"
+            />
             
             <p style={{ ...sml, marginBottom: "8px", marginTop: "8px" }}>New password</p>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={inputAuth} placeholder="At least 6 characters" />
+            <input 
+              type="password" 
+              value={password} 
+              onChange={(e) => setPassword(e.target.value)} 
+              style={inputAuth} 
+              placeholder="At least 6 characters"
+              autoComplete="new-password"
+            />
             
             {error && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b01904", marginTop: "8px", marginBottom: "16px" }}>{error}</p>}
             {resetSuccess && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#0fa97f", marginTop: "8px", marginBottom: "16px" }}>Password reset. Sign in with your new password.</p>}

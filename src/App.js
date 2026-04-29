@@ -59,7 +59,6 @@ const SLOT_START = {
   "1–3pm": 13, "3–5pm": 15, "5–7pm": 17, "7–9pm": 19,
 };
 
-
 const HEALTH_TARGETS = [
   { key: "psychoanalysis", label: "Psychoanalysis" },
   { key: "acupuncture",    label: "Acupuncture" },
@@ -262,12 +261,12 @@ const DEFAULT_PROFILE = {
     growth: "Growth",
     systems: "Systems",
   },
-  // Mode descriptions — what each type of work involves for the user
+  // Mode descriptions — what each type of work involves for the user (editable defaults)
   modeDescriptions: {
-    making: "",
-    comms: "",
-    growth: "",
-    systems: "",
+    making: "casting, wax work, fabrication",
+    comms: "emails, invoices, order tracking",
+    growth: "content, outreach, press",
+    systems: "workflows, pricing, organising",
   },
   // Weekly targets — minimum blocks of each type per week
   weeklyTargets: {
@@ -276,11 +275,11 @@ const DEFAULT_PROFILE = {
     growth: 1,
     systems: 1,
   },
-  // Fine art / protected practice — customisable terminology
+  // Fine art / protected practice — customisable terminology (editable defaults)
   protectedPractice: {
     enabled: true,
-    label: "",
-    warningText: "",
+    label: "Fine art practice",
+    warningText: "No making blocks this week. At least one should go to fine art practice, not commissions.",
   },
   // Health goals — fully customisable list
   healthGoals: ["Psychoanalysis", "Acupuncture", "Gym"],
@@ -401,6 +400,41 @@ const loginUser = async (email, password) => {
     USER_ID = user.id;
     
     return { user, token };
+  } catch (e) {
+    return { error: e.message };
+  }
+};
+
+const resetPassword = async (email, newPassword) => {
+  if (!USE_SUPABASE) return { error: "Supabase not configured" };
+  try {
+    // First check if the user exists
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/auth_users?email=eq.${encodeURIComponent(email)}`, {
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+      },
+    });
+    const users = await resp.json();
+    if (!users || users.length === 0) return { error: "No account found with that email" };
+    
+    // Update the password hash
+    const newHash = await hashPassword(newPassword);
+    const updateResp = await fetch(`${SUPABASE_URL}/rest/v1/auth_users?email=eq.${encodeURIComponent(email)}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+      },
+      body: JSON.stringify({ password_hash: newHash }),
+    });
+    
+    if (!updateResp.ok) {
+      return { error: "Could not reset password. Please try again." };
+    }
+    
+    return { success: true };
   } catch (e) {
     return { error: e.message };
   }
@@ -569,11 +603,12 @@ const defaultSchedule = () => {
 // ── Auth Screen ─────────────────────────────────────────────────────────────
 
 function AuthScreen({ onSuccess }) {
-  const [mode, setMode] = useState("login"); // "login" | "signup" | "profile"
+  const [mode, setMode] = useState("login"); // "login" | "signup" | "profile" | "targets" | "guide" | "forgot"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
   const [profile, setProfile] = useState(DEFAULT_PROFILE);
 
   const handleLogin = async () => {
@@ -644,7 +679,7 @@ function AuthScreen({ onSuccess }) {
     setMode("targets");
   };
 
-  const handleSignupComplete = async () => {
+  const handleProfileStep2 = () => {
     setError("");
     
     // Validate step 2 fields
@@ -665,7 +700,11 @@ function AuthScreen({ onSuccess }) {
       return;
     }
     
-    setLoading(true);
+    setMode("guide");
+  };
+
+  const handleSignupComplete = async () => {
+    setError(""); setLoading(true);
     const result = await registerUser(email, password, profile);
     setLoading(false);
     if (result.error) {
@@ -673,6 +712,27 @@ function AuthScreen({ onSuccess }) {
       setMode("signup");
     } else {
       onSuccess(profile);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    setError(""); setResetSuccess(false);
+    if (!email?.trim()) {
+      setError("Please enter your email");
+      return;
+    }
+    if (!password || password.length < 6) {
+      setError("New password must be at least 6 characters");
+      return;
+    }
+    setLoading(true);
+    const result = await resetPassword(email, password);
+    setLoading(false);
+    if (result.error) {
+      setError(result.error);
+    } else {
+      setResetSuccess(true);
+      setPassword("");
     }
   };
 
@@ -691,8 +751,10 @@ function AuthScreen({ onSuccess }) {
           <div style={{ fontSize: "16px", lineHeight: "2", color: "#1a1a1a" }}>
             {mode === "login" && <><div>Sign in to access</div><div>your planner.</div></>}
             {mode === "signup" && <><div>Create your account.</div></>}
-            {mode === "profile" && <><div>Tell us about yourself.</div><div style={{ fontSize: "12px", color: "#888", marginTop: "8px" }}>Step 1 of 2</div></>}
-            {mode === "targets" && <><div>Set your targets.</div><div style={{ fontSize: "12px", color: "#888", marginTop: "8px" }}>Step 2 of 2</div></>}
+            {mode === "forgot" && <><div>Reset your password.</div></>}
+            {mode === "profile" && <><div>Tell us about yourself.</div><div style={{ fontSize: "12px", color: "#888", marginTop: "8px" }}>Step 1 of 3</div></>}
+            {mode === "targets" && <><div>Set your targets.</div><div style={{ fontSize: "12px", color: "#888", marginTop: "8px" }}>Step 2 of 3</div></>}
+            {mode === "guide" && <><div>How it works.</div><div style={{ fontSize: "12px", color: "#888", marginTop: "8px" }}>Step 3 of 3</div></>}
           </div>
         </div>
 
@@ -718,6 +780,39 @@ function AuthScreen({ onSuccess }) {
                 style={{ ...linkStyle, fontSize: "13px" }}>
                 {mode === "login" ? "Create an account" : "Already have an account? Sign in"}
               </span>
+            </div>
+            
+            {mode === "login" && (
+              <div style={{ textAlign: "center", marginTop: "16px" }}>
+                <span onClick={() => { setMode("forgot"); setError(""); setPassword(""); }}
+                  style={{ ...linkStyle, fontSize: "13px", color: "#888", textDecorationColor: "#bbb" }}>
+                  Forgot password?
+                </span>
+              </div>
+            )}
+          </>
+        )}
+
+        {mode === "forgot" && (
+          <>
+            <p style={{ ...sml, marginBottom: "8px" }}>Email</p>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputAuth} placeholder="you@email.com" />
+            
+            <p style={{ ...sml, marginBottom: "8px", marginTop: "8px" }}>New password</p>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={inputAuth} placeholder="At least 6 characters" />
+            
+            {error && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b01904", marginTop: "8px", marginBottom: "16px" }}>{error}</p>}
+            {resetSuccess && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#0fa97f", marginTop: "8px", marginBottom: "16px" }}>Password reset. Sign in with your new password.</p>}
+            
+            <div style={{ marginTop: "24px", textAlign: "center" }}>
+              <span onClick={!loading ? handleResetPassword : undefined}
+                style={{ ...boxBtn(true), padding: "10px 32px", fontSize: "15px", display: "inline-block" }}>
+                {loading ? "..." : "Reset password"}
+              </span>
+            </div>
+            
+            <div style={{ textAlign: "center", marginTop: "24px" }}>
+              <span onClick={() => { setMode("login"); setError(""); setResetSuccess(false); }} style={{ ...linkStyle, fontSize: "13px" }}>← Back to sign in</span>
             </div>
           </>
         )}
@@ -924,6 +1019,84 @@ function AuthScreen({ onSuccess }) {
             {error && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b01904", marginTop: "8px" }}>{error}</p>}
             
             <div style={{ marginTop: "32px", textAlign: "center" }}>
+              <span onClick={handleProfileStep2}
+                style={{ ...boxBtn(true), padding: "10px 32px", fontSize: "15px", display: "inline-block" }}>
+                Continue
+              </span>
+            </div>
+            
+            <div style={{ textAlign: "center", marginTop: "20px" }}>
+              <span onClick={() => setMode("profile")} style={{ ...linkStyle, fontSize: "13px" }}>← Back</span>
+            </div>
+          </>
+        )}
+
+        {mode === "guide" && (
+          <>
+            <div style={{ fontFamily: TNR, fontSize: "14px", color: "#1a1a1a", lineHeight: "1.7" }}>
+              <p style={{ marginTop: 0, marginBottom: "20px", color: "#888", fontSize: "13px" }}>
+                A quick guide to using your planner.
+              </p>
+
+              <p style={{ ...sml, marginBottom: "8px", marginTop: "20px" }}>The grid</p>
+              <p style={{ marginBottom: "16px" }}>
+                The grid is your week, split into 2-hour blocks from 7am to 9pm. Tap a block to schedule it. Tap again to clear it. Pick a work type from the row above the grid before tapping. Block colour shows the executive demand: deeper blue means harder focus.
+              </p>
+
+              <p style={{ ...sml, marginBottom: "8px", marginTop: "20px" }}>Energy levels</p>
+              <p style={{ marginBottom: "16px" }}>
+                Each day has an energy level (high, medium, low). Tap the H/M/L letter under each day to change it. Different work types cost different amounts of energy. The number under each day (e.g. "8/5") shows how much you've scheduled vs your day's budget. Red means you're over.
+              </p>
+
+              <p style={{ ...sml, marginBottom: "8px", marginTop: "20px" }}>Balance</p>
+              <p style={{ marginBottom: "16px" }}>
+                Each day shows a colour: green means balanced, red means under-rested, default means in between. This is based on your rest ratio — how much rest you need per active hour. You can change your rest ratio anytime in Edit Profile.
+              </p>
+
+              <p style={{ ...sml, marginBottom: "8px", marginTop: "20px" }}>Targets page</p>
+              <p style={{ marginBottom: "16px" }}>
+                See your weekly minimums (Making, Comms, Growth, Systems), your health goals, your social target, and your daily balance breakdown. Tick things off as you complete them.
+              </p>
+
+              <p style={{ ...sml, marginBottom: "8px", marginTop: "20px" }}>Quarterly</p>
+              <p style={{ marginBottom: "16px" }}>
+                Add bigger projects with horizons (now / next / later). Mark a project as "Protected" to track time for your protected practice — you'll be reminded if you don't schedule it.
+              </p>
+
+              <p style={{ ...sml, marginBottom: "8px", marginTop: "20px" }}>Tasks</p>
+              <p style={{ marginBottom: "16px" }}>
+                Drop in tasks one at a time. They auto-categorise by keywords into Making, Comms, Growth, Systems, or Other.
+              </p>
+
+              <p style={{ ...sml, marginBottom: "8px", marginTop: "20px" }}>Plan</p>
+              <p style={{ marginBottom: "16px" }}>
+                Export your scheduled blocks as a .ics calendar file. Import to Google Calendar, Apple Calendar, or Outlook.
+              </p>
+
+              <p style={{ ...sml, marginBottom: "8px", marginTop: "20px" }}>Archive</p>
+              <p style={{ marginBottom: "16px" }}>
+                Save weeks for later reference. Useful for spotting patterns over time.
+              </p>
+
+              <p style={{ ...sml, marginBottom: "8px", marginTop: "20px" }}>Feeling stuck?</p>
+              <p style={{ marginBottom: "16px" }}>
+                If you don't know what to do, tap "Feeling stuck?" at the top — it gives you a small, low-friction next action.
+              </p>
+
+              <p style={{ ...sml, marginBottom: "8px", marginTop: "20px" }}>Sync</p>
+              <p style={{ marginBottom: "16px" }}>
+                Your planner syncs across all your devices automatically. Sign in with the same email anywhere to access it.
+              </p>
+
+              <p style={{ ...sml, marginBottom: "8px", marginTop: "20px" }}>Edit anytime</p>
+              <p style={{ marginBottom: "16px" }}>
+                Everything you set up is editable later via "Edit profile" at the top — including your work type names, descriptions, weekly targets, health goals, and warning messages.
+              </p>
+            </div>
+
+            {error && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b01904", marginTop: "8px" }}>{error}</p>}
+            
+            <div style={{ marginTop: "32px", textAlign: "center" }}>
               <span onClick={!loading ? handleSignupComplete : undefined}
                 style={{ ...boxBtn(true), padding: "10px 32px", fontSize: "15px", display: "inline-block" }}>
                 {loading ? "..." : "Create account"}
@@ -931,7 +1104,7 @@ function AuthScreen({ onSuccess }) {
             </div>
             
             <div style={{ textAlign: "center", marginTop: "20px" }}>
-              <span onClick={() => setMode("profile")} style={{ ...linkStyle, fontSize: "13px" }}>← Back</span>
+              <span onClick={() => setMode("targets")} style={{ ...linkStyle, fontSize: "13px" }}>← Back</span>
             </div>
           </>
         )}
@@ -1815,7 +1988,7 @@ export default function WeeklyPlanner() {
                   </div>
                 )}
                 <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
-                  <span onClick={() => { stuckReset(); setTab("grid"); }} style={{ ...linkStyle, fontSize: "14px" }}>Go to grid ↗</span>
+                  <span onClick={() => { stuckReset(); setTab("grid"); }} style={{ ...linkStyle, fontSize: "14px" }}>Go to grid</span>
                   <span onClick={stuckReset} style={{ fontFamily: TNR, fontSize: "13px", color: "#888", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px", alignSelf: "center" }}>dismiss</span>
                 </div>
               </>
@@ -2116,7 +2289,7 @@ export default function WeeklyPlanner() {
             </p>
             <span onClick={!isExporting ? exportToCalendar : undefined}
               style={{ ...linkStyle, fontSize: "15px", color: isExporting ? "#bbb" : LINK_BLUE, textDecorationColor: isExporting ? "#bbb" : LINK_BLUE, cursor: isExporting ? "default" : "pointer" }}>
-              {isExporting ? "Generating..." : "Download calendar file ↓"}
+              {isExporting ? "Generating..." : "Download calendar file"}
             </span>
             {calStatus === "success" && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#0fa97f", marginTop: "10px" }}>File downloaded. Open it to import to your calendar.</p>}
             {calStatus === "error"   && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b01904", marginTop: "10px" }}>Export failed. Try again.</p>}
@@ -2602,7 +2775,7 @@ export default function WeeklyPlanner() {
           <div style={{ marginBottom: "44px", paddingTop: "28px", borderTop: "1px solid #f0f0f0" }}>
             <p style={{ ...sml, marginBottom: "8px" }}>Archive this week</p>
             <p style={{ fontFamily: TNR, fontSize: "13px", color: "#bbb", marginBottom: "14px", lineHeight: "1.7" }}>Save a snapshot of this week's grid, targets, and notes.</p>
-            <span onClick={saveWeek} style={{ ...linkStyle, fontSize: "15px" }}>Save week ↗</span>
+            <span onClick={saveWeek} style={{ ...linkStyle, fontSize: "15px" }}>Save week</span>
           </div>
           <div>
             <p style={{ ...sml, marginBottom: "8px" }}>Install as app</p>
@@ -2638,7 +2811,7 @@ export default function WeeklyPlanner() {
                         <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888", minWidth: "56px" }}>{weekLabel}</span>
                         <span style={{ flex: 1, textAlign: "center" }}>
                           <span style={{ ...linkStyle, fontSize: "15px" }}>
-                            Week summary {isOpen ? "↑" : "↗"}
+                            Week summary {isOpen ? "−" : "+"}
                           </span>
                         </span>
                         <span style={{ display: "inline-flex", alignItems: "center", gap: "10px", minWidth: "120px", justifyContent: "flex-end" }}>

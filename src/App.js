@@ -59,6 +59,12 @@ const SLOT_START = {
   "1–3pm": 13, "3–5pm": 15, "5–7pm": 17, "7–9pm": 19,
 };
 
+const WEEKLY_TARGETS_BASE = [
+  { mode: "making",  min: 2, label: "2–3 Making blocks" },
+  { mode: "comms",   min: 2, label: "2 Comms & Admin"   },
+  { mode: "growth",  min: 1, label: "1 Growth"          },
+  { mode: "systems", min: 1, label: "1 Systems"         },
+];
 
 const HEALTH_TARGETS = [
   { key: "psychoanalysis", label: "Psychoanalysis" },
@@ -153,7 +159,7 @@ const Q_CATEGORIES = [
 const Q_STATUSES = [
   { key: "on-track",    label: "On track",    color: "#7a9e96" },
   { key: "at-risk",     label: "At risk",     color: "#e8c070" },
-  { key: "behind",      label: "Behind",      color: "#b88686" },
+  { key: "behind",      label: "Behind",      color: "#b01904" },
   { key: "done",        label: "Done",        color: "#a8b87a" },
   { key: "not-started", label: "Not started", color: "#cccccc" },
 ];
@@ -255,6 +261,13 @@ const DEFAULT_PROFILE = {
     making: 1,
   },
   restRatio: 1.0,
+  // Mode labels — what user wants to call each work type
+  modeLabels: {
+    making: "Making",
+    comms: "Comms & Admin",
+    growth: "Growth",
+    systems: "Systems",
+  },
   // Mode descriptions — what each type of work involves for the user
   modeDescriptions: {
     making: "",
@@ -593,10 +606,10 @@ function AuthScreen({ onSuccess }) {
     setMode("profile");
   };
 
-  const handleSignupComplete = async () => {
+  const handleProfileStep1 = () => {
     setError("");
     
-    // Validate required fields
+    // Validate step 1 fields
     if (!profile.name?.trim()) {
       setError("Please enter your name");
       return;
@@ -634,6 +647,30 @@ function AuthScreen({ onSuccess }) {
       return;
     }
     
+    setMode("targets");
+  };
+
+  const handleSignupComplete = async () => {
+    setError("");
+    
+    // Validate step 2 fields
+    if (!profile.healthGoals || profile.healthGoals.length === 0) {
+      setError("Please add at least one health goal");
+      return;
+    }
+    if (!profile.socialGoal?.trim()) {
+      setError("Please set your social goal");
+      return;
+    }
+    if (!profile.weekEvaluation || profile.weekEvaluation.length === 0) {
+      setError("Please add at least one week evaluation criterion");
+      return;
+    }
+    if (!profile.weeklyChecklist || profile.weeklyChecklist.length === 0) {
+      setError("Please add at least one checklist item");
+      return;
+    }
+    
     setLoading(true);
     const result = await registerUser(email, password, profile);
     setLoading(false);
@@ -660,7 +697,8 @@ function AuthScreen({ onSuccess }) {
           <div style={{ fontSize: "16px", lineHeight: "2", color: "#1a1a1a" }}>
             {mode === "login" && <><div>Sign in to access</div><div>your planner.</div></>}
             {mode === "signup" && <><div>Create your account.</div></>}
-            {mode === "profile" && <><div>Tell us about yourself.</div></>}
+            {mode === "profile" && <><div>Tell us about yourself.</div><div style={{ fontSize: "12px", color: "#888", marginTop: "8px" }}>Step 1 of 2</div></>}
+            {mode === "targets" && <><div>Set your targets.</div><div style={{ fontSize: "12px", color: "#888", marginTop: "8px" }}>Step 2 of 2</div></>}
           </div>
         </div>
 
@@ -672,7 +710,7 @@ function AuthScreen({ onSuccess }) {
             <p style={{ ...sml, marginBottom: "8px", marginTop: "8px" }}>Password</p>
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={inputAuth} placeholder="••••••••" />
             
-            {error && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b88686", marginTop: "8px", marginBottom: "16px" }}>{error}</p>}
+            {error && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b01904", marginTop: "8px", marginBottom: "16px" }}>{error}</p>}
             
             <div style={{ marginTop: "24px", textAlign: "center" }}>
               <span onClick={!loading ? (mode === "login" ? handleLogin : handleSignupContinue) : undefined}
@@ -762,19 +800,31 @@ function AuthScreen({ onSuccess }) {
             </div>
 
             {/* What each work type means */}
-            <p style={{ ...sml, marginBottom: "12px", marginTop: "32px" }}>What does each work type involve for you?</p>
+            <p style={{ ...sml, marginBottom: "12px", marginTop: "32px" }}>Customise your work types</p>
             <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "16px", lineHeight: "1.6" }}>
-              Describe what each category means in your specific practice.
+              You can rename each category and describe what it involves in your practice.
             </p>
             {[
-              { key: "making", label: "Making", placeholder: "e.g. casting, wax work, fabrication" },
-              { key: "comms", label: "Comms & Admin", placeholder: "e.g. emails, invoices, order tracking" },
-              { key: "growth", label: "Growth", placeholder: "e.g. content, outreach, press" },
-              { key: "systems", label: "Systems", placeholder: "e.g. workflows, pricing, organising" },
+              { key: "making", defaultLabel: "Making", placeholder: "e.g. casting, wax work, fabrication" },
+              { key: "comms", defaultLabel: "Comms & Admin", placeholder: "e.g. emails, invoices, order tracking" },
+              { key: "growth", defaultLabel: "Growth", placeholder: "e.g. content, outreach, press" },
+              { key: "systems", defaultLabel: "Systems", placeholder: "e.g. workflows, pricing, organising" },
             ].map(m => (
-              <div key={m.key} style={{ marginBottom: "10px" }}>
-                <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "4px" }}>{m.label}</p>
-                <input value={profile.modeDescriptions?.[m.key] || ""} onChange={(e) => setProfile({ ...profile, modeDescriptions: { ...profile.modeDescriptions, [m.key]: e.target.value } })} style={inputAuth} placeholder={m.placeholder} />
+              <div key={m.key} style={{ marginBottom: "16px", paddingBottom: "10px", borderBottom: "1px solid #f0f0f0" }}>
+                <p style={{ fontFamily: TNR, fontSize: "11px", color: "#aaa", marginBottom: "4px" }}>Name (default: {m.defaultLabel})</p>
+                <input 
+                  value={profile.modeLabels?.[m.key] ?? m.defaultLabel} 
+                  onChange={(e) => setProfile({ ...profile, modeLabels: { ...profile.modeLabels, [m.key]: e.target.value } })} 
+                  style={{ ...inputAuth, marginBottom: "6px" }} 
+                  placeholder={m.defaultLabel} 
+                />
+                <p style={{ fontFamily: TNR, fontSize: "11px", color: "#aaa", marginBottom: "4px" }}>What this involves for you</p>
+                <input 
+                  value={profile.modeDescriptions?.[m.key] || ""} 
+                  onChange={(e) => setProfile({ ...profile, modeDescriptions: { ...profile.modeDescriptions, [m.key]: e.target.value } })} 
+                  style={inputAuth} 
+                  placeholder={m.placeholder} 
+                />
               </div>
             ))}
 
@@ -789,7 +839,95 @@ function AuthScreen({ onSuccess }) {
             <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "4px" }}>Warning shown when no time is scheduled for this</p>
             <textarea value={profile.protectedPractice?.warningText || ""} onChange={(e) => setProfile({ ...profile, protectedPractice: { ...profile.protectedPractice, warningText: e.target.value, enabled: true } })} style={{ ...inputAuth, minHeight: "60px", resize: "vertical" }} placeholder="e.g. No making blocks this week. At least one should go to fine art practice, not commissions." />
             
-            {error && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b88686", marginTop: "8px" }}>{error}</p>}
+            {error && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b01904", marginTop: "8px" }}>{error}</p>}
+            
+            <div style={{ marginTop: "32px", textAlign: "center" }}>
+              <span onClick={handleProfileStep1}
+                style={{ ...boxBtn(true), padding: "10px 32px", fontSize: "15px", display: "inline-block" }}>
+                Continue →
+              </span>
+            </div>
+            
+            <div style={{ textAlign: "center", marginTop: "20px" }}>
+              <span onClick={() => setMode("signup")} style={{ ...linkStyle, fontSize: "13px" }}>← Back</span>
+            </div>
+          </>
+        )}
+
+        {mode === "targets" && (
+          <>
+            {/* Weekly targets */}
+            <p style={{ ...sml, marginBottom: "12px" }}>Weekly minimum blocks</p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "16px", lineHeight: "1.6" }}>
+              How many blocks of each type do you want to do per week?
+            </p>
+            {[
+              { key: "making", label: "Making" },
+              { key: "comms", label: "Comms & Admin" },
+              { key: "growth", label: "Growth" },
+              { key: "systems", label: "Systems" },
+            ].map(m => (
+              <div key={m.key} style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
+                <span style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", flex: 1 }}>{m.label}</span>
+                <div style={{ display: "flex", gap: "4px" }}>
+                  {[0, 1, 2, 3, 4, 5].map(n => (
+                    <span key={n} onClick={() => setProfile({ ...profile, weeklyTargets: { ...profile.weeklyTargets, [m.key]: n } })}
+                      style={{
+                        fontFamily: TNR, fontSize: "12px",
+                        padding: "4px 10px",
+                        border: `1px solid ${profile.weeklyTargets?.[m.key] === n ? LINK_BLUE : "#ddd"}`,
+                        color: profile.weeklyTargets?.[m.key] === n ? LINK_BLUE : "#888",
+                        cursor: "pointer",
+                      }}>{n}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            {/* Health goals */}
+            <p style={{ ...sml, marginBottom: "12px", marginTop: "24px" }}>Health goals</p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
+              What health practices do you want to track? One per line.
+            </p>
+            <textarea 
+              value={(profile.healthGoals || []).join("\n")}
+              onChange={(e) => setProfile({ ...profile, healthGoals: e.target.value.split("\n").filter(l => l.trim()) })}
+              style={{ ...inputAuth, minHeight: "80px", resize: "vertical" }}
+              placeholder="e.g.&#10;Therapy&#10;Yoga&#10;Walking"
+            />
+
+            {/* Social goal */}
+            <p style={{ ...sml, marginBottom: "8px", marginTop: "16px" }}>Social goal</p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
+              How much social interaction do you aim for?
+            </p>
+            <input value={profile.socialGoal || ""} onChange={(e) => setProfile({ ...profile, socialGoal: e.target.value })} style={inputAuth} placeholder="e.g. 1 meaningful connection this week" />
+
+            {/* Week evaluation */}
+            <p style={{ ...sml, marginBottom: "12px", marginTop: "16px" }}>Week evaluation</p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
+              What does a successful week look like for you? One item per line.
+            </p>
+            <textarea 
+              value={(profile.weekEvaluation || []).join("\n")}
+              onChange={(e) => setProfile({ ...profile, weekEvaluation: e.target.value.split("\n").filter(l => l.trim()) })}
+              style={{ ...inputAuth, minHeight: "100px", resize: "vertical" }}
+              placeholder="e.g.&#10;Stayed within capacity&#10;Avoided overload&#10;Completed at least one meaningful task"
+            />
+
+            {/* Weekly checklist */}
+            <p style={{ ...sml, marginBottom: "12px", marginTop: "16px" }}>Weekly checklist</p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
+              Recurring weekly tasks to tick off. One per line.
+            </p>
+            <textarea 
+              value={(profile.weeklyChecklist || []).join("\n")}
+              onChange={(e) => setProfile({ ...profile, weeklyChecklist: e.target.value.split("\n").filter(l => l.trim()) })}
+              style={{ ...inputAuth, minHeight: "100px", resize: "vertical" }}
+              placeholder="e.g.&#10;Client comms up to date&#10;Orders progressed&#10;1 visibility action"
+            />
+
+            {error && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b01904", marginTop: "8px" }}>{error}</p>}
             
             <div style={{ marginTop: "32px", textAlign: "center" }}>
               <span onClick={!loading ? handleSignupComplete : undefined}
@@ -799,7 +937,7 @@ function AuthScreen({ onSuccess }) {
             </div>
             
             <div style={{ textAlign: "center", marginTop: "20px" }}>
-              <span onClick={() => setMode("signup")} style={{ ...linkStyle, fontSize: "13px" }}>← Back</span>
+              <span onClick={() => setMode("profile")} style={{ ...linkStyle, fontSize: "13px" }}>← Back</span>
             </div>
           </>
         )}
@@ -893,16 +1031,31 @@ function ProfileEditScreen({ profile, onSave, onCancel }) {
         </div>
 
         {/* What each mode means to you */}
-        <p style={{ ...sml, marginBottom: "12px", marginTop: "32px" }}>What each work type means to you</p>
+        <p style={{ ...sml, marginBottom: "12px", marginTop: "32px" }}>Customise your work types</p>
+        <p style={{ fontFamily: TNR, fontSize: "11px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
+          Rename categories and describe what each involves for you.
+        </p>
         {[
-          { key: "making", label: "Making" },
-          { key: "comms", label: "Comms & Admin" },
-          { key: "growth", label: "Growth" },
-          { key: "systems", label: "Systems" },
+          { key: "making", defaultLabel: "Making" },
+          { key: "comms", defaultLabel: "Comms & Admin" },
+          { key: "growth", defaultLabel: "Growth" },
+          { key: "systems", defaultLabel: "Systems" },
         ].map(m => (
-          <div key={m.key} style={{ marginBottom: "10px" }}>
-            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "4px" }}>{m.label}</p>
-            <input value={editProfile.modeDescriptions?.[m.key] || ""} onChange={(e) => setEditProfile({ ...editProfile, modeDescriptions: { ...editProfile.modeDescriptions, [m.key]: e.target.value } })} style={inputAuth} placeholder={`What does ${m.label.toLowerCase()} involve for you?`} />
+          <div key={m.key} style={{ marginBottom: "16px", paddingBottom: "10px", borderBottom: "1px solid #f0f0f0" }}>
+            <p style={{ fontFamily: TNR, fontSize: "11px", color: "#aaa", marginBottom: "4px" }}>Name (default: {m.defaultLabel})</p>
+            <input 
+              value={editProfile.modeLabels?.[m.key] ?? m.defaultLabel} 
+              onChange={(e) => setEditProfile({ ...editProfile, modeLabels: { ...editProfile.modeLabels, [m.key]: e.target.value } })} 
+              style={{ ...inputAuth, marginBottom: "6px" }} 
+              placeholder={m.defaultLabel} 
+            />
+            <p style={{ fontFamily: TNR, fontSize: "11px", color: "#aaa", marginBottom: "4px" }}>What this involves for you</p>
+            <input 
+              value={editProfile.modeDescriptions?.[m.key] || ""} 
+              onChange={(e) => setEditProfile({ ...editProfile, modeDescriptions: { ...editProfile.modeDescriptions, [m.key]: e.target.value } })} 
+              style={inputAuth} 
+              placeholder={`What does ${m.defaultLabel.toLowerCase()} involve for you?`} 
+            />
           </div>
         ))}
 
@@ -1215,6 +1368,8 @@ export default function WeeklyPlanner() {
         .map(w => w.charAt(0).toUpperCase() + w.slice(1))
         .join(" ");
     }
+    // Use custom mode label if user has set one
+    if (profile.modeLabels?.[key]) return profile.modeLabels[key];
     return MODES[key]?.label || key;
   };
 
@@ -1313,19 +1468,22 @@ export default function WeeklyPlanner() {
         if (v === "rest") { rest++; return; }
         active++;
       });
-      const ratio = active === 0 ? (rest > 0 ? profile.restRatio : null) : rest / active;
-      // Balanced if rest/active ratio is at least 80% of the user's target
+      // Office shifts ALSO require energy and count toward total load
+      const totalLoad = active + office;
+      const ratio = totalLoad === 0 ? (rest > 0 ? profile.restRatio : null) : rest / totalLoad;
+      // Balanced if rest/load ratio is at least 80% of the user's target
       const balanced  = ratio !== null && ratio >= profile.restRatio * 0.8;
       // Overloaded if ratio is less than 40% of the user's target
-      const overloaded = active > 0 && (ratio === null || ratio < profile.restRatio * 0.4);
+      const overloaded = totalLoad > 0 && (ratio === null || ratio < profile.restRatio * 0.4);
       return { day: d, active, rest, office, ratio, balanced, overloaded };
     });
 
     let filled = 0, exposureBlocks = 0, makingBlocks = 0;
-    let restBlocks = 0, socialBlocks = 0, supportBlocks = 0;
+    let restBlocks = 0, socialBlocks = 0, supportBlocks = 0, officeBlocks = 0;
     DAYS.forEach(d => TIME_SLOTS.forEach(t => {
       const v = schedule[d][t];
-      if (!v || v === "office") return;
+      if (!v) return;
+      if (v === "office") { officeBlocks++; return; }
       filled++;
       if (v === "comms" || v === "growth") exposureBlocks++;
       if (v === "making") makingBlocks++;
@@ -1334,10 +1492,11 @@ export default function WeeklyPlanner() {
       if (v === "systems") supportBlocks++;
     }));
 
-    const activeDaysWithNoRest = dailyRatios.filter(r => r.active > 0 && r.rest === 0).length;
+    const activeDaysWithNoRest = dailyRatios.filter(r => (r.active + r.office) > 0 && r.rest === 0).length;
     const balancedDays  = dailyRatios.filter(r => r.balanced).length;
     const overloadedDays = dailyRatios.filter(r => r.overloaded).length;
-    const weeklyActive  = filled - restBlocks;
+    // Weekly load now includes office shifts
+    const weeklyActive  = (filled - restBlocks) + officeBlocks;
     const weeklyRatio   = weeklyActive === 0 ? profile.restRatio : restBlocks / weeklyActive;
 
     // Score is based on how close the weekly ratio is to user's target
@@ -1363,7 +1522,7 @@ export default function WeeklyPlanner() {
     else if (score < 45)  { label = "Light";           color = "#eef5ee"; textColor = "#7a9e96"; }
     else if (score <= 60) { label = "Well balanced";   color = "#eef5ee"; textColor = "#7a9e96"; }
     else if (score <= 76) { label = "Getting heavy";   color = "#fdf8ee"; textColor = "#c8a050"; }
-    else                  { label = "Over capacity";   color = "#fdf0ee"; textColor = "#b88686"; }
+    else                  { label = "Over capacity";   color = "#fdf0ee"; textColor = "#b01904"; }
 
     const flags = [];
     if (activeDaysWithNoRest >= 3) flags.push(`${activeDaysWithNoRest} active days have no rest scheduled.`);
@@ -1523,7 +1682,7 @@ export default function WeeklyPlanner() {
     const statusObj = Q_STATUSES.find(s => s.key === p.status) || Q_STATUSES[0];
     const isEditing = editingProject === p.id;
     const statusColor = {
-      "on-track": "#0fa97f", "at-risk": "#e8c070", "behind": "#ff3366",
+      "on-track": "#0fa97f", "at-risk": "#e8c070", "behind": "#b01904",
       "done": "#0fa97f", "not-started": "#888",
     }[p.status] || "#888";
     return (
@@ -1535,11 +1694,11 @@ export default function WeeklyPlanner() {
             {p.dueMonth || "—"}
           </span>
           <span style={{ flex: 1, display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
-            {p.isProtectedFineArt && <span style={{ fontFamily: TNR, fontSize: "11px", color: "#d63031" }}>[protected]</span>}
-            {p.isFineArt && !p.isProtectedFineArt && <span style={{ fontFamily: TNR, fontSize: "11px", color: "#d63031" }}>[fine art]</span>}
-            <span style={{ fontFamily: TNR, fontSize: "15px", color: p.title ? (p.isFineArt ? "#d63031" : "#1a1a1a") : "#888",
+            {p.isProtectedFineArt && <span style={{ fontFamily: TNR, fontSize: "11px", color: "#b01904" }}>[protected]</span>}
+            {p.isFineArt && !p.isProtectedFineArt && <span style={{ fontFamily: TNR, fontSize: "11px", color: "#b01904" }}>[fine art]</span>}
+            <span style={{ fontFamily: TNR, fontSize: "15px", color: p.title ? (p.isFineArt ? "#b01904" : "#1a1a1a") : "#888",
               textDecoration: p.title ? "underline" : "none", textUnderlineOffset: "2px",
-              textDecorationColor: p.isFineArt ? "#d63031" : "#1a1a1a",
+              textDecorationColor: p.isFineArt ? "#b01904" : "#1a1a1a",
             }}>{p.title || "Untitled goal"}</span>
             {p.nextAction && <span style={{ fontFamily: TNR, fontSize: "12px", color: "#888" }}>→ {p.nextAction.slice(0, 40)}{p.nextAction.length > 40 ? "…" : ""}</span>}
           </span>
@@ -1561,19 +1720,19 @@ export default function WeeklyPlanner() {
             </div>
             {/* Next physical action — plain, no card */}
             <div style={{ marginBottom: "14px" }}>
-              <p style={{ ...sml, marginBottom: "5px", color: "#d63031" }}>Next physical action</p>
+              <p style={{ ...sml, marginBottom: "5px", color: "#b01904" }}>Next physical action</p>
               <input style={inp} value={p.nextAction} onChange={e => updateProject(p.id, "nextAction", e.target.value)} placeholder="e.g. open the wax file and cut one shape" />
               {!p.nextAction && <p style={{ fontFamily: TNR, fontSize: "12px", color: "#e8c070", marginTop: "5px" }}>Required — what is the very next physical action?</p>}
             </div>
             <div style={{ marginBottom: "12px" }}><p style={{ ...sml, marginBottom: "5px" }}>Notes</p><textarea value={p.notes} onChange={e => updateProject(p.id, "notes", e.target.value)} placeholder="Context, risks, reflections..." style={{ ...inp, minHeight: "52px", resize: "vertical", lineHeight: "1.6" }} /></div>
             <div style={{ display: "flex", gap: "20px", alignItems: "center", flexWrap: "wrap" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: "7px", cursor: "pointer", fontFamily: TNR, fontSize: "13px", color: p.isFineArt ? "#d63031" : "#888" }}>
-                <input type="checkbox" checked={p.isFineArt} onChange={e => updateProject(p.id, "isFineArt", e.target.checked)} style={{ accentColor: "#d63031" }} />
+              <label style={{ display: "flex", alignItems: "center", gap: "7px", cursor: "pointer", fontFamily: TNR, fontSize: "13px", color: p.isFineArt ? "#b01904" : "#888" }}>
+                <input type="checkbox" checked={p.isFineArt} onChange={e => updateProject(p.id, "isFineArt", e.target.checked)} style={{ accentColor: "#b01904" }} />
                 Fine art practice
               </label>
               {p.isFineArt && (
-                <label style={{ display: "flex", alignItems: "center", gap: "7px", cursor: "pointer", fontFamily: TNR, fontSize: "13px", color: p.isProtectedFineArt ? "#d63031" : "#888" }}>
-                  <input type="checkbox" checked={p.isProtectedFineArt} onChange={e => updateProject(p.id, "isProtectedFineArt", e.target.checked)} style={{ accentColor: "#d63031" }} />
+                <label style={{ display: "flex", alignItems: "center", gap: "7px", cursor: "pointer", fontFamily: TNR, fontSize: "13px", color: p.isProtectedFineArt ? "#b01904" : "#888" }}>
+                  <input type="checkbox" checked={p.isProtectedFineArt} onChange={e => updateProject(p.id, "isProtectedFineArt", e.target.checked)} style={{ accentColor: "#b01904" }} />
                   Protected (cannot be displaced)
                 </label>
               )}
@@ -1715,7 +1874,7 @@ export default function WeeklyPlanner() {
           <div style={{ marginBottom: "40px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
               <p style={{ ...sml, margin: 0 }}>{today}</p>
-              <span style={{ fontFamily: TNR, fontSize: "13px", color: todayOver ? "#ff3366" : "#888" }}>
+              <span style={{ fontFamily: TNR, fontSize: "13px", color: todayOver ? "#b01904" : "#888" }}>
                 {todayEnergy} / {todayBudget} energy {todayOver ? "— over" : ""}
               </span>
             </div>
@@ -1803,7 +1962,7 @@ export default function WeeklyPlanner() {
         <>
           {fineArtWarning && profile.protectedPractice?.enabled && (
             <div style={{ maxWidth: "600px", margin: "0 auto 24px", textAlign: "center" }}>
-              <p style={{ fontFamily: TNR, fontSize: "14px", color: "#d63031", margin: 0 }}>
+              <p style={{ fontFamily: TNR, fontSize: "14px", color: "#b01904", margin: 0 }}>
                 — {profile.protectedPractice.warningText}
               </p>
             </div>
@@ -1867,6 +2026,12 @@ export default function WeeklyPlanner() {
                     const db = getDayBudget(d);
                     const over = de > db;
                     const currentLevel = dayEnergyLevels[d] || "medium";
+                    // Get this day's balance status from capacity calc
+                    const dayStatus = capacity.dailyRatios?.find(r => r.day === d);
+                    const isUnderRested = dayStatus?.overloaded;  // really out of balance
+                    const isBalanced = dayStatus?.balanced;       // close to target
+                    // Only color when truly overloaded or truly balanced; "close" stays neutral
+                    const dayColor = isUnderRested ? "#b01904" : isBalanced ? "#0fa97f" : "#1a1a1a";
                     // Cycle through H/M/L on click
                     const cycleEnergy = () => {
                       const next = currentLevel === "high" ? "medium" : currentLevel === "medium" ? "low" : "high";
@@ -1874,14 +2039,14 @@ export default function WeeklyPlanner() {
                     };
                     return (
                       <th key={d} style={{ padding: "0 2px 12px", textAlign: "center", fontWeight: "normal" }}>
-                        <div style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", marginBottom: "3px", fontWeight: "normal" }}>{d.charAt(0)}</div>
+                        <div style={{ fontFamily: TNR, fontSize: "13px", color: dayColor, marginBottom: "3px", fontWeight: "normal" }}>{d.charAt(0)}</div>
                         <div onClick={cycleEnergy} style={{ 
                           fontFamily: TNR, fontSize: "9px", 
                           color: "#888", cursor: "pointer", fontWeight: "normal",
                           textDecoration: "underline", textUnderlineOffset: "2px",
                           textDecorationColor: "#ddd",
                         }}>
-                          {currentLevel.charAt(0).toUpperCase()} · <span style={{ color: over ? "#b88686" : "#888" }}>{de}/{db}</span>
+                          {currentLevel.charAt(0).toUpperCase()} · <span style={{ color: isUnderRested ? "#b01904" : isBalanced ? "#0fa97f" : over ? "#b01904" : "#888" }}>{de}/{db}</span>
                         </div>
                       </th>
                     );
@@ -1960,7 +2125,7 @@ export default function WeeklyPlanner() {
               {isExporting ? "Generating..." : "Download calendar file ↓"}
             </span>
             {calStatus === "success" && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#0fa97f", marginTop: "10px" }}>File downloaded. Open it to import to your calendar.</p>}
-            {calStatus === "error"   && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#ff3366", marginTop: "10px" }}>Export failed. Try again.</p>}
+            {calStatus === "error"   && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b01904", marginTop: "10px" }}>Export failed. Try again.</p>}
             {calStatus === "empty"   && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#888", marginTop: "10px" }}>No exportable blocks found.</p>}
           </div>
         </>
@@ -2026,7 +2191,7 @@ export default function WeeklyPlanner() {
             <>
               <div style={{ display: "flex", alignItems: "baseline", gap: "20px", padding: "10px 0", borderBottom: "1px solid #f0f0f0" }}>
                 <span style={{ fontFamily: TNR, fontSize: "15px", color: "#1a1a1a", flex: 1 }}>{profile.protectedPractice.label} (protected)</span>
-                <span style={{ fontFamily: TNR, fontSize: "13px", color: protectedFineArtMet ? "#d63031" : "#888" }}>
+                <span style={{ fontFamily: TNR, fontSize: "13px", color: protectedFineArtMet ? "#b01904" : "#888" }}>
                   {protectedFineArtMet ? "active" : "not set"}
                 </span>
               </div>
@@ -2062,14 +2227,14 @@ export default function WeeklyPlanner() {
               <span style={{ fontFamily: TNR, fontSize: "12px", color: "#aaa" }}>aim {profile.restRatio.toFixed(1)}:1</span>
             </div>
             {capacity.dailyRatios.map(r => {
-              const hasAny = r.active > 0 || r.rest > 0;
+              const hasAny = r.active > 0 || r.rest > 0 || r.office > 0;
               const statusText = !hasAny ? "" : r.balanced ? "balanced" : r.overloaded ? "under-rested" : "close";
-              const statusColor = !hasAny ? "#ccc" : r.balanced ? "#0fa97f" : r.overloaded ? "#ff3366" : "#e8c070";
+              const statusColor = !hasAny ? "#ccc" : r.balanced ? "#0fa97f" : r.overloaded ? "#b01904" : "#888";
               return (
                 <div key={r.day} style={{ display: "flex", alignItems: "baseline", gap: "20px", padding: "8px 0", borderBottom: "1px solid #f0f0f0" }}>
                   <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888", width: "42px" }}>{r.day}</span>
                   <span style={{ fontFamily: TNR, fontSize: "14px", color: "#1a1a1a", flex: 1 }}>
-                    {hasAny ? `${r.active} active · ${r.rest} rest` : "—"}
+                    {hasAny ? `${r.active + r.office} active · ${r.rest} rest${r.office > 0 ? ` (incl ${r.office} ${getModeLabel("office").toLowerCase()})` : ""}` : "—"}
                   </span>
                   <span style={{ fontFamily: TNR, fontSize: "12px", color: statusColor }}>{statusText}</span>
                 </div>
@@ -2077,7 +2242,7 @@ export default function WeeklyPlanner() {
             })}
             <div style={{ display: "flex", gap: "20px", padding: "10px 0 0" }}>
               <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888" }}>{capacity.weeklyActive} active · {capacity.restBlocks} rest</span>
-              <span style={{ fontFamily: TNR, fontSize: "13px", color: capacity.weeklyRatio >= profile.restRatio * 0.8 ? "#0fa97f" : capacity.weeklyRatio < profile.restRatio * 0.4 ? "#ff3366" : "#e8c070" }}>
+              <span style={{ fontFamily: TNR, fontSize: "13px", color: capacity.weeklyRatio >= profile.restRatio * 0.8 ? "#0fa97f" : capacity.weeklyRatio < profile.restRatio * 0.4 ? "#b01904" : "#888" }}>
                 {capacity.weeklyActive === 0 ? "—" : `${Math.round(capacity.weeklyRatio * 100)}% rest coverage`}
               </span>
             </div>
@@ -2216,7 +2381,7 @@ export default function WeeklyPlanner() {
                       ? <p style={{ fontFamily: TNR, fontSize: "13px", color: "#aaa" }}>None.</p>
                       : hProjects.map(p => {
                         const sc = {
-                          "on-track": "#0fa97f", "at-risk": "#e8c070", "behind": "#ff3366",
+                          "on-track": "#0fa97f", "at-risk": "#e8c070", "behind": "#b01904",
                           "done": "#0fa97f", "not-started": "#888",
                         }[p.status] || "#888";
                         return (
@@ -2225,7 +2390,7 @@ export default function WeeklyPlanner() {
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "8px" }}>
                               <span style={{
                                 fontFamily: TNR, fontSize: "14px",
-                                color: p.isFineArt ? "#d63031" : LINK_BLUE,
+                                color: p.isFineArt ? "#b01904" : LINK_BLUE,
                                 textDecoration: "underline", textUnderlineOffset: "2px",
                               }}>{p.title || "Untitled"}</span>
                               <span style={{ fontFamily: TNR, fontSize: "11px", color: sc, flexShrink: 0 }}>{p.progress}%</span>
@@ -2470,7 +2635,7 @@ export default function WeeklyPlanner() {
                 <p style={{ ...sml, marginBottom: "20px", textAlign: "center" }}>{quarter}</p>
                 {weeks.map(w => {
                   const isOpen = expandedArchiveWeek === w.weekStart;
-                  const capColor = w.capacityScore <= 60 ? "#7a9e96" : w.capacityScore <= 76 ? "#c8a050" : "#b88686";
+                  const capColor = w.capacityScore <= 60 ? "#7a9e96" : w.capacityScore <= 76 ? "#c8a050" : "#b01904";
                   const weekLabel = new Date(w.weekStart).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
                   return (
                     <div key={w.weekStart} style={{ marginBottom: "2px" }}>

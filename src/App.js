@@ -59,6 +59,12 @@ const SLOT_START = {
   "1–3pm": 13, "3–5pm": 15, "5–7pm": 17, "7–9pm": 19,
 };
 
+const WEEKLY_TARGETS_BASE = [
+  { mode: "making",  min: 2, label: "2–3 Making blocks" },
+  { mode: "comms",   min: 2, label: "2 Comms & Admin"   },
+  { mode: "growth",  min: 1, label: "1 Growth"          },
+  { mode: "systems", min: 1, label: "1 Systems"         },
+];
 
 const HEALTH_TARGETS = [
   { key: "psychoanalysis", label: "Psychoanalysis" },
@@ -1789,11 +1795,11 @@ export default function WeeklyPlanner() {
           </div>
 
           {/* Per-day energy budget row — minimal Eilidh style */}
-          <div style={{ overflowX: "auto", marginBottom: "12px" }}>
-            <table style={{ borderCollapse: "collapse", width: "100%", minWidth: "600px", tableLayout: "fixed" }}>
+          <div style={{ marginBottom: "12px" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", tableLayout: "fixed" }}>
               <thead>
                 <tr>
-                  <th style={{ width: "52px" }}></th>
+                  <th style={{ width: "44px" }}></th>
                   {DAYS.map(d => {
                     const de = getDayEnergy(d);
                     const db = getDayBudget(d);
@@ -1805,15 +1811,15 @@ export default function WeeklyPlanner() {
                       setDayEnergyLevels(prev => ({ ...prev, [d]: next }));
                     };
                     return (
-                      <th key={d} style={{ padding: "0 4px 14px", textAlign: "center", fontWeight: "normal" }}>
-                        <div style={{ fontFamily: TNR, fontSize: "14px", color: "#1a1a1a", marginBottom: "4px", fontWeight: "normal" }}>{d.charAt(0)}</div>
+                      <th key={d} style={{ padding: "0 2px 12px", textAlign: "center", fontWeight: "normal" }}>
+                        <div style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", marginBottom: "3px", fontWeight: "normal" }}>{d.charAt(0)}</div>
                         <div onClick={cycleEnergy} style={{ 
-                          fontFamily: TNR, fontSize: "11px", 
+                          fontFamily: TNR, fontSize: "9px", 
                           color: "#888", cursor: "pointer", fontWeight: "normal",
                           textDecoration: "underline", textUnderlineOffset: "2px",
                           textDecorationColor: "#ddd",
                         }}>
-                          {currentLevel} · <span style={{ color: over ? "#b88686" : "#888" }}>{de}/{db}</span>
+                          {currentLevel.charAt(0).toUpperCase()} · <span style={{ color: over ? "#b88686" : "#888" }}>{de}/{db}</span>
                         </div>
                       </th>
                     );
@@ -1824,12 +1830,12 @@ export default function WeeklyPlanner() {
           </div>
 
           {/* Grid */}
-          <div style={{ overflowX: "auto", marginBottom: "36px" }}>
-            <table style={{ borderCollapse: "collapse", width: "100%", minWidth: "600px", tableLayout: "fixed" }}>
+          <div style={{ marginBottom: "36px" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", tableLayout: "fixed" }}>
               <tbody>
                 {TIME_SLOTS.map(slot => (
                   <tr key={slot}>
-                    <td style={{ fontFamily: TNR, fontSize: "10px", color: "#ccc", padding: "1px 8px 1px 0", verticalAlign: "middle", width: "52px" }}>{slot}</td>
+                    <td style={{ fontFamily: TNR, fontSize: "9px", color: "#ccc", padding: "1px 4px 1px 0", verticalAlign: "middle", width: "44px" }}>{slot}</td>
                     {DAYS.map(day => {
                       const val = schedule[day][slot];
                       const isOffice = val === "office";
@@ -1840,10 +1846,10 @@ export default function WeeklyPlanner() {
                         : val ? MODE_COLORS[val] : null;
                       
                       return (
-                        <td key={day} style={{ padding: "1px 2px" }}>
+                        <td key={day} style={{ padding: "1px 1px" }}>
                           <div onClick={() => assign(day, slot)} title={val ? MODES[val]?.label : ""}
                             style={{
-                              height: "28px",
+                              height: "26px",
                               border: `1px solid ${val ? (isOffice ? "#ddd" : cellColor || "#e8e8e8") : "#e8e8e8"}`,
                               background: val ? (isOffice ? "#f5f5f5" : cellColor) : "#fff",
                               cursor: isOffice ? "default" : "pointer",
@@ -1851,8 +1857,8 @@ export default function WeeklyPlanner() {
                               transition: "all 0.08s",
                             }}>
                             {isOffice
-                              ? <span style={{ fontFamily: TNR, fontSize: "10px", color: "#999" }}>{getModeLabel("office").slice(0, 6).toLowerCase()}</span>
-                              : val && <span style={{ fontFamily: TNR, fontSize: "11px", color: "#fff", letterSpacing: "0.02em" }}>{getModeLabel(val).slice(0, 3).toLowerCase()}</span>}
+                              ? <span style={{ fontFamily: TNR, fontSize: "9px", color: "#999" }}>{getModeLabel("office").slice(0, 4).toLowerCase()}</span>
+                              : val && <span style={{ fontFamily: TNR, fontSize: "10px", color: "#fff", letterSpacing: "0.02em" }}>{getModeLabel(val).slice(0, 3).toLowerCase()}</span>}
                           </div>
                         </td>
                       );

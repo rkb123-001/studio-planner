@@ -1424,7 +1424,7 @@ export default function WeeklyPlanner() {
   // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
-  const [authTimestamp, setAuthTimestamp] = useState(0);
+const [, setAuthTimestamp] = useState(0);
   const [profile, setProfile] = useState(loadProfile());
   const [showProfileEdit, setShowProfileEdit] = useState(false);
 

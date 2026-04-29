@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-const TNR = "'Times New Roman', Times, Georgia, serif";
+const TNR = "'Times New Roman', Times, serif";
 const LINK_BLUE = "#1a0dab";
 
 // Executive functioning intensity: how much executive function each task requires
@@ -253,7 +253,7 @@ const DEFAULT_PROFILE = {
   name: "",
   role: "",
   plannerTitle: "Practice Planner",
-  scheduleAround: "office shifts",
+  scheduleAround: "",
   modeIntensity: {
     growth: 4,
     comms: 3,
@@ -263,10 +263,10 @@ const DEFAULT_PROFILE = {
   restRatio: 1.0,
   // Mode descriptions — what each type of work involves for the user
   modeDescriptions: {
-    making: "casting, wax work, fabrication",
-    comms: "emails, invoices, order tracking",
-    growth: "content, outreach, press, site",
-    systems: "workflows, pricing, proposals",
+    making: "",
+    comms: "",
+    growth: "",
+    systems: "",
   },
   // Weekly targets — minimum blocks of each type per week
   weeklyTargets: {
@@ -278,8 +278,8 @@ const DEFAULT_PROFILE = {
   // Fine art / protected practice — customisable terminology
   protectedPractice: {
     enabled: true,
-    label: "Fine art practice",
-    warningText: "No making blocks this week. At least one should go to fine art practice, not commissions.",
+    label: "",
+    warningText: "",
   },
   // Health goals — fully customisable list
   healthGoals: ["Psychoanalysis", "Acupuncture", "Gym"],
@@ -600,7 +600,47 @@ function AuthScreen({ onSuccess }) {
   };
 
   const handleSignupComplete = async () => {
-    setError(""); setLoading(true);
+    setError("");
+    
+    // Validate required fields
+    if (!profile.name?.trim()) {
+      setError("Please enter your name");
+      return;
+    }
+    if (!profile.role?.trim()) {
+      setError("Please enter your role");
+      return;
+    }
+    if (!profile.scheduleAround?.trim()) {
+      setError("Please enter what you schedule around");
+      return;
+    }
+    if (!profile.modeDescriptions?.making?.trim()) {
+      setError("Please describe what 'Making' involves for you");
+      return;
+    }
+    if (!profile.modeDescriptions?.comms?.trim()) {
+      setError("Please describe what 'Comms & Admin' involves for you");
+      return;
+    }
+    if (!profile.modeDescriptions?.growth?.trim()) {
+      setError("Please describe what 'Growth' involves for you");
+      return;
+    }
+    if (!profile.modeDescriptions?.systems?.trim()) {
+      setError("Please describe what 'Systems' involves for you");
+      return;
+    }
+    if (!profile.protectedPractice?.label?.trim()) {
+      setError("Please name your protected practice");
+      return;
+    }
+    if (!profile.protectedPractice?.warningText?.trim()) {
+      setError("Please write a warning message for your protected practice");
+      return;
+    }
+    
+    setLoading(true);
     const result = await registerUser(email, password, profile);
     setLoading(false);
     if (result.error) {
@@ -726,6 +766,34 @@ function AuthScreen({ onSuccess }) {
                 ))}
               </div>
             </div>
+
+            {/* What each work type means */}
+            <p style={{ ...sml, marginBottom: "12px", marginTop: "32px" }}>What does each work type involve for you?</p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "16px", lineHeight: "1.6" }}>
+              Describe what each category means in your specific practice.
+            </p>
+            {[
+              { key: "making", label: "Making", placeholder: "e.g. casting, wax work, fabrication" },
+              { key: "comms", label: "Comms & Admin", placeholder: "e.g. emails, invoices, order tracking" },
+              { key: "growth", label: "Growth", placeholder: "e.g. content, outreach, press" },
+              { key: "systems", label: "Systems", placeholder: "e.g. workflows, pricing, organising" },
+            ].map(m => (
+              <div key={m.key} style={{ marginBottom: "10px" }}>
+                <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "4px" }}>{m.label}</p>
+                <input value={profile.modeDescriptions?.[m.key] || ""} onChange={(e) => setProfile({ ...profile, modeDescriptions: { ...profile.modeDescriptions, [m.key]: e.target.value } })} style={inputAuth} placeholder={m.placeholder} />
+              </div>
+            ))}
+
+            {/* Protected practice */}
+            <p style={{ ...sml, marginBottom: "12px", marginTop: "24px" }}>Protected practice</p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "16px", lineHeight: "1.6" }}>
+              Is there a type of work you want to protect time for, separate from commissions/client work? (e.g. fine art, personal projects, research)
+            </p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "4px" }}>What you call this practice</p>
+            <input value={profile.protectedPractice?.label || ""} onChange={(e) => setProfile({ ...profile, protectedPractice: { ...profile.protectedPractice, label: e.target.value, enabled: true } })} style={inputAuth} placeholder="e.g. Fine art practice, Personal projects" />
+            
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "4px" }}>Warning shown when no time is scheduled for this</p>
+            <textarea value={profile.protectedPractice?.warningText || ""} onChange={(e) => setProfile({ ...profile, protectedPractice: { ...profile.protectedPractice, warningText: e.target.value, enabled: true } })} style={{ ...inputAuth, minHeight: "60px", resize: "vertical" }} placeholder="e.g. No making blocks this week. At least one should go to fine art practice, not commissions." />
             
             {error && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b88686", marginTop: "8px" }}>{error}</p>}
             

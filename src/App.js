@@ -478,10 +478,51 @@ const loadLocal = () => {
 };
 
 // Supabase cloud sync
+// Safety check: detect if a save would replace existing rich data with empty data.
+// This is the LAST LINE OF DEFENCE against data loss races.
+const isEffectivelyEmpty = (d) => {
+  if (!d) return true;
+  const scheduleEmpty = !d.schedule || Object.values(d.schedule).every(day => 
+    !day || Object.values(day).every(slot => !slot)
+  );
+  const noProjects = !d.projects || d.projects.length === 0;
+  const noArchive = !d.archive || d.archive.length === 0;
+  const noProfile = !d.profile || (!d.profile.name?.trim() && !d.profile.role?.trim());
+  return scheduleEmpty && noProjects && noArchive && noProfile;
+};
+
 const saveToSupabase = async (d) => {
   if (!USE_SUPABASE) return;
   try {
     const weekStart = getWeekStart();
+    
+    // SAFETY GUARD: Before saving, check if existing cloud data is richer than what we're about to save.
+    // If so, BLOCK the save — this prevents wiping good data.
+    if (isEffectivelyEmpty(d)) {
+      const checkResp = await fetch(
+        `${SUPABASE_URL}/rest/v1/planner_data?user_id=eq.${USER_ID}&week_start=eq.${weekStart}`,
+        {
+          headers: {
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`,
+          },
+        }
+      );
+      const existing = await checkResp.json();
+      if (existing && existing[0]) {
+        const existingData = {
+          schedule: existing[0].schedule,
+          projects: existing[0].projects,
+          archive: existing[0].archive,
+          profile: existing[0].profile,
+        };
+        if (!isEffectivelyEmpty(existingData)) {
+          console.warn("[saveToSupabase] BLOCKED destructive write: incoming data is empty but cloud data is rich. Refusing to overwrite.");
+          return;
+        }
+      }
+    }
+    
     const resp = await fetch(`${SUPABASE_URL}/rest/v1/planner_data`, {
       method: "POST",
       headers: {
@@ -1383,12 +1424,14 @@ export default function WeeklyPlanner() {
   // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
+  const [authTimestamp, setAuthTimestamp] = useState(0);
   const [profile, setProfile] = useState(loadProfile());
   const [showProfileEdit, setShowProfileEdit] = useState(false);
 
   const saved = loadLocal();
 
   const [supabaseLoaded, setSupabaseLoaded] = useState(false);
+  const [hasUserInteracted, setHasUserInteracted] = useState(false);
   const [schedule, setSchedule]           = useState(saved?.schedule || defaultSchedule());
   const [activeMode, setActiveMode]       = useState("making");
   const [restSubtype, setRestSubtype]     = useState("passive");
@@ -1409,6 +1452,7 @@ export default function WeeklyPlanner() {
         const valid = await verifySession(token);
         if (valid) {
           setIsAuthenticated(true);
+          setAuthTimestamp(Date.now());
         } else {
           logoutUser();
         }
@@ -1500,11 +1544,20 @@ export default function WeeklyPlanner() {
   }, [supabaseLoaded]);
 
   // Autosave to both local and cloud
+  // CRITICAL: Only saves to cloud AFTER we have completed an initial load from cloud
+  // AND the user has made at least one real interaction.
   useEffect(() => {
     const data = { schedule, checklist, successMetrics, healthTargets, restTargets, socialDone, weekNote, projects, archive, dayEnergyLevels, profile };
+    // Always safe to save locally (per-device)
     saveLocal(data);
-    saveToSupabase(data);
-  }, [schedule, checklist, successMetrics, healthTargets, restTargets, socialDone, weekNote, projects, archive, dayEnergyLevels, profile]);
+    
+    // Only save to cloud if:
+    // 1. We've finished loading from cloud (so we have the latest cloud state in memory)
+    // 2. The user has actually interacted with the app (not just rendered defaults or applied cloud data)
+    if (USE_SUPABASE && supabaseLoaded && hasUserInteracted) {
+      saveToSupabase(data);
+    }
+  }, [schedule, checklist, successMetrics, healthTargets, restTargets, socialDone, weekNote, projects, archive, dayEnergyLevels, profile, supabaseLoaded, hasUserInteracted]);
 
   // Track last save time so we don't fight with our own saves
   const [lastSaveTime, setLastSaveTime] = useState(0);
@@ -1523,6 +1576,19 @@ export default function WeeklyPlanner() {
       
       const cloudData = await loadFromSupabase();
       if (cloudData) {
+        // SAFETY: If cloud data is essentially empty but local data is rich,
+        // SKIP the sync. This prevents another device's bad save from wiping our good data.
+        const cloudIsEmpty = (!cloudData.schedule || Object.values(cloudData.schedule).every(d => !d || Object.values(d).every(s => !s)))
+          && (!cloudData.projects || cloudData.projects.length === 0)
+          && (!cloudData.archive || cloudData.archive.length === 0);
+        const localIsRich = (schedule && Object.values(schedule).some(d => d && Object.values(d).some(s => s)))
+          || (projects && projects.length > 0)
+          || (archive && archive.length > 0);
+        if (cloudIsEmpty && localIsRich) {
+          console.warn("[syncFromCloud] BLOCKED sync: cloud data is empty but local data is rich. Refusing to overwrite local.");
+          return;
+        }
+        
         // Only update state if data actually changed (prevents unnecessary re-renders)
         if (JSON.stringify(cloudData.schedule) !== JSON.stringify(schedule)) {
           setSchedule(cloudData.schedule);
@@ -1597,10 +1663,14 @@ export default function WeeklyPlanner() {
   const assign = (day, slot) => {
     const current = schedule[day][slot];
     if (current === "office") return; // office blocks can't be overwritten
+    setHasUserInteracted(true);
     setSchedule(prev => ({ ...prev, [day]: { ...prev[day], [slot]: current === activeMode ? null : activeMode } }));
   };
 
-  const clearAll = () => setSchedule(defaultSchedule());
+  const clearAll = () => {
+    setHasUserInteracted(true);
+    setSchedule(defaultSchedule());
+  };
 
   const countSlots = (mode) => {
     let n = 0;
@@ -1785,6 +1855,7 @@ export default function WeeklyPlanner() {
       socialDone, checklist: [...checklist], successMetrics: [...successMetrics],
       savedAt: new Date().toISOString(),
     };
+    setHasUserInteracted(true);
     setArchive(prev => {
       const filtered = prev.filter(w => w.weekStart !== entry.weekStart);
       return [...filtered, entry].sort((a, b) => b.weekStart.localeCompare(a.weekStart));
@@ -1867,12 +1938,13 @@ export default function WeeklyPlanner() {
   };
 
   const addProject = () => {
+    setHasUserInteracted(true);
     const p = emptyProject();
     setProjects(prev => [...prev, p]);
     setEditingProject(p.id);
   };
-  const updateProject = (id, field, value) => setProjects(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
-  const deleteProject = (id) => { setProjects(prev => prev.filter(p => p.id !== id)); if (editingProject === id) setEditingProject(null); };
+  const updateProject = (id, field, value) => { setHasUserInteracted(true); setProjects(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p)); };
+  const deleteProject = (id) => { setHasUserInteracted(true); setProjects(prev => prev.filter(p => p.id !== id)); if (editingProject === id) setEditingProject(null); };
   const stuckReset = () => { setStuckOpen(false); setStuckStep(0); setStuckEnergy(null); };
   const runway = stuckEnergy ? RUNWAY_MAP[stuckEnergy] : null;
 
@@ -1978,7 +2050,7 @@ export default function WeeklyPlanner() {
 
   // Show login screen if not authenticated
   if (!isAuthenticated) {
-    return <AuthScreen onSuccess={(p) => { setProfile(p); setIsAuthenticated(true); }} />;
+    return <AuthScreen onSuccess={(p) => { setProfile(p); setIsAuthenticated(true); setAuthTimestamp(Date.now()); setSupabaseLoaded(false); }} />;
   }
 
   return (
@@ -1988,7 +2060,7 @@ export default function WeeklyPlanner() {
       {showProfileEdit && (
         <ProfileEditScreen
           profile={profile}
-          onSave={(p) => { setProfile(p); saveProfile(p); setShowProfileEdit(false); }}
+          onSave={(p) => { setHasUserInteracted(true); setProfile(p); saveProfile(p); setShowProfileEdit(false); }}
           onCancel={() => setShowProfileEdit(false)}
         />
       )}
@@ -2076,7 +2148,7 @@ export default function WeeklyPlanner() {
           style={{ ...linkStyle, fontSize: "14px" }}>
           Edit profile
         </span>
-        <span onClick={() => { logoutUser(); setIsAuthenticated(false); }}
+        <span onClick={() => { logoutUser(); setIsAuthenticated(false); setSupabaseLoaded(false); setAuthTimestamp(0); }}
           style={{ ...linkStyle, fontSize: "14px" }}>
           Sign out
         </span>
@@ -2103,7 +2175,7 @@ export default function WeeklyPlanner() {
             {/* Energy level as plain underlined links */}
             <div style={{ display: "flex", gap: "20px", marginBottom: "32px" }}>
               {ENERGY_LEVELS.map(e => (
-                <span key={e.key} onClick={() => setDayEnergyLevels(prev => ({ ...prev, [today]: e.key }))}
+                <span key={e.key} onClick={() => { setHasUserInteracted(true); setDayEnergyLevels(prev => ({ ...prev, [today]: e.key })); }}
                   style={{
                     fontFamily: TNR, fontSize: "14px", cursor: "pointer",
                     color: dayEnergyLevels[today] === e.key ? LINK_BLUE : "#1a1a1a",
@@ -2255,6 +2327,7 @@ export default function WeeklyPlanner() {
                     const dayColor = isUnderRested ? "#b01904" : isBalanced ? "#0fa97f" : "#1a1a1a";
                     // Cycle through H/M/L on click
                     const cycleEnergy = () => {
+                      setHasUserInteracted(true);
                       const next = currentLevel === "high" ? "medium" : currentLevel === "medium" ? "low" : "high";
                       setDayEnergyLevels(prev => ({ ...prev, [d]: next }));
                     };
@@ -2429,12 +2502,12 @@ export default function WeeklyPlanner() {
               <span style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb" }}>{healthTargets.filter(Boolean).length}/{(profile.healthGoals || []).length}</span>
             </div>
             {(profile.healthGoals || []).map((label, i) => (
-              <div key={i} onClick={() => setHealthTargets(prev => {
+              <div key={i} onClick={() => { setHasUserInteracted(true); setHealthTargets(prev => {
                 const next = [...prev];
                 while (next.length < (profile.healthGoals || []).length) next.push(false);
                 next[i] = !next[i];
                 return next;
-              })}
+              }); }}
                 style={{ display: "flex", alignItems: "baseline", gap: "14px", padding: "8px 0", borderBottom: "1px solid #f0f0f0", cursor: "pointer" }}>
                 <span style={{ fontFamily: TNR, fontSize: "15px", color: healthTargets[i] ? "#888" : "#1a1a1a", textDecoration: healthTargets[i] ? "line-through" : "none" }}>{label}</span>
               </div>
@@ -2471,7 +2544,7 @@ export default function WeeklyPlanner() {
               <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "10px" }}>Mark days you actually got rest</p>
               <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
                 {DAYS.map((d, i) => (
-                  <span key={d} onClick={() => setRestTargets(prev => prev.map((v, j) => j === i ? !v : v))}
+                  <span key={d} onClick={() => { setHasUserInteracted(true); setRestTargets(prev => prev.map((v, j) => j === i ? !v : v)); }}
                     style={{ fontFamily: TNR, fontSize: "14px", cursor: "pointer", color: restTargets[i] ? LINK_BLUE : "#1a1a1a", textDecoration: restTargets[i] ? "underline" : "none", textUnderlineOffset: "2px" }}>
                     {d}
                   </span>
@@ -2486,7 +2559,7 @@ export default function WeeklyPlanner() {
               <span style={sml}>Social</span>
               <span style={{ fontFamily: TNR, fontSize: "12px", color: "#aaa" }}>min 1 / max 3–4</span>
             </div>
-            <div onClick={() => setSocialDone(v => !v)}
+            <div onClick={() => { setHasUserInteracted(true); setSocialDone(v => !v); }}
               style={{ display: "flex", alignItems: "baseline", gap: "14px", padding: "8px 0", borderBottom: "1px solid #f0f0f0", cursor: "pointer" }}>
               <span style={{ fontFamily: TNR, fontSize: "14px", color: socialDone ? "#888" : "#1a1a1a", textDecoration: socialDone ? "line-through" : "none" }}>{profile.socialGoal || "1 meaningful connection this week"}</span>
             </div>
@@ -2500,12 +2573,12 @@ export default function WeeklyPlanner() {
               <span style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb" }}>{successMetrics.filter(Boolean).length}/{(profile.weekEvaluation || []).length}</span>
             </div>
             {(profile.weekEvaluation || []).map((label, i) => (
-              <div key={i} onClick={() => setSuccessMetrics(prev => {
+              <div key={i} onClick={() => { setHasUserInteracted(true); setSuccessMetrics(prev => {
                 const next = [...prev];
                 while (next.length < (profile.weekEvaluation || []).length) next.push(false);
                 next[i] = !next[i];
                 return next;
-              })}
+              }); }}
                 style={{ display: "flex", alignItems: "baseline", gap: "14px", padding: "8px 0", borderBottom: "1px solid #f0f0f0", cursor: "pointer" }}>
                 <span style={{ fontFamily: TNR, fontSize: "15px", color: successMetrics[i] ? "#888" : "#1a1a1a", textDecoration: successMetrics[i] ? "line-through" : "none" }}>{label}</span>
               </div>
@@ -2519,12 +2592,12 @@ export default function WeeklyPlanner() {
               <span style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb" }}>{checklist.filter(Boolean).length}/{(profile.weeklyChecklist || []).length}</span>
             </div>
             {(profile.weeklyChecklist || []).map((item, i) => (
-              <div key={i} onClick={() => setChecklist(prev => {
+              <div key={i} onClick={() => { setHasUserInteracted(true); setChecklist(prev => {
                 const next = [...prev];
                 while (next.length < (profile.weeklyChecklist || []).length) next.push(false);
                 next[i] = !next[i];
                 return next;
-              })}
+              }); }}
                 style={{ display: "flex", alignItems: "baseline", gap: "14px", padding: "8px 0", borderBottom: "1px solid #f0f0f0", cursor: "pointer" }}>
                 <span style={{ fontFamily: TNR, fontSize: "15px", color: checklist[i] ? "#888" : "#1a1a1a", textDecoration: checklist[i] ? "line-through" : "none" }}>{item}</span>
               </div>
@@ -2775,7 +2848,7 @@ export default function WeeklyPlanner() {
         <div style={{ maxWidth: "520px", margin: "0 auto" }}>
           <div style={{ marginBottom: "44px" }}>
             <p style={{ ...sml, marginBottom: "12px" }}>Week note</p>
-            <textarea value={weekNote} onChange={e => setWeekNote(e.target.value)}
+            <textarea value={weekNote} onChange={e => { setHasUserInteracted(true); setWeekNote(e.target.value); }}
               placeholder="What's on this week? Shifts, deadlines, intentions..."
               style={{ width: "100%", minHeight: "72px", border: "none", borderBottom: "1px solid #e8e8e8", resize: "vertical", fontFamily: TNR, fontSize: "16px", color: "#1a1a1a", padding: "8px 0", outline: "none", background: "transparent", lineHeight: "1.7", boxSizing: "border-box" }} />
           </div>

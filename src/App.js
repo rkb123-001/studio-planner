@@ -1449,9 +1449,9 @@ const [, setAuthTimestamp] = useState(0);
   const saved = loadLocal();
 
   const [supabaseLoaded, setSupabaseLoaded] = useState(false);
-  // On Sundays only, lets the user choose whether to view "this week" (just-finishing) or "next week" (upcoming).
-  // Default: null (will prompt). Persisted in localStorage by date so we don't re-ask on the same Sunday.
-  const [sundayWeekChoice, setSundayWeekChoice] = useState(() => {
+  // sundayWeekChoice: legacy fallback (kept for backwards compat with stored choices).
+  // No longer set from UI — the user picks dates directly at calendar export time.
+  const [sundayWeekChoice] = useState(() => {
     if (typeof window === "undefined") return null;
     try {
       const stored = JSON.parse(localStorage.getItem("studio-planner-sunday-choice") || "null");

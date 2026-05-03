@@ -2276,35 +2276,6 @@ const [, setAuthTimestamp] = useState(0);
         </span>
       </div>
 
-      {/* ── Sunday: which week am I planning? ── */}
-      {(() => {
-        const isSunday = new Date().getDay() === 0;
-        if (!isSunday) return null;
-        const setChoice = (choice) => {
-          const today = new Date().toISOString().split("T")[0];
-          localStorage.setItem("studio-planner-sunday-choice", JSON.stringify({ date: today, choice }));
-          setSundayWeekChoice(choice);
-        };
-        const current = sundayWeekChoice;
-        return (
-          <div style={{ textAlign: "center", marginBottom: "28px", padding: "14px 18px", border: "1px solid #e7e7e7", borderRadius: "4px", maxWidth: "480px", margin: "0 auto 28px" }}>
-            <div style={{ fontFamily: TNR, fontSize: "13px", color: "#888", marginBottom: "10px" }}>
-              {current ? "Planning for:" : "It's Sunday — which week are you planning?"}
-            </div>
-            <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
-              <span onClick={() => setChoice("this")}
-                style={{ ...boxBtn(current === "this"), fontSize: "13px", padding: "4px 12px" }}>
-                This week (Mon-Sun)
-              </span>
-              <span onClick={() => setChoice("next")}
-                style={{ ...boxBtn(current === "next"), fontSize: "13px", padding: "4px 12px" }}>
-                Next week (starts tomorrow)
-              </span>
-            </div>
-          </div>
-        );
-      })()}
-
       {/* ── Tabs as boxed buttons ── */}
       <div style={{ textAlign: "center", marginBottom: "52px", display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
         {[["today","Today"],["grid","Grid"],["targets","Targets"],["quarterly","Quarterly"],["tasks","Tasks"],["plan","Plan"],["archive","Archive"]].map(([key, lbl]) => (

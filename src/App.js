@@ -463,7 +463,25 @@ const logoutUser = () => {
 
 const getWeekStart = () => {
   const now = new Date(), monday = new Date(now);
-  monday.setDate(now.getDate() - (now.getDay() === 0 ? 6 : now.getDay() - 1));
+  const dayOfWeek = now.getDay();
+  if (dayOfWeek === 0) {
+    // Sunday: check the user's choice for today.
+    // "this" = treat Sunday as end of past week (go back to previous Mon)
+    // "next" = treat Sunday as planning day for upcoming week (go forward to tomorrow's Mon)
+    let choice = "this"; // safe default — Sunday IS technically the end of this week
+    try {
+      const stored = JSON.parse(localStorage.getItem("studio-planner-sunday-choice") || "null");
+      const today = now.toISOString().split("T")[0];
+      if (stored && stored.date === today && stored.choice) choice = stored.choice;
+    } catch (_) {}
+    if (choice === "next") {
+      monday.setDate(now.getDate() + 1);
+    } else {
+      monday.setDate(now.getDate() - 6);
+    }
+  } else {
+    monday.setDate(now.getDate() - (dayOfWeek - 1));
+  }
   monday.setHours(0, 0, 0, 0);
   return monday.toISOString().split("T")[0];
 };
@@ -1431,6 +1449,17 @@ const [, setAuthTimestamp] = useState(0);
   const saved = loadLocal();
 
   const [supabaseLoaded, setSupabaseLoaded] = useState(false);
+  // On Sundays only, lets the user choose whether to view "this week" (just-finishing) or "next week" (upcoming).
+  // Default: null (will prompt). Persisted in localStorage by date so we don't re-ask on the same Sunday.
+  const [sundayWeekChoice, setSundayWeekChoice] = useState(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const stored = JSON.parse(localStorage.getItem("studio-planner-sunday-choice") || "null");
+      const today = new Date().toISOString().split("T")[0];
+      if (stored && stored.date === today) return stored.choice;
+    } catch (_) {}
+    return null;
+  });
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
   const [schedule, setSchedule]           = useState(saved?.schedule || defaultSchedule());
   const [activeMode, setActiveMode]       = useState("making");
@@ -1553,6 +1582,8 @@ const [, setAuthTimestamp] = useState(0);
   // Calendar
   const [calStatus, setCalStatus]         = useState(null);
   const [isExporting, setIsExporting]     = useState(false);
+  const [showExportPicker, setShowExportPicker] = useState(false);
+  const [exportStartDate, setExportStartDate] = useState("");
 
   // Archive
   const [archive, setArchive]             = useState(saved?.archive || []);
@@ -1881,7 +1912,17 @@ const [, setAuthTimestamp] = useState(0);
 
   const getWeekStart = () => {
     const now = new Date(), monday = new Date(now);
-    monday.setDate(now.getDate() - (now.getDay() === 0 ? 6 : now.getDay() - 1));
+    const dayOfWeek = now.getDay();
+    if (dayOfWeek === 0) {
+      const choice = sundayWeekChoice || "this";
+      if (choice === "next") {
+        monday.setDate(now.getDate() + 1);
+      } else {
+        monday.setDate(now.getDate() - 6);
+      }
+    } else {
+      monday.setDate(now.getDate() - (dayOfWeek - 1));
+    }
     monday.setHours(0, 0, 0, 0);
     return monday.toISOString().split("T")[0];
   };
@@ -1909,11 +1950,45 @@ const [, setAuthTimestamp] = useState(0);
     });
   };
 
-  const exportToCalendar = async () => {
-    setIsExporting(true); setCalStatus("connecting");
+  // Opens the picker, pre-filled with the Monday of the current planning week
+  const openExportPicker = () => {
     const now = new Date(), monday = new Date(now);
-    monday.setDate(now.getDate() - (now.getDay() === 0 ? 6 : now.getDay() - 1));
+    const dayOfWeek = now.getDay();
+    if (dayOfWeek === 0) {
+      const choice = sundayWeekChoice || "this";
+      if (choice === "next") monday.setDate(now.getDate() + 1);
+      else monday.setDate(now.getDate() - 6);
+    } else {
+      monday.setDate(now.getDate() - (dayOfWeek - 1));
+    }
     monday.setHours(0, 0, 0, 0);
+    setExportStartDate(monday.toISOString().split("T")[0]);
+    setCalStatus(null);
+    setShowExportPicker(true);
+  };
+
+  const exportToCalendar = async (customStartDate) => {
+    setIsExporting(true); setCalStatus("connecting");
+    let monday;
+    if (customStartDate) {
+      // Use the user-chosen start date as Monday of the export week
+      monday = new Date(customStartDate + "T00:00:00");
+    } else {
+      const now = new Date();
+      monday = new Date(now);
+      const dayOfWeek = now.getDay();
+      if (dayOfWeek === 0) {
+        const choice = sundayWeekChoice || "this";
+        if (choice === "next") {
+          monday.setDate(now.getDate() + 1);
+        } else {
+          monday.setDate(now.getDate() - 6);
+        }
+      } else {
+        monday.setDate(now.getDate() - (dayOfWeek - 1));
+      }
+      monday.setHours(0, 0, 0, 0);
+    }
     const dayOffsets = { Mon:0,Tue:1,Wed:2,Thu:3,Fri:4,Sat:5,Sun:6 };
 
     // Merge contiguous same-mode slots per day
@@ -2201,6 +2276,35 @@ const [, setAuthTimestamp] = useState(0);
         </span>
       </div>
 
+      {/* ── Sunday: which week am I planning? ── */}
+      {(() => {
+        const isSunday = new Date().getDay() === 0;
+        if (!isSunday) return null;
+        const setChoice = (choice) => {
+          const today = new Date().toISOString().split("T")[0];
+          localStorage.setItem("studio-planner-sunday-choice", JSON.stringify({ date: today, choice }));
+          setSundayWeekChoice(choice);
+        };
+        const current = sundayWeekChoice;
+        return (
+          <div style={{ textAlign: "center", marginBottom: "28px", padding: "14px 18px", border: "1px solid #e7e7e7", borderRadius: "4px", maxWidth: "480px", margin: "0 auto 28px" }}>
+            <div style={{ fontFamily: TNR, fontSize: "13px", color: "#888", marginBottom: "10px" }}>
+              {current ? "Planning for:" : "It's Sunday — which week are you planning?"}
+            </div>
+            <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
+              <span onClick={() => setChoice("this")}
+                style={{ ...boxBtn(current === "this"), fontSize: "13px", padding: "4px 12px" }}>
+                This week (Mon-Sun)
+              </span>
+              <span onClick={() => setChoice("next")}
+                style={{ ...boxBtn(current === "next"), fontSize: "13px", padding: "4px 12px" }}>
+                Next week (starts tomorrow)
+              </span>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* ── Tabs as boxed buttons ── */}
       <div style={{ textAlign: "center", marginBottom: "52px", display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
         {[["today","Today"],["grid","Grid"],["targets","Targets"],["quarterly","Quarterly"],["tasks","Tasks"],["plan","Plan"],["archive","Archive"]].map(([key, lbl]) => (
@@ -2461,10 +2565,40 @@ const [, setAuthTimestamp] = useState(0);
             <p style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb", marginBottom: "14px" }}>
               Downloads an .ics file. Open it to add events to Google Calendar, Apple Calendar, or Outlook.
             </p>
-            <span onClick={!isExporting ? exportToCalendar : undefined}
-              style={{ ...linkStyle, fontSize: "15px", color: isExporting ? "#bbb" : LINK_BLUE, textDecorationColor: isExporting ? "#bbb" : LINK_BLUE, cursor: isExporting ? "default" : "pointer" }}>
-              {isExporting ? "Generating..." : "Download calendar file"}
-            </span>
+            {!showExportPicker && (
+              <span onClick={!isExporting ? openExportPicker : undefined}
+                style={{ ...linkStyle, fontSize: "15px", color: isExporting ? "#bbb" : LINK_BLUE, textDecorationColor: isExporting ? "#bbb" : LINK_BLUE, cursor: isExporting ? "default" : "pointer" }}>
+                {isExporting ? "Generating..." : "Download calendar file"}
+              </span>
+            )}
+            {showExportPicker && (
+              <div style={{ padding: "16px", border: "1px solid #e7e7e7", borderRadius: "4px", marginTop: "10px", textAlign: "left" }}>
+                <p style={{ fontFamily: TNR, fontSize: "13px", color: "#888", marginBottom: "10px" }}>
+                  Which week's blocks should be exported? Pick the <strong>Monday</strong> the week starts on.
+                </p>
+                <input
+                  type="date"
+                  value={exportStartDate}
+                  onChange={e => setExportStartDate(e.target.value)}
+                  style={{ fontFamily: TNR, fontSize: "14px", padding: "6px 10px", border: "1px solid #ccc", borderRadius: "3px", marginBottom: "12px", width: "100%", boxSizing: "border-box" }}
+                />
+                {exportStartDate && new Date(exportStartDate + "T00:00:00").getDay() !== 1 && (
+                  <p style={{ fontFamily: TNR, fontSize: "12px", color: "#b01904", marginBottom: "10px" }}>
+                    Note: {new Date(exportStartDate + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })} isn't a Monday. The export will treat this date as Monday and the next 6 days as Tue-Sun.
+                  </p>
+                )}
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <span onClick={() => { setShowExportPicker(false); exportToCalendar(exportStartDate); }}
+                    style={{ ...linkStyle, fontSize: "14px", cursor: "pointer" }}>
+                    Download
+                  </span>
+                  <span onClick={() => { setShowExportPicker(false); setCalStatus(null); }}
+                    style={{ fontFamily: TNR, fontSize: "14px", color: "#888", cursor: "pointer", textDecoration: "underline" }}>
+                    Cancel
+                  </span>
+                </div>
+              </div>
+            )}
             {calStatus === "success" && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#0fa97f", marginTop: "10px" }}>File downloaded. Open it to import to your calendar.</p>}
             {calStatus === "error"   && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b01904", marginTop: "10px" }}>Export failed. Try again.</p>}
             {calStatus === "empty"   && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#888", marginTop: "10px" }}>No exportable blocks found.</p>}

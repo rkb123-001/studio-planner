@@ -1662,8 +1662,13 @@ const [, setAuthTimestamp] = useState(0);
 
   const assign = (day, slot) => {
     const current = schedule[day][slot];
-    if (current === "office") return; // office blocks can't be overwritten
     setHasUserInteracted(true);
+    
+    // If clicking an office block:
+    //   - When office mode is active: toggle it off (remove)
+    //   - When any other mode is active: do nothing (protect from accidental overwrite)
+    if (current === "office" && activeMode !== "office") return;
+    
     setSchedule(prev => ({ ...prev, [day]: { ...prev[day], [slot]: current === activeMode ? null : activeMode } }));
   };
 

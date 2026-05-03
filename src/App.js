@@ -1481,22 +1481,64 @@ const [, setAuthTimestamp] = useState(0);
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
     const result = { making: [], comms: [], growth: [], systems: [], other: [] };
     
-    const makingKeywords = ['wax', 'cast', 'fabricate', 'metalwork', 'metal', 'design', 'sketch', 'prototype', 'material', 'tool', 'forge', 'mold', 'shape', 'form', 'sculpture', 'bronze', 'silver', 'gold', 'electroform'];
-    const commsKeywords = ['email', 'call', 'respond', 'reach out', 'message', 'contact', 'reply', 'invoice', 'shipping', 'order', 'client', 'customer', 'vendor', 'wholesale', 'retail', 'ssense', 'send'];
-    const growthKeywords = ['content', 'post', 'instagram', 'write', 'article', 'press', 'pitch', 'outreach', 'website', 'photography', 'photo', 'video', 'social', 'tiktok', 'portfolio', 'press kit', 'bio', 'cv', 'resume', 'publication'];
-    const systemsKeywords = ['file', 'organize', 'database', 'spreadsheet', 'accounting', 'pricing', 'proposal', 'documentation', 'budget', 'plan', 'organize', 'structure', 'list', 'record', 'track', 'workflow', 'process'];
+    const makingKeywords = [
+      'wax', 'cast', 'fabricate', 'metalwork', 'metal', 'design', 'sketch', 'prototype',
+      'material', 'tool', 'forge', 'mold', 'mould', 'shape', 'form', 'sculpture', 'sculpt',
+      'bronze', 'silver', 'gold', 'electroform', 'engrave', 'engraving', 'solder', 'polish',
+      'finish', 'studio', 'make', 'build', 'craft', 'pour', 'lost-wax', 'wax work',
+      'foundry', 'jewellery', 'jewelry', 'piece', 'commission', 'production', 'sample',
+      'set stone', 'setting', 'chain', 'ring', 'pendant', 'earring', 'brooch', 'necklace',
+    ];
+    const commsKeywords = [
+      'email', 'call', 'respond', 'reach out', 'message', 'contact', 'reply', 'invoice',
+      'shipping', 'ship', 'post', 'order', 'client', 'customer', 'vendor', 'wholesale',
+      'retail', 'ssense', 'send', 'admin', 'paperwork', 'tax', 'tax return', 'accountant',
+      'accounting', 'bookkeeping', 'receipt', 'expense', 'expenses', 'vat', 'hmrc',
+      'invoice', 'invoices', 'bill', 'bills', 'pay', 'payment', 'payroll', 'bank',
+      'banking', 'transfer', 'refund', 'return', 'enquiry', 'inquiry', 'forward',
+      'cc', 'follow up', 'follow-up', 'chase', 'remind', 'schedule', 'book', 'booking',
+      'confirm', 'rsvp', 'reach', 'liaise', 'coordinate', 'arrange', 'source files',
+      'submit', 'fill in', 'fill out', 'paperwork', 'forms', 'application form',
+    ];
+    const growthKeywords = [
+      'content', 'post', 'instagram', 'write', 'article', 'press', 'pitch', 'outreach',
+      'website', 'photography', 'photo', 'video', 'social', 'tiktok', 'portfolio',
+      'press kit', 'bio', 'cv', 'resume', 'publication', 'apply', 'application',
+      'residency', 'grant', 'fund', 'funding', 'submission', 'submit work', 'feature',
+      'editorial', 'magazine', 'interview', 'collaborate', 'collab', 'collaboration',
+      'curator', 'gallery', 'exhibition', 'show', 'lookbook', 'campaign', 'launch',
+      'newsletter', 'mailchimp', 'reel', 'story', 'caption', 'shoot', 'styling',
+      'edit photos', 'lightroom', 'premiere', 'edit video', 'reels', 'mood board',
+      'concept', 'visibility', 'network', 'introduction', 'intro',
+    ];
+    const systemsKeywords = [
+      'file', 'organize', 'organise', 'database', 'spreadsheet', 'pricing', 'proposal',
+      'documentation', 'budget', 'plan', 'structure', 'list', 'record', 'track',
+      'workflow', 'process', 'system', 'set up', 'setup', 'configure', 'archive',
+      'inventory', 'stock', 'audit', 'review', 'tidy', 'clean up', 'sort', 'declutter',
+      'backup', 'back up', 'sync', 'restore', 'migrate', 'csv', 'export', 'import',
+      'shopify', 'website update', 'admin panel', 'dashboard', 'tagging', 'sku',
+      'catalogue', 'catalog', 'template', 'standardise', 'standardize', 'rename', 're-name',
+      'code', 'coding', 'deploy', 'deployment', 'git', 'commit', 'push',
+      'reorganise', 'reorganize', 'consolidate',
+    ];
     
     lines.forEach(task => {
       const lower = task.toLowerCase();
       
-      if (makingKeywords.some(k => lower.includes(k))) {
-        result.making.push(task);
-      } else if (growthKeywords.some(k => lower.includes(k))) {
-        result.growth.push(task);
-      } else if (systemsKeywords.some(k => lower.includes(k))) {
-        result.systems.push(task);
-      } else if (commsKeywords.some(k => lower.includes(k))) {
-        result.comms.push(task);
+      // Score each category by how many keywords match
+      const scores = {
+        making: makingKeywords.filter(k => lower.includes(k)).length,
+        comms: commsKeywords.filter(k => lower.includes(k)).length,
+        growth: growthKeywords.filter(k => lower.includes(k)).length,
+        systems: systemsKeywords.filter(k => lower.includes(k)).length,
+      };
+      
+      // Find highest scoring category
+      const best = Object.entries(scores).reduce((a, b) => b[1] > a[1] ? b : a, ["other", 0]);
+      
+      if (best[1] > 0) {
+        result[best[0]].push(task);
       } else {
         result.other.push(task);
       }

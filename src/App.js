@@ -2011,7 +2011,7 @@ const [, setAuthTimestamp] = useState(0);
     if (!events.length) { setCalStatus("empty"); setIsExporting(false); return; }
     
     try {
-      // Generate .ics calendar file
+      // Format date for ICS (YYYYMMDDTHHmmSS)
       const formatDateTime = (d, hour) => {
         const year = d.getFullYear();
         const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -2020,25 +2020,89 @@ const [, setAuthTimestamp] = useState(0);
         return `${year}${month}${day}T${hr}0000`;
       };
       
-      let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Practice Planner//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\n";
+      // Build a STABLE UID per event based on date + start time + duration.
+      // Same slot on same day will always produce the same UID, so re-importing
+      // updates existing calendar events instead of creating duplicates.
+      const makeUid = (eventDate, startHour, endHour) => {
+        const y = eventDate.getFullYear();
+        const m = String(eventDate.getMonth() + 1).padStart(2, '0');
+        const d = String(eventDate.getDate()).padStart(2, '0');
+        const sh = String(startHour).padStart(2, '0');
+        const eh = String(endHour).padStart(2, '0');
+        return `practice-planner-${y}${m}${d}-${sh}00-${eh}00@planner.local`;
+      };
       
-      events.forEach((e, i) => {
+      // Compute current event UIDs and metadata
+      const currentEvents = events.map(e => {
         const eventDate = new Date(monday);
         eventDate.setDate(monday.getDate() + dayOffsets[e.day]);
-        const start = formatDateTime(eventDate, e.sh);
-        const end = formatDateTime(eventDate, e.eh);
-        const uid = `practice-planner-${monday.getTime()}-${i}@planner.local`;
+        return {
+          uid: makeUid(eventDate, e.sh, e.eh),
+          eventDate,
+          ...e,
+        };
+      });
+      const currentUids = new Set(currentEvents.map(e => e.uid));
+      
+      // Look up previously-exported UIDs for this week.
+      // If any are missing now, emit cancellation events so the calendar removes them.
+      const weekKey = `studio-planner-exported-${monday.toISOString().split("T")[0]}`;
+      let previousUids = [];
+      try {
+        const stored = JSON.parse(localStorage.getItem(weekKey) || "null");
+        if (stored && Array.isArray(stored.uids)) previousUids = stored.uids;
+      } catch (_) {}
+      const removedUids = previousUids.filter(uid => !currentUids.has(uid));
+      
+      // SEQUENCE increments each export so calendar apps know this is an update
+      let sequence = 0;
+      try {
+        const stored = JSON.parse(localStorage.getItem(weekKey) || "null");
+        if (stored && typeof stored.sequence === "number") sequence = stored.sequence + 1;
+      } catch (_) {}
+      
+      const dtstamp = formatDateTime(new Date(), new Date().getHours());
+      
+      // Build ICS — METHOD:REQUEST tells calendar apps to treat as updates/changes
+      let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Practice Planner//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:REQUEST\r\n";
+      
+      currentEvents.forEach(e => {
+        const start = formatDateTime(e.eventDate, e.sh);
+        const end = formatDateTime(e.eventDate, e.eh);
         ics += `BEGIN:VEVENT\r\n`;
-        ics += `UID:${uid}\r\n`;
-        ics += `DTSTAMP:${formatDateTime(new Date(), new Date().getHours())}\r\n`;
+        ics += `UID:${e.uid}\r\n`;
+        ics += `SEQUENCE:${sequence}\r\n`;
+        ics += `DTSTAMP:${dtstamp}\r\n`;
         ics += `DTSTART:${start}\r\n`;
         ics += `DTEND:${end}\r\n`;
         ics += `SUMMARY:${MODES[e.mode].label} — Practice\r\n`;
         ics += `DESCRIPTION:${MODES[e.mode].sub || ''}\r\n`;
+        ics += `STATUS:CONFIRMED\r\n`;
+        ics += `END:VEVENT\r\n`;
+      });
+      
+      // Cancellations for events that existed previously but no longer do
+      removedUids.forEach(uid => {
+        ics += `BEGIN:VEVENT\r\n`;
+        ics += `UID:${uid}\r\n`;
+        ics += `SEQUENCE:${sequence}\r\n`;
+        ics += `DTSTAMP:${dtstamp}\r\n`;
+        ics += `STATUS:CANCELLED\r\n`;
+        ics += `METHOD:CANCEL\r\n`;
+        ics += `SUMMARY:Practice block (removed)\r\n`;
         ics += `END:VEVENT\r\n`;
       });
       
       ics += "END:VCALENDAR\r\n";
+      
+      // Remember this export so the next one knows what to cancel
+      try {
+        localStorage.setItem(weekKey, JSON.stringify({
+          uids: Array.from(currentUids),
+          sequence,
+          exportedAt: new Date().toISOString(),
+        }));
+      } catch (_) {}
       
       // Download the .ics file
       const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
@@ -2534,7 +2598,8 @@ const [, setAuthTimestamp] = useState(0);
           <div style={{ textAlign: "center" }}>
             <p style={{ ...sml, marginBottom: "8px" }}>Export blocks to your calendar</p>
             <p style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb", marginBottom: "14px" }}>
-              Downloads an .ics file. Open it to add events to Google Calendar, Apple Calendar, or Outlook.
+              Downloads an .ics file. Open it to add events to Google Calendar, Apple Calendar, or Outlook.<br />
+              Re-export and re-import any time you change blocks — existing events are updated, removed blocks are cancelled.
             </p>
             {!showExportPicker && (
               <span onClick={!isExporting ? openExportPicker : undefined}

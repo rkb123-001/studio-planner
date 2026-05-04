@@ -8,6 +8,7 @@ const LINK_BLUE = "#1a0dab";
 // Visualised as hyperlink blue at varying opacity
 const EXEC_INTENSITY = {
   growth:  { intensity: 4, opacity: 1.0,  desc: "high executive demand" },   // #1a0dab at 100%
+  content: { intensity: 4, opacity: 0.9,  desc: "high executive demand" },   // #1a0dab at 90%
   comms:   { intensity: 3, opacity: 0.75, desc: "medium-high executive demand" }, // #1a0dab at 75%
   systems: { intensity: 2, opacity: 0.5,  desc: "medium executive demand" },  // #1a0dab at 50%
   making:  { intensity: 1, opacity: 0.25, desc: "low executive demand" },     // #1a0dab at 25%
@@ -962,7 +963,8 @@ function AuthScreen({ onSuccess }) {
             </p>
             
             {[
-              { key: "growth", label: "Growth (content, outreach, press)" },
+              { key: "growth", label: "Growth (research, residencies, opportunities)" },
+              { key: "content", label: "Content (social, posts, photography)" },
               { key: "comms", label: "Comms & Admin (emails, invoices)" },
               { key: "systems", label: "Systems (workflows, organising)" },
               { key: "making", label: "Making (creating, building)" },
@@ -1021,7 +1023,8 @@ function AuthScreen({ onSuccess }) {
             {[
               { key: "making", defaultLabel: "Making", placeholder: "e.g. casting, wax work, fabrication" },
               { key: "comms", defaultLabel: "Comms & Admin", placeholder: "e.g. emails, invoices, order tracking" },
-              { key: "growth", defaultLabel: "Growth", placeholder: "e.g. content, outreach, press" },
+              { key: "growth", defaultLabel: "Growth", placeholder: "e.g. research, residencies, opportunities" },
+              { key: "content", defaultLabel: "Content", placeholder: "e.g. social, posts, photography" },
               { key: "systems", defaultLabel: "Systems", placeholder: "e.g. workflows, pricing, organising" },
             ].map(m => (
               <div key={m.key} style={{ marginBottom: "16px", paddingBottom: "10px", borderBottom: "1px solid #f0f0f0" }}>
@@ -1079,6 +1082,7 @@ function AuthScreen({ onSuccess }) {
               { key: "making", label: "Making" },
               { key: "comms", label: "Comms & Admin" },
               { key: "growth", label: "Growth" },
+              { key: "content", label: "Content" },
               { key: "systems", label: "Systems" },
             ].map(m => (
               <div key={m.key} style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
@@ -1272,6 +1276,7 @@ function ProfileEditScreen({ profile, onSave, onCancel }) {
         <p style={{ ...sml, marginBottom: "12px", marginTop: "24px" }}>Executive demand</p>
         {[
           { key: "growth", label: "Growth" },
+          { key: "content", label: "Content" },
           { key: "comms", label: "Comms & Admin" },
           { key: "systems", label: "Systems" },
           { key: "making", label: "Making" },
@@ -1331,6 +1336,7 @@ function ProfileEditScreen({ profile, onSave, onCancel }) {
           { key: "making", defaultLabel: "Making" },
           { key: "comms", defaultLabel: "Comms & Admin" },
           { key: "growth", defaultLabel: "Growth" },
+          { key: "content", defaultLabel: "Content" },
           { key: "systems", defaultLabel: "Systems" },
         ].map(m => (
           <div key={m.key} style={{ marginBottom: "16px", paddingBottom: "10px", borderBottom: "1px solid #f0f0f0" }}>
@@ -1360,6 +1366,7 @@ function ProfileEditScreen({ profile, onSave, onCancel }) {
           { key: "making", label: "Making" },
           { key: "comms", label: "Comms & Admin" },
           { key: "growth", label: "Growth" },
+          { key: "content", label: "Content" },
           { key: "systems", label: "Systems" },
         ].map(m => (
           <div key={m.key} style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
@@ -2409,7 +2416,7 @@ const [, setAuthTimestamp] = useState(0);
                       <span style={{
                         fontFamily: TNR, fontSize: "15px",
                         color: WORK_MODES.includes(mode)
-                          ? `rgba(26, 13, 171, ${EXEC_INTENSITY[mode].opacity})`
+                          ? `rgba(26, 13, 171, ${(EXEC_INTENSITY[mode]?.opacity ?? 0.5)})`
                           : MODE_COLORS[mode]
                       }}>{m.label}</span>
                       <span style={{ fontFamily: TNR, fontSize: "12px", color: "#888" }}>
@@ -2431,7 +2438,7 @@ const [, setAuthTimestamp] = useState(0);
                 <span style={{
                   fontFamily: TNR, fontSize: "16px",
                   color: WORK_MODES.includes(nextAction.mode)
-                    ? `rgba(26, 13, 171, ${EXEC_INTENSITY[nextAction.mode].opacity})`
+                    ? `rgba(26, 13, 171, ${(EXEC_INTENSITY[nextAction.mode]?.opacity ?? 0.5)})`
                     : MODE_COLORS[nextAction.mode]
                 }}>
                   {MODES[nextAction.mode].label}
@@ -2565,7 +2572,7 @@ const [, setAuthTimestamp] = useState(0);
                       const val = schedule[day][slot];
                       const isOffice = val === "office";
                       const isWorkMode = val && WORK_MODES.includes(val);
-                      const intensity = isWorkMode ? EXEC_INTENSITY[val] : null;
+                      const intensity = isWorkMode ? (EXEC_INTENSITY[val] || { opacity: 0.5 }) : null;
                       const cellColor = isWorkMode 
                         ? `rgba(26, 13, 171, ${intensity.opacity})`  // hyperlink blue at varying opacity
                         : val ? MODE_COLORS[val] : null;
@@ -2598,7 +2605,7 @@ const [, setAuthTimestamp] = useState(0);
           <div style={{ display: "flex", gap: "20px", flexWrap: "wrap", justifyContent: "center", marginBottom: "36px" }}>
             {Object.entries(MODES).map(([key, m]) => {
               const isWorkMode = WORK_MODES.includes(key);
-              const intensity = isWorkMode ? EXEC_INTENSITY[key] : null;
+              const intensity = isWorkMode ? (EXEC_INTENSITY[key] || { opacity: 0.5, desc: "" }) : null;
               const color = isWorkMode 
                 ? `rgba(26, 13, 171, ${intensity.opacity})`
                 : MODE_COLORS[key];
@@ -2989,19 +2996,9 @@ const [, setAuthTimestamp] = useState(0);
           {categorizedTasks && (
             <div>
               {WORK_MODES.map(mode => {
-                const modeLabel = {
-                  making: "Making",
-                  comms: "Comms & Admin",
-                  growth: "Growth",
-                  systems: "Systems",
-                }[mode];
-                const modeColor = {
-                  making: "#e90064",
-                  comms: "#0fa97f",
-                  growth: "#aed2ff",
-                  systems: `rgba(26, 13, 171, 0.5)`,
-                }[mode];
-                const taskList = categorizedTasks[mode];
+                const modeLabel = (profile.modeLabels && profile.modeLabels[mode]) || MODES[mode]?.label || mode;
+                const modeColor = MODE_COLORS[mode] || "#1a1a1a";
+                const taskList = categorizedTasks[mode] || [];
                 
                 if (taskList.length === 0) return null;
                 
@@ -3115,7 +3112,7 @@ const [, setAuthTimestamp] = useState(0);
                   <span style={{
                     fontFamily: TNR, fontSize: "16px",
                     color: WORK_MODES.includes(e.mode)
-                      ? `rgba(26, 13, 171, ${EXEC_INTENSITY[e.mode].opacity})`
+                      ? `rgba(26, 13, 171, ${(EXEC_INTENSITY[e.mode]?.opacity ?? 0.5)})`
                       : MODE_COLORS[e.mode]
                   }}>{e.primary}</span>
                 </div>

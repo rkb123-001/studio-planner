@@ -19,7 +19,8 @@ const EXEC_INTENSITY = {
 const MODES = {
   making:  { label: "Making",        sub: "casting, wax work, fabrication",     exportable: true,  energyCost: 3, friction: "medium", sensory: "medium" },
   comms:   { label: "Comms & Admin", sub: "emails, invoices, order tracking",    exportable: true,  energyCost: 3, friction: "high",   sensory: "medium" },
-  growth:  { label: "Growth",        sub: "content, outreach, press, site",      exportable: true,  energyCost: 3, friction: "high",   sensory: "high"   },
+  growth:  { label: "Growth",        sub: "research, residencies, opportunities", exportable: true,  energyCost: 4, friction: "high",   sensory: "high"   },
+  content: { label: "Content",       sub: "social, posts, photography",          exportable: true,  energyCost: 4, friction: "high",   sensory: "high"   },
   systems: { label: "Systems",       sub: "workflows, pricing, proposals",       exportable: true,  energyCost: 2, friction: "medium", sensory: "low"    },
   rest:    { label: "Rest",          sub: "passive / sensory reset / gentle",    exportable: false, energyCost: -2, friction: "low",   sensory: "low"    },
   social:  { label: "Social",        sub: "friends, events, time out",           exportable: false, energyCost: 3, friction: "low",   sensory: "high"   },
@@ -40,6 +41,7 @@ const MODE_COLORS = {
   making:  "rgba(26, 13, 171, 0.25)",  // low exec demand — light blue
   comms:   "rgba(26, 13, 171, 0.75)",  // medium-high exec demand
   growth:  "rgba(26, 13, 171, 1.0)",   // high exec demand — full blue
+  content: "rgba(26, 13, 171, 0.9)",   // high exec demand — slightly different blue tint
   systems: "rgba(26, 13, 171, 0.5)",   // medium exec demand
   rest:    "#888888",                   // muted grey
   social:  "#F72798",                   // hot magenta/pink
@@ -48,6 +50,9 @@ const MODE_COLORS = {
 };
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+// Work mode keys (excludes rest, social, health, office) — used in many places
+const WORK_MODES = ["making", "comms", "growth", "content", "systems"];
 
 // 2-hour slots, 7am–9pm
 const TIME_SLOTS = [
@@ -137,6 +142,9 @@ const BUFFER_TRIGGERS = [
   ["office",  "making"],
   ["growth",  "making"],
   ["comms",   "making"],
+  ["social",  "content"],
+  ["office",  "content"],
+  ["comms",   "content"],
 ];
 
 const Q_CATEGORIES = [
@@ -249,6 +257,7 @@ const DEFAULT_PROFILE = {
   scheduleAround: "",
   modeIntensity: {
     growth: 4,
+    content: 4,
     comms: 3,
     systems: 2,
     making: 1,
@@ -259,13 +268,15 @@ const DEFAULT_PROFILE = {
     making: "Making",
     comms: "Comms & Admin",
     growth: "Growth",
+    content: "Content",
     systems: "Systems",
   },
   // Mode descriptions — what each type of work involves for the user (editable defaults)
   modeDescriptions: {
     making: "casting, wax work, fabrication",
     comms: "emails, invoices, order tracking",
-    growth: "content, outreach, press",
+    growth: "research, residencies, opportunities",
+    content: "social, posts, photography",
     systems: "workflows, pricing, organising",
   },
   // Weekly targets — minimum blocks of each type per week
@@ -273,6 +284,7 @@ const DEFAULT_PROFILE = {
     making: 2,
     comms: 2,
     growth: 1,
+    content: 1,
     systems: 1,
   },
   // Fine art / protected practice — customisable terminology (editable defaults)
@@ -1508,7 +1520,7 @@ const [, setAuthTimestamp] = useState(0);
     if (!text.trim()) return { making: [], comms: [], growth: [], systems: [], other: [] };
     
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-    const result = { making: [], comms: [], growth: [], systems: [], other: [] };
+    const result = { making: [], comms: [], growth: [], content: [], systems: [], other: [] };
     
     const makingKeywords = [
       'wax', 'cast', 'fabricate', 'metalwork', 'metal', 'design', 'sketch', 'prototype',
@@ -1530,15 +1542,20 @@ const [, setAuthTimestamp] = useState(0);
       'submit', 'fill in', 'fill out', 'paperwork', 'forms', 'application form',
     ];
     const growthKeywords = [
-      'content', 'post', 'instagram', 'write', 'article', 'press', 'pitch', 'outreach',
-      'website', 'photography', 'photo', 'video', 'social', 'tiktok', 'portfolio',
-      'press kit', 'bio', 'cv', 'resume', 'publication', 'apply', 'application',
-      'residency', 'grant', 'fund', 'funding', 'submission', 'submit work', 'feature',
-      'editorial', 'magazine', 'interview', 'collaborate', 'collab', 'collaboration',
-      'curator', 'gallery', 'exhibition', 'show', 'lookbook', 'campaign', 'launch',
-      'newsletter', 'mailchimp', 'reel', 'story', 'caption', 'shoot', 'styling',
-      'edit photos', 'lightroom', 'premiere', 'edit video', 'reels', 'mood board',
-      'concept', 'visibility', 'network', 'introduction', 'intro',
+      'apply', 'application', 'residency', 'grant', 'fund', 'funding', 'submission',
+      'submit work', 'feature', 'editorial', 'magazine', 'interview', 'collaborate',
+      'collab', 'collaboration', 'curator', 'gallery', 'exhibition', 'show',
+      'press', 'pitch', 'outreach', 'press kit', 'bio', 'cv', 'resume', 'publication',
+      'research', 'develop', 'development', 'opportunity', 'opportunities',
+      'concept', 'visibility', 'network', 'introduction', 'intro', 'proposal',
+      'portfolio', 'studio visit',
+    ];
+    const contentKeywords = [
+      'content', 'post', 'instagram', 'tiktok', 'social media', 'social',
+      'photography', 'photo', 'photoshoot', 'video', 'website', 'lookbook',
+      'campaign', 'launch', 'newsletter', 'mailchimp', 'reel', 'reels', 'story',
+      'caption', 'shoot', 'styling', 'edit photos', 'lightroom', 'premiere',
+      'edit video', 'mood board', 'create content', 'product shot',
     ];
     const systemsKeywords = [
       'file', 'organize', 'organise', 'database', 'spreadsheet', 'pricing', 'proposal',
@@ -1560,6 +1577,7 @@ const [, setAuthTimestamp] = useState(0);
         making: makingKeywords.filter(k => lower.includes(k)).length,
         comms: commsKeywords.filter(k => lower.includes(k)).length,
         growth: growthKeywords.filter(k => lower.includes(k)).length,
+        content: contentKeywords.filter(k => lower.includes(k)).length,
         systems: systemsKeywords.filter(k => lower.includes(k)).length,
       };
       
@@ -2390,7 +2408,7 @@ const [, setAuthTimestamp] = useState(0);
                       <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888", width: "52px", flexShrink: 0 }}>{slot}</span>
                       <span style={{
                         fontFamily: TNR, fontSize: "15px",
-                        color: ["growth", "comms", "systems", "making"].includes(mode)
+                        color: WORK_MODES.includes(mode)
                           ? `rgba(26, 13, 171, ${EXEC_INTENSITY[mode].opacity})`
                           : MODE_COLORS[mode]
                       }}>{m.label}</span>
@@ -2412,7 +2430,7 @@ const [, setAuthTimestamp] = useState(0);
                 <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888", width: "52px" }}>{nextAction.slot}</span>
                 <span style={{
                   fontFamily: TNR, fontSize: "16px",
-                  color: ["growth", "comms", "systems", "making"].includes(nextAction.mode)
+                  color: WORK_MODES.includes(nextAction.mode)
                     ? `rgba(26, 13, 171, ${EXEC_INTENSITY[nextAction.mode].opacity})`
                     : MODE_COLORS[nextAction.mode]
                 }}>
@@ -2546,7 +2564,7 @@ const [, setAuthTimestamp] = useState(0);
                     {DAYS.map(day => {
                       const val = schedule[day][slot];
                       const isOffice = val === "office";
-                      const isWorkMode = val && ["growth", "comms", "systems", "making"].includes(val);
+                      const isWorkMode = val && WORK_MODES.includes(val);
                       const intensity = isWorkMode ? EXEC_INTENSITY[val] : null;
                       const cellColor = isWorkMode 
                         ? `rgba(26, 13, 171, ${intensity.opacity})`  // hyperlink blue at varying opacity
@@ -2579,7 +2597,7 @@ const [, setAuthTimestamp] = useState(0);
           {/* Key — 3-char abbrev + label, coloured (work modes use intensity scale) */}
           <div style={{ display: "flex", gap: "20px", flexWrap: "wrap", justifyContent: "center", marginBottom: "36px" }}>
             {Object.entries(MODES).map(([key, m]) => {
-              const isWorkMode = ["growth", "comms", "systems", "making"].includes(key);
+              const isWorkMode = WORK_MODES.includes(key);
               const intensity = isWorkMode ? EXEC_INTENSITY[key] : null;
               const color = isWorkMode 
                 ? `rgba(26, 13, 171, ${intensity.opacity})`
@@ -2970,7 +2988,7 @@ const [, setAuthTimestamp] = useState(0);
           {/* Categorized tasks display */}
           {categorizedTasks && (
             <div>
-              {["making", "comms", "growth", "systems"].map(mode => {
+              {WORK_MODES.map(mode => {
                 const modeLabel = {
                   making: "Making",
                   comms: "Comms & Admin",
@@ -3096,7 +3114,7 @@ const [, setAuthTimestamp] = useState(0);
                   <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888", width: "56px", flexShrink: 0 }}>{e.level}</span>
                   <span style={{
                     fontFamily: TNR, fontSize: "16px",
-                    color: ["growth", "comms", "systems", "making"].includes(e.mode)
+                    color: WORK_MODES.includes(e.mode)
                       ? `rgba(26, 13, 171, ${EXEC_INTENSITY[e.mode].opacity})`
                       : MODE_COLORS[e.mode]
                   }}>{e.primary}</span>

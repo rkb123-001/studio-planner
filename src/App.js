@@ -2390,9 +2390,16 @@ const [, setAuthTimestamp] = useState(0);
           <div style={{ marginBottom: "40px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
               <p style={{ ...sml, margin: 0 }}>{today}</p>
-              <span style={{ fontFamily: TNR, fontSize: "13px", color: todayOver ? "#b01904" : "#888" }}>
-                {todayEnergy} / {todayBudget} energy {todayOver ? "— over" : ""}
-              </span>
+              {(() => {
+                const atCapacity = !todayOver && todayEnergy >= todayBudget * 0.9 && todayEnergy >= 1;
+                const color = todayOver ? "#b01904" : atCapacity ? "#c47100" : "#888";
+                const label = todayOver ? "— over" : atCapacity ? "— at capacity" : "";
+                return (
+                  <span style={{ fontFamily: TNR, fontSize: "13px", color }}>
+                    {todayEnergy} / {todayBudget} energy {label}
+                  </span>
+                );
+              })()}
             </div>
 
             {/* Energy level as plain underlined links */}
@@ -2541,13 +2548,29 @@ const [, setAuthTimestamp] = useState(0);
                     const de = getDayEnergy(d);
                     const db = getDayBudget(d);
                     const over = de > db;
+                    // "At capacity" = within 10% of budget (or right at it). 
+                    // Signals "you've used your day" without being overload.
+                    const atCapacity = !over && de >= db * 0.9 && de >= 1;
                     const currentLevel = dayEnergyLevels[d] || "medium";
                     // Get this day's balance status from capacity calc
                     const dayStatus = capacity.dailyRatios?.find(r => r.day === d);
                     const isUnderRested = dayStatus?.overloaded;  // really out of balance
                     const isBalanced = dayStatus?.balanced;       // close to target
-                    // Only color when truly overloaded or truly balanced; "close" stays neutral
-                    const dayColor = isUnderRested ? "#b01904" : isBalanced ? "#0fa97f" : "#1a1a1a";
+                    // Colour priority: overload (red) > at capacity (amber) > balanced (green) > neutral
+                    const dayColor = (isUnderRested || over) 
+                      ? "#b01904" 
+                      : atCapacity 
+                        ? "#c47100"  // amber/orange = at capacity, no more room
+                        : isBalanced 
+                          ? "#0fa97f" 
+                          : "#1a1a1a";
+                    const energyColor = (isUnderRested || over)
+                      ? "#b01904"
+                      : atCapacity
+                        ? "#c47100"
+                        : isBalanced 
+                          ? "#0fa97f" 
+                          : "#888";
                     // Cycle through H/M/L on click
                     const cycleEnergy = () => {
                       setHasUserInteracted(true);
@@ -2563,7 +2586,7 @@ const [, setAuthTimestamp] = useState(0);
                           textDecoration: "underline", textUnderlineOffset: "2px",
                           textDecorationColor: "#ddd",
                         }}>
-                          {currentLevel.charAt(0).toUpperCase()} · <span style={{ color: isUnderRested ? "#b01904" : isBalanced ? "#0fa97f" : over ? "#b01904" : "#888" }}>{de}/{db}</span>
+                          {currentLevel.charAt(0).toUpperCase()} · <span style={{ color: energyColor }}>{de}/{db}</span>
                         </div>
                       </th>
                     );

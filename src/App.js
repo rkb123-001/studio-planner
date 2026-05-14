@@ -87,10 +87,14 @@ const SUCCESS_METRICS = [
 ];
 
 // Energy levels for stuck state and daily energy budget
+// Budgets are BASE values — actually used budget is also adjusted by user's restRatio.
+// At restRatio=1.0: H=18, M=15, L=10
+// At restRatio=0.3 (less rest needed): H=22, M=18, L=12
+// At restRatio=2.0 (more rest needed): H=12, M=10, L=7
 const ENERGY_LEVELS = [
-  { key: "high",   label: "High",   sub: "clear, motivated, present",       budget: 7 },
-  { key: "medium", label: "Medium", sub: "functional, steady",              budget: 5 },
-  { key: "low",    label: "Low",    sub: "depleted, wired-tired, foggy",    budget: 3 },
+  { key: "high",   label: "High",   sub: "clear, motivated, present",       budget: 18 },
+  { key: "medium", label: "Medium", sub: "functional, steady",              budget: 15 },
+  { key: "low",    label: "Low",    sub: "depleted, wired-tired, foggy",    budget: 10 },
 ];
 
 // Runway: max 3 extremely concrete actions per state
@@ -988,7 +992,7 @@ function AuthScreen({ onSuccess }) {
 
             <p style={{ ...sml, marginBottom: "12px", marginTop: "24px" }}>Rest needed per active hour</p>
             <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "16px", lineHeight: "1.6" }}>
-              How many hours of rest do you need per hour of active work? Used to determine if a day is balanced.
+              How many hours of rest do you need per hour of active work? This shapes your daily energy budget — a lower ratio (you recover quickly) raises your capacity, a higher ratio lowers it. The default is 1:1 (balanced). Pick what fits you.
             </p>
             <div style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
               <span style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", flex: 1 }}>
@@ -1300,7 +1304,7 @@ function ProfileEditScreen({ profile, onSave, onCancel }) {
 
         <p style={{ ...sml, marginBottom: "12px", marginTop: "24px" }}>Rest needed per active hour</p>
         <p style={{ fontFamily: TNR, fontSize: "11px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
-          Hours of rest per active hour. Sets your daily balance threshold.
+          Hours of rest per active hour. Shapes your daily energy budget — lower ratio raises it, higher lowers it.
         </p>
         <div style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
           <span style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", flex: 1 }}>
@@ -1824,7 +1828,15 @@ const [, setAuthTimestamp] = useState(0);
 
   const getDayBudget = (day) => {
     const level = dayEnergyLevels[day] || "medium";
-    return ENERGY_LEVELS.find(e => e.key === level)?.budget || 5;
+    const baseBudget = ENERGY_LEVELS.find(e => e.key === level)?.budget || 11;
+    // Adjust budget by rest ratio: lower restRatio = less rest needed = higher tolerable load.
+    // restRatio 1.0 = neutral (baseline budget).
+    // restRatio 0.3 = "I need less rest" → increase budget by ~20%.
+    // restRatio 2.0 = "I need more rest" → decrease budget by ~30%.
+    // Formula: budget * (1 + (1 - restRatio) * 0.3), clamped to reasonable bounds.
+    const ratio = profile.restRatio ?? 1.0;
+    const multiplier = 1 + (1 - ratio) * 0.3;
+    return Math.round(baseBudget * Math.max(0.6, Math.min(1.5, multiplier)));
   };
 
   // Transition buffer detection: look for consecutive slots on the same day

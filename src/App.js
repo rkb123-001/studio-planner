@@ -81,7 +81,7 @@ export default function App() {
   const [showCalendarSelector, setShowCalendarSelector] = useState(false);
   const [showCalendarPanel, setShowCalendarPanel] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [existingEvents, setExistingEvents] = useState([]);
+const [existingEvents] = useState([]);
   const [calendarEventMap, setCalendarEventMap] = useState({});
   const [conflictWarning, setConflictWarning] = useState(null);
 

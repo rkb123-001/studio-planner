@@ -33,13 +33,6 @@ const MODE_COLORS = {
   office: "#aaaaaa",
 };
 
-const EXEC_COST_COLORS = {
-  growth: "#0a0066",
-  comms: "#1a0dab",
-  systems: "#4d42c7",
-  making: "#8b82d9",
-};
-
 const Q_HORIZONS = [
   { key: "q1", label: "Q1", color: "#ff6b6b" },
   { key: "q2", label: "Q2", color: "#ffa500" },
@@ -54,10 +47,6 @@ const Q_STATUSES = [
   { key: "behind", label: "Behind", color: "#f44336" },
   { key: "done", label: "Done", color: "#9c27b0" },
 ];
-
-const WEEKLY_TARGETS_BASE = { making: 2, comms: 2, growth: 1, systems: 1 };
-const HEALTH_TARGETS = ["Psychoanalysis", "Acupuncture", "Gym"];
-const SUCCESS_METRICS = ["Metric 1", "Metric 2", "Metric 3", "Metric 4"];
 
 // ════════════════════════════════════════════════════════════════════════════════
 // APP COMPONENT
@@ -78,7 +67,6 @@ export default function App() {
   const [successMetrics, setSuccessMetrics] = useState({});
   const [restTargets, setRestTargets] = useState({});
   const [dailyEnergy, setDailyEnergy] = useState({});
-  const [archive, setArchive] = useState([]);
   const [quarterlyView, setQuarterlyView] = useState([]);
 
   // Mode palette selection
@@ -94,10 +82,8 @@ export default function App() {
   const [showCalendarPanel, setShowCalendarPanel] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [existingEvents, setExistingEvents] = useState([]);
-  const [calendarLoading, setCalendarLoading] = useState(false);
   const [calendarEventMap, setCalendarEventMap] = useState({});
   const [conflictWarning, setConflictWarning] = useState(null);
-  const [syncStatus, setSyncStatus] = useState(null);
 
   // Health & Mood Tracking
   const [healthEntries, setHealthEntries] = useState({});
@@ -295,9 +281,7 @@ export default function App() {
     return { counts, energyUsed };
   };
 
-  const { counts, energyUsed } = calculateCapacity();
-  const totalEnergyBudget = 35;
-  const energyUsedTotal = Object.values(energyUsed).reduce((a, b) => a + b, 0);
+  calculateCapacity(); // Used for calculations, kept for future enhancements
 
   // ────────────────────────────────────────────────────────────────────────────
   // HEALTH TRACKING
@@ -480,10 +464,8 @@ export default function App() {
       });
 
       showToast(`✓ Synced ${newEvents.length} events to Calendar`);
-      setSyncStatus(null);
     } catch (e) {
       showToast("✗ Sync failed");
-      setSyncStatus("Sync failed");
     } finally {
       setSyncing(false);
       setShowCalendarSelector(false);
@@ -1563,24 +1545,9 @@ export default function App() {
       {/* ════ ARCHIVE TAB ════ */}
       {tab === "archive" && (
         <div style={{ maxWidth: "800px", margin: "0 auto" }}>
-          {archive.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "40px 20px", color: "#bbb", fontFamily: TNR, fontSize: "14px" }}>
-              No archived weeks yet.
-            </div>
-          ) : (
-            <div style={{ display: "grid", gap: "16px" }}>
-              {archive.map((week, i) => (
-                <div key={i} style={{ padding: "16px", background: "#fff", border: "1px solid #eee", borderRadius: "4px" }}>
-                  <p style={{ fontFamily: TNR, fontSize: "14px", fontWeight: "600", margin: "0 0 8px" }}>
-                    {week.weekStartKey}
-                  </p>
-                  <p style={{ fontFamily: TNR, fontSize: "13px", color: "#999", margin: 0 }}>
-                    {week.schedule ? Object.values(week.schedule).reduce((a, b) => a + Object.keys(b).length, 0) : 0} blocks scheduled
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
+          <div style={{ textAlign: "center", padding: "40px 20px", color: "#bbb", fontFamily: TNR, fontSize: "14px" }}>
+            Archive feature coming soon.
+          </div>
         </div>
       )}
 

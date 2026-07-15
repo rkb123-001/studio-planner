@@ -1,1623 +1,3452 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 
-// ════════════════════════════════════════════════════════════════════════════════
-// CONSTANTS
-// ════════════════════════════════════════════════════════════════════════════════
+const TNR = "'Times New Roman', Times, serif";
+const LINK_BLUE = "#1a0dab";
 
-const TNR = "'Times New Roman', Times, Georgia, serif";
-const LINK_BLUE = "#0099ff";
+// Executive functioning intensity: how much executive function each task requires
+// Growth = most, Comms = next, Systems = next, Making = least
+// Visualised as hyperlink blue at varying opacity
+const EXEC_INTENSITY = {
+  growth:  { intensity: 4, opacity: 1.0,  desc: "high executive demand" },   // #1a0dab at 100%
+  content: { intensity: 4, opacity: 0.9,  desc: "high executive demand" },   // #1a0dab at 90%
+  comms:   { intensity: 3, opacity: 0.75, desc: "medium-high executive demand" }, // #1a0dab at 75%
+  systems: { intensity: 2, opacity: 0.5,  desc: "medium executive demand" },  // #1a0dab at 50%
+  making:  { intensity: 1, opacity: 0.25, desc: "low executive demand" },     // #1a0dab at 25%
+};
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+// Energy costs: 1=low, 2=medium, 3=high. Rest is negative (recovery).
+const MODES = {
+  making:  { label: "Making",        sub: "casting, wax work, fabrication",     exportable: true,  energyCost: 3, friction: "medium", sensory: "medium" },
+  comms:   { label: "Comms & Admin", sub: "emails, invoices, order tracking",    exportable: true,  energyCost: 3, friction: "high",   sensory: "medium" },
+  growth:  { label: "Growth",        sub: "research, residencies, opportunities", exportable: true,  energyCost: 4, friction: "high",   sensory: "high"   },
+  content: { label: "Content",       sub: "social, posts, photography",          exportable: true,  energyCost: 4, friction: "high",   sensory: "high"   },
+  systems: { label: "Systems",       sub: "workflows, pricing, proposals",       exportable: true,  energyCost: 2, friction: "medium", sensory: "low"    },
+  rest:    { label: "Rest",          sub: "passive / sensory reset / gentle",    exportable: false, energyCost: -2, friction: "low",   sensory: "low"    },
+  social:  { label: "Social",        sub: "friends, events, time out",           exportable: false, energyCost: 3, friction: "low",   sensory: "high"   },
+  health:  { label: "Health",        sub: "gym, appointments, movement",         exportable: false, energyCost: 2, friction: "low",   sensory: "medium" },
+  office:  { label: "Office Work",   sub: "morning / mid / late shift",          exportable: false, energyCost: 3, friction: "medium", sensory: "medium" },
+};
+
+// Rest subtypes — all count as valid rest in capacity scoring
+const REST_TYPES = {
+  passive:  { label: "Passive rest",        sub: "full rest, no input" },
+  sensory:  { label: "Sensory reset",       sub: "quiet, dark, minimal stimulation" },
+  gentle:   { label: "Gentle regulation",   sub: "walk, stretch, slow movement" },
+};
+
+// Work modes use hyperlink blue at exec-intensity opacity (matches grid)
+// Non-work modes have their own colors
+const MODE_COLORS = {
+  making:  "rgba(26, 13, 171, 0.25)",  // low exec demand — light blue
+  comms:   "rgba(26, 13, 171, 0.75)",  // medium-high exec demand
+  growth:  "rgba(26, 13, 171, 1.0)",   // high exec demand — full blue
+  content: "rgba(26, 13, 171, 0.9)",   // high exec demand — slightly different blue tint
+  systems: "rgba(26, 13, 171, 0.5)",   // medium exec demand
+  rest:    "#888888",                   // muted grey
+  social:  "#F72798",                   // hot magenta/pink
+  health:  "#00a8ff",                   // cyan
+  office:  "#aaaaaa",                   // muted grey
+};
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const TIME_SLOTS = ["7–9am", "9–11am", "11am–1pm", "1–3pm", "3–5pm", "5–7pm", "7–9pm"];
-const SLOT_START = [7, 9, 11, 13, 15, 17, 19];
 
-const MODES = {
-  making: { label: "Making", exportable: true },
-  comms: { label: "Comms & Admin", exportable: true },
-  growth: { label: "Growth", exportable: true },
-  systems: { label: "Systems", exportable: true },
-  rest: { label: "Rest", exportable: false },
-  social: { label: "Social", exportable: false },
-  health: { label: "Health", exportable: false },
-  office: { label: "Office", exportable: false },
+// Work mode keys (excludes rest, social, health, office) — used in many places
+const WORK_MODES = ["making", "comms", "growth", "content", "systems"];
+
+// 2-hour slots, 7am–9pm
+const TIME_SLOTS = [
+  "7–9am", "9–11am", "11am–1pm",
+  "1–3pm", "3–5pm", "5–7pm", "7–9pm",
+];
+const SLOT_START = {
+  "7–9am": 7, "9–11am": 9, "11am–1pm": 11,
+  "1–3pm": 13, "3–5pm": 15, "5–7pm": 17, "7–9pm": 19,
 };
 
-const MODE_COLORS = {
-  making: "#e90064",
-  comms: "#0fa97f",
-  growth: "#aed2ff",
-  systems: "#ff3366",
-  rest: "#888888",
-  social: "#F72798",
-  health: "#00a8ff",
-  office: "#aaaaaa",
+const HEALTH_TARGETS = [
+  { key: "psychoanalysis", label: "Psychoanalysis" },
+  { key: "acupuncture",    label: "Acupuncture" },
+  { key: "gym",            label: "Gym" },
+];
+
+const CHECKLIST = [
+  "Client comms up to date",
+  "Orders progressed",
+  "1 visibility action",
+  "1 systems improvement",
+];
+
+// Weekly success metrics (beyond output)
+const SUCCESS_METRICS = [
+  { key: "capacity",  label: "Stayed within capacity" },
+  { key: "noOverload",label: "Avoided overload" },
+  { key: "meaningful",label: "Completed at least one meaningful task" },
+  { key: "fineArt",   label: "Progressed a fine art project" },
+];
+
+// Energy levels for stuck state and daily energy budget
+// Budgets are BASE values — actually used budget is also adjusted by user's restRatio.
+// At restRatio=1.0: H=18, M=15, L=10
+// At restRatio=0.3 (less rest needed): H=22, M=18, L=12
+// At restRatio=2.0 (more rest needed): H=12, M=10, L=7
+const ENERGY_LEVELS = [
+  { key: "high",   label: "High",   sub: "clear, motivated, present",       budget: 18 },
+  { key: "medium", label: "Medium", sub: "functional, steady",              budget: 15 },
+  { key: "low",    label: "Low",    sub: "depleted, wired-tired, foggy",    budget: 10 },
+];
+
+// Runway: max 3 extremely concrete actions per state
+const RUNWAY_MAP = {
+  high: {
+    note: "You have the energy for deep studio work. Go straight in.",
+    runwayNeeded: false,
+    actions: [
+      "Lay out your tools or materials now, before you sit down.",
+      "Set a timer for 90 mins. Close email.",
+      "Start with the physical action, not a decision.",
+    ],
+  },
+  medium: {
+    note: "Start with 10 mins of support work, then move to one hard task.",
+    runwayNeeded: true,
+    runway: "Clear one surface or open one file. That's it.",
+    actions: [
+      "Open email and reply to 1 message only.",
+      "Write the next physical action for your current project.",
+      "Tidy one area of your workspace.",
+    ],
+    expose: { label: "One exposure action (max 45 mins, 2 tasks)", examples: [
+      "Send 2 client replies, then stop.",
+      "Log 1 finance category, then close the tab.",
+      "Post 1 piece of content, then put the phone down.",
+    ]},
+  },
+  low: {
+    note: "Runway only. No cold-starts. One tiny action, then stop or rest.",
+    runwayNeeded: true,
+    runway: "Do the single easiest thing available to you right now.",
+    actions: [
+      "Open 1 email. Reply or archive. Close.",
+      "Move 1 thing to where it belongs.",
+      "Write 1 sentence about what is blocking you.",
+    ],
+    expose: { label: "One action only (max 20 mins)", examples: [
+      "Reply to 1 message.",
+      "Pay 1 bill.",
+      "File 1 document.",
+    ]},
+  },
 };
 
-const Q_HORIZONS = [
-  { key: "q1", label: "Q1", color: "#ff6b6b" },
-  { key: "q2", label: "Q2", color: "#ffa500" },
-  { key: "q3", label: "Q3", color: "#4ecdc4" },
-  { key: "q4", label: "Q4", color: "#9b59b6" },
+// Transition buffer triggers: [from, to] pairs that warrant a buffer suggestion
+const BUFFER_TRIGGERS = [
+  ["making",  "making"],   // high → high
+  ["social",  "making"],
+  ["office",  "making"],
+  ["growth",  "making"],
+  ["comms",   "making"],
+  ["social",  "content"],
+  ["office",  "content"],
+  ["comms",   "content"],
+];
+
+const Q_CATEGORIES = [
+  "Studio production",
+  "Client / commissions",
+  "Finance / systems",
+  "Health / regulation",
+  "Practice development",
+  "Opportunities / applications",
+  "Personal / life admin",
 ];
 
 const Q_STATUSES = [
-  { key: "not-started", label: "Not started", color: "#ddd" },
-  { key: "on-track", label: "On track", color: "#4caf50" },
-  { key: "at-risk", label: "At risk", color: "#ff9800" },
-  { key: "behind", label: "Behind", color: "#f44336" },
-  { key: "done", label: "Done", color: "#9c27b0" },
+  { key: "on-track",    label: "On track",    color: "#7a9e96" },
+  { key: "at-risk",     label: "At risk",     color: "#e8c070" },
+  { key: "behind",      label: "Behind",      color: "#b01904" },
+  { key: "done",        label: "Done",        color: "#a8b87a" },
+  { key: "not-started", label: "Not started", color: "#cccccc" },
 ];
 
-// ════════════════════════════════════════════════════════════════════════════════
-// APP COMPONENT
-// ════════════════════════════════════════════════════════════════════════════════
+const Q_HORIZONS = [
+  { key: "now",   label: "Now",   sub: "actively working on" },
+  { key: "next",  label: "Next",  sub: "ready, not yet started" },
+  { key: "later", label: "Later", sub: "held without pressure" },
+];
 
-export default function App() {
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [tab, setTab] = useState("weekly-schedule");
+const QUARTERS = [
+  { key: "q1", label: "Q1", sub: "Jan – Mar" },
+  { key: "q2", label: "Q2", sub: "Apr – Jun" },
+  { key: "q3", label: "Q3", sub: "Jul – Sep" },
+  { key: "q4", label: "Q4", sub: "Oct – Dec" },
+];
 
-  // Schedule & Weekly Data
-  const weekStart = new Date(currentDate);
-  weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1);
-  const weekStartKey = weekStart.toISOString().split("T")[0];
+const currentQuarterKey = () => `q${Math.ceil((new Date().getMonth() + 1) / 3)}`;
 
-  const [schedule, setSchedule] = useState({});
-  const [weekNote, setWeekNote] = useState("");
-  const [healthTargets, setHealthTargets] = useState({});
-  const [successMetrics, setSuccessMetrics] = useState({});
-  const [restTargets, setRestTargets] = useState({});
-  const [dailyEnergy, setDailyEnergy] = useState({});
-  const [quarterlyView, setQuarterlyView] = useState([]);
+const CONFIDENCE = [
+  { key: "high",   label: "Confident" },
+  { key: "medium", label: "Uncertain" },
+  { key: "low",    label: "At risk"   },
+];
 
-  // Mode palette selection
-  const [selectedMode, setSelectedMode] = useState(null);
+const emptyProject = () => ({
+  id: Date.now() + Math.random(),
+  title: "",
+  nextAction: "",   // required: next physical action
+  category: Q_CATEGORIES[0],
+  status: "not-started",
+  horizon: "now",
+  quarter: currentQuarterKey(),
+  progress: 0,
+  confidence: "medium",
+  dueMonth: "",
+  nextMilestone: "",
+  notes: "",
+  isFineArt: false,
+  isProtectedFineArt: false,
+});
 
-  // Block editor
-  const [showBlockEditor, setShowBlockEditor] = useState(false);
-  const [editingBlock, setEditingBlock] = useState(null);
-  const [blockCustomNote, setBlockCustomNote] = useState("");
+// ── Styles ────────────────────────────────────────────────────────────────────
 
-  // Calendar integration
-  const [showCalendarSelector, setShowCalendarSelector] = useState(false);
-  const [showCalendarPanel, setShowCalendarPanel] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-const [existingEvents] = useState([]);
-  const [calendarEventMap, setCalendarEventMap] = useState({});
-  const [conflictWarning, setConflictWarning] = useState(null);
+// Note: pill function was removed - using boxBtn instead
 
-  // Health & Mood Tracking
-  const [healthEntries, setHealthEntries] = useState({});
-  const [trackedBehaviours, setTrackedBehaviours] = useState(["energy", "focus", "sleep"]);
+// Boxed button in Eilidh Duffy style — thin black rectangular border, no pill
+const boxBtn = (active) => ({
+  display: "inline-block",
+  padding: "6px 18px",
+  border: `1px solid ${active ? LINK_BLUE : "#1a1a1a"}`,
+  background: "#fff",
+  color: active ? LINK_BLUE : "#1a1a1a",
+  fontFamily: TNR, fontSize: "14px",
+  cursor: "pointer", userSelect: "none",
+  transition: "all 0.12s", whiteSpace: "nowrap",
+});
+
+// Clickable link text — hyperlink blue, underlined
+const linkStyle = {
+  color: LINK_BLUE,
+  textDecoration: "underline",
+  textDecorationColor: LINK_BLUE,
+  textUnderlineOffset: "2px",
+  cursor: "pointer",
+  fontFamily: TNR,
+};
+
+const sml = { fontFamily: TNR, fontSize: "11px", letterSpacing: "0.08em", color: "#bbb", textTransform: "uppercase" };
+
+const inp = {
+  fontFamily: TNR, fontSize: "14px", color: "#1a1a1a",
+  border: "none", borderBottom: "1px solid #eee", outline: "none",
+  background: "transparent", padding: "4px 0", width: "100%",
+};
+
+// ── Storage ───────────────────────────────────────────────────────────────────
+
+const LS_KEY = "studio-planner-v1";
+
+// Supabase config
+const SUPABASE_URL = "https://glfrnjconpelpeejvndz.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdsZnJuamNvbnBlbHBlZWp2bmR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyNzUyMDUsImV4cCI6MjA5Mjg1MTIwNX0.IVWq3GLdIiLOF9u24EdurqWgytPg7h1cNk9V5a1JpY4";
+const USE_SUPABASE = SUPABASE_URL && SUPABASE_KEY;
+
+// Auth + profile keys
+const AUTH_TOKEN_KEY = "studio-planner-auth-token";
+const AUTH_EMAIL_KEY = "studio-planner-auth-email";
+const AUTH_USER_ID_KEY = "studio-planner-auth-user-id";
+const PROFILE_KEY = "studio-planner-profile";
+
+// Get current user ID (mutable — updated on login/logout)
+let USER_ID = typeof window !== "undefined" ? localStorage.getItem(AUTH_USER_ID_KEY) || ("user-" + Date.now()) : "user-default";
+
+if (typeof window !== "undefined" && !localStorage.getItem(AUTH_USER_ID_KEY)) {
+  localStorage.setItem(AUTH_USER_ID_KEY, USER_ID);
+}
+
+// Default profile structure
+const DEFAULT_PROFILE = {
+  name: "",
+  role: "",
+  plannerTitle: "Practice Planner",
+  scheduleAround: "",
+  modeIntensity: {
+    growth: 4,
+    content: 4,
+    comms: 3,
+    systems: 2,
+    making: 1,
+  },
+  restRatio: 1.0,
+  // Mode labels — what user wants to call each work type
+  modeLabels: {
+    making: "Making",
+    comms: "Comms & Admin",
+    growth: "Growth",
+    content: "Content",
+    systems: "Systems",
+  },
+  // Mode descriptions — what each type of work involves for the user (editable defaults)
+  modeDescriptions: {
+    making: "casting, wax work, fabrication",
+    comms: "emails, invoices, order tracking",
+    growth: "research, residencies, opportunities",
+    content: "social, posts, photography",
+    systems: "workflows, pricing, organising",
+  },
+  // Weekly targets — minimum blocks of each type per week
+  weeklyTargets: {
+    making: 2,
+    comms: 2,
+    growth: 1,
+    content: 1,
+    systems: 1,
+  },
+  // Fine art / protected practice — customisable terminology (editable defaults)
+  protectedPractice: {
+    enabled: true,
+    label: "Fine art practice",
+    warningText: "No making blocks this week. At least one should go to fine art practice, not commissions.",
+  },
+  // Health goals — fully customisable list
+  healthGoals: ["Psychoanalysis", "Acupuncture", "Gym"],
+  // Social target
+  socialGoal: "1 meaningful connection this week",
+  // Week evaluation metrics
+  weekEvaluation: [
+    "Stayed within capacity",
+    "Avoided overload",
+    "Completed at least one meaningful task",
+    "Progressed a fine art project",
+  ],
+  // Weekly checklist
+  weeklyChecklist: [
+    "Client comms up to date",
+    "Orders progressed",
+    "1 visibility action",
+    "1 systems improvement",
+  ],
+};
+
+const loadProfile = () => {
+  if (typeof window === "undefined") return DEFAULT_PROFILE;
+  try {
+    const p = localStorage.getItem(PROFILE_KEY);
+    return p ? { ...DEFAULT_PROFILE, ...JSON.parse(p) } : DEFAULT_PROFILE;
+  } catch { return DEFAULT_PROFILE; }
+};
+
+const saveProfile = (profile) => {
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch {}
+};
+
+// Auth helpers
+const hashPassword = async (password) => {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+};
+
+const generateSessionToken = () => 'token-' + Math.random().toString(36).substr(2, 20) + Date.now();
+
+const registerUser = async (email, password, profile) => {
+  if (!USE_SUPABASE) return { error: "Supabase not configured" };
+  try {
+    const passwordHash = await hashPassword(password);
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/auth_users`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+        "Prefer": "return=representation",
+      },
+      body: JSON.stringify({ email, password_hash: passwordHash }),
+    });
+    if (!resp.ok) {
+      const err = await resp.text();
+      return { error: err.includes("duplicate") ? "Email already registered" : "Registration failed" };
+    }
+    const users = await resp.json();
+    const user = users[0];
+    
+    const token = generateSessionToken();
+    await fetch(`${SUPABASE_URL}/rest/v1/user_sessions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+      },
+      body: JSON.stringify({ user_id: user.id, device_token: token }),
+    });
+    
+    localStorage.setItem(AUTH_TOKEN_KEY, token);
+    localStorage.setItem(AUTH_EMAIL_KEY, email);
+    localStorage.setItem(AUTH_USER_ID_KEY, user.id);
+    saveProfile(profile);
+    USER_ID = user.id;
+    
+    return { user, token, profile };
+  } catch (e) {
+    return { error: e.message };
+  }
+};
+
+const loginUser = async (email, password) => {
+  if (!USE_SUPABASE) return { error: "Supabase not configured" };
+  try {
+    const passwordHash = await hashPassword(password);
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/auth_users?email=eq.${encodeURIComponent(email)}`, {
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+      },
+    });
+    const users = await resp.json();
+    if (!users || users.length === 0) return { error: "User not found" };
+    
+    const user = users[0];
+    if (user.password_hash !== passwordHash) return { error: "Wrong password" };
+    
+    const token = generateSessionToken();
+    await fetch(`${SUPABASE_URL}/rest/v1/user_sessions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+      },
+      body: JSON.stringify({ user_id: user.id, device_token: token }),
+    });
+    
+    localStorage.setItem(AUTH_TOKEN_KEY, token);
+    localStorage.setItem(AUTH_EMAIL_KEY, email);
+    localStorage.setItem(AUTH_USER_ID_KEY, user.id);
+    USER_ID = user.id;
+    
+    return { user, token };
+  } catch (e) {
+    return { error: e.message };
+  }
+};
+
+const resetPassword = async (email, newPassword) => {
+  if (!USE_SUPABASE) return { error: "Supabase not configured" };
+  try {
+    // First check if the user exists
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/auth_users?email=eq.${encodeURIComponent(email)}`, {
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+      },
+    });
+    const users = await resp.json();
+    if (!users || users.length === 0) return { error: "No account found with that email" };
+    
+    // Update the password hash
+    const newHash = await hashPassword(newPassword);
+    const updateResp = await fetch(`${SUPABASE_URL}/rest/v1/auth_users?email=eq.${encodeURIComponent(email)}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+      },
+      body: JSON.stringify({ password_hash: newHash }),
+    });
+    
+    if (!updateResp.ok) {
+      return { error: "Could not reset password. Please try again." };
+    }
+    
+    return { success: true };
+  } catch (e) {
+    return { error: e.message };
+  }
+};
+
+const verifySession = async (token) => {
+  if (!USE_SUPABASE || !token) return false;
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/user_sessions?device_token=eq.${token}`, {
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+      },
+    });
+    const sessions = await resp.json();
+    return sessions && sessions.length > 0;
+  } catch (e) {
+    return false;
+  }
+};
+
+const logoutUser = () => {
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+  localStorage.removeItem(AUTH_EMAIL_KEY);
+};
+
+const getWeekStart = () => {
+  const now = new Date(), monday = new Date(now);
+  const dayOfWeek = now.getDay();
+  if (dayOfWeek === 0) {
+    // Sunday: check the user's choice for today.
+    // "this" = treat Sunday as end of past week (go back to previous Mon)
+    // "next" = treat Sunday as planning day for upcoming week (go forward to tomorrow's Mon)
+    let choice = "this"; // safe default — Sunday IS technically the end of this week
+    try {
+      const stored = JSON.parse(localStorage.getItem("studio-planner-sunday-choice") || "null");
+      const today = now.toISOString().split("T")[0];
+      if (stored && stored.date === today && stored.choice) choice = stored.choice;
+    } catch (_) {}
+    if (choice === "next") {
+      monday.setDate(now.getDate() + 1);
+    } else {
+      monday.setDate(now.getDate() - 6);
+    }
+  } else {
+    monday.setDate(now.getDate() - (dayOfWeek - 1));
+  }
+  monday.setHours(0, 0, 0, 0);
+  return monday.toISOString().split("T")[0];
+};
+
+// Local storage — always backup
+const saveLocal = (d) => { 
+  try { localStorage.setItem(LS_KEY, JSON.stringify(d)); } catch {} 
+};
+
+const loadLocal = () => { 
+  try { const d = localStorage.getItem(LS_KEY); return d ? JSON.parse(d) : null; } catch { return null; } 
+};
+
+// Supabase cloud sync
+// Safety check: detect if a save would replace existing rich data with empty data.
+// This is the LAST LINE OF DEFENCE against data loss races.
+const isEffectivelyEmpty = (d) => {
+  if (!d) return true;
+  const scheduleEmpty = !d.schedule || Object.values(d.schedule).every(day => 
+    !day || Object.values(day).every(slot => !slot)
+  );
+  const noProjects = !d.projects || d.projects.length === 0;
+  const noArchive = !d.archive || d.archive.length === 0;
+  const noProfile = !d.profile || (!d.profile.name?.trim() && !d.profile.role?.trim());
+  return scheduleEmpty && noProjects && noArchive && noProfile;
+};
+
+const saveToSupabase = async (d) => {
+  if (!USE_SUPABASE) return;
+  try {
+    const weekStart = getWeekStart();
+    
+    // SAFETY GUARD: Before saving, check if existing cloud data is richer than what we're about to save.
+    // If so, BLOCK the save — this prevents wiping good data.
+    if (isEffectivelyEmpty(d)) {
+      const checkResp = await fetch(
+        `${SUPABASE_URL}/rest/v1/planner_data?user_id=eq.${USER_ID}&week_start=eq.${weekStart}`,
+        {
+          headers: {
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`,
+          },
+        }
+      );
+      const existing = await checkResp.json();
+      if (existing && existing[0]) {
+        const existingData = {
+          schedule: existing[0].schedule,
+          projects: existing[0].projects,
+          archive: existing[0].archive,
+          profile: existing[0].profile,
+        };
+        if (!isEffectivelyEmpty(existingData)) {
+          console.warn("[saveToSupabase] BLOCKED destructive write: incoming data is empty but cloud data is rich. Refusing to overwrite.");
+          return;
+        }
+      }
+    }
+    
+    const resp = await fetch(`${SUPABASE_URL}/rest/v1/planner_data`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_KEY,
+        "Authorization": `Bearer ${SUPABASE_KEY}`,
+      },
+      body: JSON.stringify({
+        user_id: USER_ID,
+        week_start: weekStart,
+        schedule: d.schedule,
+        checklist: d.checklist,
+        success_metrics: d.successMetrics,
+        health_targets: d.healthTargets,
+        rest_targets: d.restTargets,
+        social_done: d.socialDone,
+        week_note: d.weekNote,
+        projects: d.projects,
+        archive: d.archive,
+        day_energy_levels: d.dayEnergyLevels,
+        profile: d.profile,
+      }),
+    });
+    if (!resp.ok) {
+      // If it's a duplicate, try UPDATE instead
+      if (resp.status === 409) {
+        await fetch(`${SUPABASE_URL}/rest/v1/planner_data?user_id=eq.${USER_ID}&week_start=eq.${weekStart}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`,
+          },
+          body: JSON.stringify({
+            schedule: d.schedule,
+            checklist: d.checklist,
+            success_metrics: d.successMetrics,
+            health_targets: d.healthTargets,
+            rest_targets: d.restTargets,
+            social_done: d.socialDone,
+            week_note: d.weekNote,
+            projects: d.projects,
+            archive: d.archive,
+            day_energy_levels: d.dayEnergyLevels,
+            profile: d.profile,
+          }),
+        });
+      }
+    }
+  } catch (e) {
+    console.log("Supabase sync error (data still saved locally):", e);
+  }
+};
+
+const loadFromSupabase = async () => {
+  if (!USE_SUPABASE) return null;
+  try {
+    const weekStart = getWeekStart();
+    // First try this week's data
+    let resp = await fetch(
+      `${SUPABASE_URL}/rest/v1/planner_data?user_id=eq.${USER_ID}&week_start=eq.${weekStart}`,
+      {
+        headers: {
+          "apikey": SUPABASE_KEY,
+          "Authorization": `Bearer ${SUPABASE_KEY}`,
+        },
+      }
+    );
+    let data = await resp.json();
+    
+    // If no data for this week, try to get profile from any previous week
+    let profileFallback = null;
+    if (!data || !data[0] || !data[0].profile) {
+      const allResp = await fetch(
+        `${SUPABASE_URL}/rest/v1/planner_data?user_id=eq.${USER_ID}&order=week_start.desc&limit=1`,
+        {
+          headers: {
+            "apikey": SUPABASE_KEY,
+            "Authorization": `Bearer ${SUPABASE_KEY}`,
+          },
+        }
+      );
+      const allData = await allResp.json();
+      if (allData && allData[0] && allData[0].profile) {
+        profileFallback = allData[0].profile;
+      }
+    }
+    
+    if (data && data[0]) {
+      return {
+        schedule: data[0].schedule,
+        checklist: data[0].checklist,
+        successMetrics: data[0].success_metrics,
+        healthTargets: data[0].health_targets,
+        restTargets: data[0].rest_targets,
+        socialDone: data[0].social_done,
+        weekNote: data[0].week_note,
+        projects: data[0].projects,
+        archive: data[0].archive,
+        dayEnergyLevels: data[0].day_energy_levels,
+        profile: data[0].profile || profileFallback,
+      };
+    } else if (profileFallback) {
+      // Return just profile if no week data exists
+      return { profile: profileFallback };
+    }
+  } catch (e) {
+    console.log("Supabase load error (using local):", e);
+  }
+  return null;
+};
+
+const defaultSchedule = () => {
+  const s = {};
+  DAYS.forEach(d => { s[d] = {}; TIME_SLOTS.forEach(t => { s[d][t] = null; }); });
+  return s;
+};
+
+// ── Auth Screen ─────────────────────────────────────────────────────────────
+
+function AuthScreen({ onSuccess }) {
+  const [mode, setMode] = useState("login"); // "login" | "signup" | "profile" | "targets" | "guide" | "forgot"
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [consentGiven, setConsentGiven] = useState(false);
+  const [profile, setProfile] = useState(DEFAULT_PROFILE);
+
+  const handleLogin = async () => {
+    setError(""); setLoading(true);
+    const result = await loginUser(email, password);
+    setLoading(false);
+    if (result.error) {
+      setError(result.error);
+    } else {
+      onSuccess(loadProfile());
+    }
+  };
+
+  const handleSignupContinue = () => {
+    setError("");
+    if (!email || !password) {
+      setError("Email and password required");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
+    if (!consentGiven) {
+      setError("Please consent to data usage to continue");
+      return;
+    }
+    setMode("profile");
+  };
+
+  const handleProfileStep1 = () => {
+    setError("");
+    
+    // Validate step 1 fields
+    if (!profile.name?.trim()) {
+      setError("Please enter your name");
+      return;
+    }
+    if (!profile.role?.trim()) {
+      setError("Please enter your role");
+      return;
+    }
+    if (!profile.scheduleAround?.trim()) {
+      setError("Please enter what you schedule around");
+      return;
+    }
+    if (!profile.modeDescriptions?.making?.trim()) {
+      setError("Please describe what 'Making' involves for you");
+      return;
+    }
+    if (!profile.modeDescriptions?.comms?.trim()) {
+      setError("Please describe what 'Comms & Admin' involves for you");
+      return;
+    }
+    if (!profile.modeDescriptions?.growth?.trim()) {
+      setError("Please describe what 'Growth' involves for you");
+      return;
+    }
+    if (!profile.modeDescriptions?.systems?.trim()) {
+      setError("Please describe what 'Systems' involves for you");
+      return;
+    }
+    if (!profile.protectedPractice?.label?.trim()) {
+      setError("Please name your protected practice");
+      return;
+    }
+    if (!profile.protectedPractice?.warningText?.trim()) {
+      setError("Please write a warning message for your protected practice");
+      return;
+    }
+    
+    setMode("targets");
+  };
+
+  const handleProfileStep2 = () => {
+    setError("");
+    
+    // Validate step 2 fields
+    if (!profile.healthGoals || profile.healthGoals.length === 0) {
+      setError("Please add at least one health goal");
+      return;
+    }
+    if (!profile.socialGoal?.trim()) {
+      setError("Please set your social goal");
+      return;
+    }
+    if (!profile.weekEvaluation || profile.weekEvaluation.length === 0) {
+      setError("Please add at least one week evaluation criterion");
+      return;
+    }
+    if (!profile.weeklyChecklist || profile.weeklyChecklist.length === 0) {
+      setError("Please add at least one checklist item");
+      return;
+    }
+    
+    setMode("guide");
+  };
+
+  const handleSignupComplete = async () => {
+    setError(""); setLoading(true);
+    const result = await registerUser(email, password, profile);
+    setLoading(false);
+    if (result.error) {
+      setError(result.error);
+      setMode("signup");
+    } else {
+      onSuccess(profile);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    setError(""); setResetSuccess(false);
+    if (!email?.trim()) {
+      setError("Please enter your email");
+      return;
+    }
+    if (!password || password.length < 6) {
+      setError("New password must be at least 6 characters");
+      return;
+    }
+    setLoading(true);
+    const result = await resetPassword(email, password);
+    setLoading(false);
+    if (result.error) {
+      setError(result.error);
+    } else {
+      setResetSuccess(true);
+      setPassword("");
+    }
+  };
+
+  const inputAuth = {
+    fontFamily: TNR, fontSize: "15px", color: "#1a1a1a",
+    border: "1px solid #1a1a1a", padding: "10px 12px",
+    width: "100%", outline: "none", boxSizing: "border-box",
+    background: "#fff", marginBottom: "12px",
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#fff", color: "#1a1a1a", fontFamily: TNR, padding: "80px 32px", display: "flex", justifyContent: "center" }}>
+      <div style={{ maxWidth: "400px", width: "100%" }}>
+        <div style={{ textAlign: "center", marginBottom: "48px" }}>
+          <p style={{ ...sml, marginBottom: "20px" }}>Practice Planner</p>
+          <div style={{ fontSize: "16px", lineHeight: "2", color: "#1a1a1a" }}>
+            {mode === "login" && <><div>Sign in to access</div><div>your planner.</div></>}
+            {mode === "signup" && <><div>Create your account.</div></>}
+            {mode === "forgot" && <><div>Reset your password.</div></>}
+            {mode === "profile" && <><div>Tell us about yourself.</div><div style={{ fontSize: "12px", color: "#888", marginTop: "8px" }}>Step 1 of 3</div></>}
+            {mode === "targets" && <><div>Set your targets.</div><div style={{ fontSize: "12px", color: "#888", marginTop: "8px" }}>Step 2 of 3</div></>}
+            {mode === "guide" && <><div>How it works.</div><div style={{ fontSize: "12px", color: "#888", marginTop: "8px" }}>Step 3 of 3</div></>}
+          </div>
+        </div>
+
+        {(mode === "login" || mode === "signup") && (
+          <>
+            <p style={{ ...sml, marginBottom: "8px" }}>Email</p>
+            <input 
+              type="email" 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)} 
+              style={inputAuth} 
+              placeholder="you@email.com"
+              autoComplete={mode === "login" ? "email" : "username"}
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck="false"
+            />
+            
+            <p style={{ ...sml, marginBottom: "8px", marginTop: "8px" }}>Password</p>
+            <input 
+              type="password" 
+              value={password} 
+              onChange={(e) => setPassword(e.target.value)} 
+              style={inputAuth} 
+              placeholder="••••••••"
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
+            />
+            
+            {mode === "signup" && (
+              <div style={{ marginTop: "12px", marginBottom: "8px", display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                <input 
+                  type="checkbox" 
+                  checked={consentGiven} 
+                  onChange={(e) => setConsentGiven(e.target.checked)}
+                  style={{ marginTop: "4px", cursor: "pointer", flexShrink: 0 }}
+                  id="consent-checkbox"
+                />
+                <label htmlFor="consent-checkbox" style={{ fontFamily: TNR, fontSize: "12px", color: "#555", lineHeight: "1.5", cursor: "pointer" }}>
+                  I consent to my data being stored to provide this service. My planner data is saved securely and used only to sync my account across my devices. I can delete my account at any time.
+                </label>
+              </div>
+            )}
+            
+            {error && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b01904", marginTop: "8px", marginBottom: "16px" }}>{error}</p>}
+            
+            <div style={{ marginTop: "24px", textAlign: "center" }}>
+              <span onClick={!loading ? (mode === "login" ? handleLogin : handleSignupContinue) : undefined}
+                style={{ ...boxBtn(true), padding: "10px 32px", fontSize: "15px", display: "inline-block" }}>
+                {loading ? "..." : mode === "login" ? "Sign in" : "Continue"}
+              </span>
+            </div>
+            
+            <div style={{ textAlign: "center", marginTop: "32px" }}>
+              <span onClick={() => { setMode(mode === "login" ? "signup" : "login"); setError(""); }}
+                style={{ ...linkStyle, fontSize: "13px" }}>
+                {mode === "login" ? "Create an account" : "Already have an account? Sign in"}
+              </span>
+            </div>
+            
+            {mode === "login" && (
+              <div style={{ textAlign: "center", marginTop: "16px" }}>
+                <span onClick={() => { setMode("forgot"); setError(""); setPassword(""); }}
+                  style={{ ...linkStyle, fontSize: "13px", color: "#888", textDecorationColor: "#bbb" }}>
+                  Forgot password?
+                </span>
+              </div>
+            )}
+          </>
+        )}
+
+        {mode === "forgot" && (
+          <>
+            <p style={{ ...sml, marginBottom: "8px" }}>Email</p>
+            <input 
+              type="email" 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)} 
+              style={inputAuth} 
+              placeholder="you@email.com"
+              autoComplete="email"
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck="false"
+            />
+            
+            <p style={{ ...sml, marginBottom: "8px", marginTop: "8px" }}>New password</p>
+            <input 
+              type="password" 
+              value={password} 
+              onChange={(e) => setPassword(e.target.value)} 
+              style={inputAuth} 
+              placeholder="At least 6 characters"
+              autoComplete="new-password"
+            />
+            
+            {error && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b01904", marginTop: "8px", marginBottom: "16px" }}>{error}</p>}
+            {resetSuccess && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#0fa97f", marginTop: "8px", marginBottom: "16px" }}>Password reset. Sign in with your new password.</p>}
+            
+            <div style={{ marginTop: "24px", textAlign: "center" }}>
+              <span onClick={!loading ? handleResetPassword : undefined}
+                style={{ ...boxBtn(true), padding: "10px 32px", fontSize: "15px", display: "inline-block" }}>
+                {loading ? "..." : "Reset password"}
+              </span>
+            </div>
+            
+            <div style={{ textAlign: "center", marginTop: "24px" }}>
+              <span onClick={() => { setMode("login"); setError(""); setResetSuccess(false); }} style={{ ...linkStyle, fontSize: "13px" }}>← Back to sign in</span>
+            </div>
+          </>
+        )}
+
+        {mode === "profile" && (
+          <>
+            <p style={{ ...sml, marginBottom: "8px" }}>Your name</p>
+            <input value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} style={inputAuth} placeholder="e.g. Rebekah Kosonen Bide" />
+            
+            <p style={{ ...sml, marginBottom: "8px" }}>Your role</p>
+            <input value={profile.role} onChange={(e) => setProfile({ ...profile, role: e.target.value })} style={inputAuth} placeholder="e.g. Fine artist" />
+            
+            <p style={{ ...sml, marginBottom: "8px" }}>What do you want to call your planner?</p>
+            <input value={profile.plannerTitle} onChange={(e) => setProfile({ ...profile, plannerTitle: e.target.value })} style={inputAuth} placeholder="e.g. Studio Practice Planner" />
+            
+            <p style={{ ...sml, marginBottom: "8px" }}>What do you schedule around?</p>
+            <input value={profile.scheduleAround} onChange={(e) => setProfile({ ...profile, scheduleAround: e.target.value })} style={inputAuth} placeholder="e.g. office shifts, classes, day job" />
+            
+            <p style={{ ...sml, marginBottom: "12px", marginTop: "20px" }}>Executive demand for each task type</p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "16px", lineHeight: "1.6" }}>
+              How much focus does each type require? 1 = lowest, 4 = highest.
+            </p>
+            
+            {[
+              { key: "growth", label: "Growth (research, residencies, opportunities)" },
+              { key: "content", label: "Content (social, posts, photography)" },
+              { key: "comms", label: "Comms & Admin (emails, invoices)" },
+              { key: "systems", label: "Systems (workflows, organising)" },
+              { key: "making", label: "Making (creating, building)" },
+            ].map(m => (
+              <div key={m.key} style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
+                <span style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", flex: 1 }}>{m.label}</span>
+                <div style={{ display: "flex", gap: "4px" }}>
+                  {[1, 2, 3, 4].map(n => (
+                    <span key={n} onClick={() => setProfile({ ...profile, modeIntensity: { ...profile.modeIntensity, [m.key]: n } })}
+                      style={{
+                        fontFamily: TNR, fontSize: "12px",
+                        padding: "4px 10px",
+                        border: `1px solid ${profile.modeIntensity[m.key] === n ? LINK_BLUE : "#ddd"}`,
+                        color: profile.modeIntensity[m.key] === n ? LINK_BLUE : "#888",
+                        cursor: "pointer",
+                      }}>{n}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            <p style={{ ...sml, marginBottom: "12px", marginTop: "24px" }}>Rest needed per active hour</p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "16px", lineHeight: "1.6" }}>
+              How many hours of rest do you need per hour of active work? This shapes your daily energy budget — a lower ratio (you recover quickly) raises your capacity, a higher ratio lowers it. The default is 1:1 (balanced). Pick what fits you.
+            </p>
+            <div style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
+              <span style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", flex: 1 }}>
+                Rest ratio: <span style={{ color: LINK_BLUE }}>{profile.restRatio.toFixed(1)}:1</span>
+              </span>
+              <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+                {[
+                  { val: 0.3, label: "0.3" },
+                  { val: 0.5, label: "0.5" },
+                  { val: 0.7, label: "0.7" },
+                  { val: 1.0, label: "1.0" },
+                  { val: 1.5, label: "1.5" },
+                  { val: 2.0, label: "2.0" },
+                ].map(r => (
+                  <span key={r.val} onClick={() => setProfile({ ...profile, restRatio: r.val })}
+                    style={{
+                      fontFamily: TNR, fontSize: "12px",
+                      padding: "4px 10px",
+                      border: `1px solid ${profile.restRatio === r.val ? LINK_BLUE : "#ddd"}`,
+                      color: profile.restRatio === r.val ? LINK_BLUE : "#888",
+                      cursor: "pointer",
+                    }}>{r.label}</span>
+                ))}
+              </div>
+            </div>
+
+            {/* What each work type means */}
+            <p style={{ ...sml, marginBottom: "12px", marginTop: "32px" }}>Customise your work types</p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "16px", lineHeight: "1.6" }}>
+              You can rename each category and describe what it involves in your practice.
+            </p>
+            {[
+              { key: "making", defaultLabel: "Making", placeholder: "e.g. casting, wax work, fabrication" },
+              { key: "comms", defaultLabel: "Comms & Admin", placeholder: "e.g. emails, invoices, order tracking" },
+              { key: "growth", defaultLabel: "Growth", placeholder: "e.g. research, residencies, opportunities" },
+              { key: "content", defaultLabel: "Content", placeholder: "e.g. social, posts, photography" },
+              { key: "systems", defaultLabel: "Systems", placeholder: "e.g. workflows, pricing, organising" },
+            ].map(m => (
+              <div key={m.key} style={{ marginBottom: "16px", paddingBottom: "10px", borderBottom: "1px solid #f0f0f0" }}>
+                <p style={{ fontFamily: TNR, fontSize: "11px", color: "#aaa", marginBottom: "4px" }}>Name (default: {m.defaultLabel})</p>
+                <input 
+                  value={profile.modeLabels?.[m.key] ?? m.defaultLabel} 
+                  onChange={(e) => setProfile({ ...profile, modeLabels: { ...profile.modeLabels, [m.key]: e.target.value } })} 
+                  style={{ ...inputAuth, marginBottom: "6px" }} 
+                  placeholder={m.defaultLabel} 
+                />
+                <p style={{ fontFamily: TNR, fontSize: "11px", color: "#aaa", marginBottom: "4px" }}>What this involves for you</p>
+                <input 
+                  value={profile.modeDescriptions?.[m.key] || ""} 
+                  onChange={(e) => setProfile({ ...profile, modeDescriptions: { ...profile.modeDescriptions, [m.key]: e.target.value } })} 
+                  style={inputAuth} 
+                  placeholder={m.placeholder} 
+                />
+              </div>
+            ))}
+
+            {/* Protected practice */}
+            <p style={{ ...sml, marginBottom: "12px", marginTop: "24px" }}>Protected practice</p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "16px", lineHeight: "1.6" }}>
+              Is there a type of work you want to protect time for, separate from commissions/client work? (e.g. fine art, personal projects, research)
+            </p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "4px" }}>What you call this practice</p>
+            <input value={profile.protectedPractice?.label || ""} onChange={(e) => setProfile({ ...profile, protectedPractice: { ...profile.protectedPractice, label: e.target.value, enabled: true } })} style={inputAuth} placeholder="e.g. Fine art practice, Personal projects" />
+            
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "4px" }}>Warning shown when no time is scheduled for this</p>
+            <textarea value={profile.protectedPractice?.warningText || ""} onChange={(e) => setProfile({ ...profile, protectedPractice: { ...profile.protectedPractice, warningText: e.target.value, enabled: true } })} style={{ ...inputAuth, minHeight: "60px", resize: "vertical" }} placeholder="e.g. No making blocks this week. At least one should go to fine art practice, not commissions." />
+            
+            {error && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b01904", marginTop: "8px" }}>{error}</p>}
+            
+            <div style={{ marginTop: "32px", textAlign: "center" }}>
+              <span onClick={handleProfileStep1}
+                style={{ ...boxBtn(true), padding: "10px 32px", fontSize: "15px", display: "inline-block" }}>
+                Continue →
+              </span>
+            </div>
+            
+            <div style={{ textAlign: "center", marginTop: "20px" }}>
+              <span onClick={() => setMode("signup")} style={{ ...linkStyle, fontSize: "13px" }}>← Back</span>
+            </div>
+          </>
+        )}
+
+        {mode === "targets" && (
+          <>
+            {/* Weekly targets */}
+            <p style={{ ...sml, marginBottom: "12px" }}>Weekly minimum blocks</p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "16px", lineHeight: "1.6" }}>
+              How many blocks of each type do you want to do per week?
+            </p>
+            {[
+              { key: "making", label: "Making" },
+              { key: "comms", label: "Comms & Admin" },
+              { key: "growth", label: "Growth" },
+              { key: "content", label: "Content" },
+              { key: "systems", label: "Systems" },
+            ].map(m => (
+              <div key={m.key} style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
+                <span style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", flex: 1 }}>{m.label}</span>
+                <div style={{ display: "flex", gap: "4px" }}>
+                  {[0, 1, 2, 3, 4, 5].map(n => (
+                    <span key={n} onClick={() => setProfile({ ...profile, weeklyTargets: { ...profile.weeklyTargets, [m.key]: n } })}
+                      style={{
+                        fontFamily: TNR, fontSize: "12px",
+                        padding: "4px 10px",
+                        border: `1px solid ${profile.weeklyTargets?.[m.key] === n ? LINK_BLUE : "#ddd"}`,
+                        color: profile.weeklyTargets?.[m.key] === n ? LINK_BLUE : "#888",
+                        cursor: "pointer",
+                      }}>{n}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            {/* Health goals */}
+            <p style={{ ...sml, marginBottom: "12px", marginTop: "24px" }}>Health goals</p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
+              What health practices do you want to track? One per line.
+            </p>
+            <textarea 
+              value={(profile.healthGoals || []).join("\n")}
+              onChange={(e) => setProfile({ ...profile, healthGoals: e.target.value.split("\n").filter(l => l.trim()) })}
+              style={{ ...inputAuth, minHeight: "80px", resize: "vertical" }}
+              placeholder="e.g.&#10;Therapy&#10;Yoga&#10;Walking"
+            />
+
+            {/* Social goal */}
+            <p style={{ ...sml, marginBottom: "8px", marginTop: "16px" }}>Social goal</p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
+              How much social interaction do you aim for?
+            </p>
+            <input value={profile.socialGoal || ""} onChange={(e) => setProfile({ ...profile, socialGoal: e.target.value })} style={inputAuth} placeholder="e.g. 1 meaningful connection this week" />
+
+            {/* Week evaluation */}
+            <p style={{ ...sml, marginBottom: "12px", marginTop: "16px" }}>Week evaluation</p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
+              What does a successful week look like for you? One item per line.
+            </p>
+            <textarea 
+              value={(profile.weekEvaluation || []).join("\n")}
+              onChange={(e) => setProfile({ ...profile, weekEvaluation: e.target.value.split("\n").filter(l => l.trim()) })}
+              style={{ ...inputAuth, minHeight: "100px", resize: "vertical" }}
+              placeholder="e.g.&#10;Stayed within capacity&#10;Avoided overload&#10;Completed at least one meaningful task"
+            />
+
+            {/* Weekly checklist */}
+            <p style={{ ...sml, marginBottom: "12px", marginTop: "16px" }}>Weekly checklist</p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
+              Recurring weekly tasks to tick off. One per line.
+            </p>
+            <textarea 
+              value={(profile.weeklyChecklist || []).join("\n")}
+              onChange={(e) => setProfile({ ...profile, weeklyChecklist: e.target.value.split("\n").filter(l => l.trim()) })}
+              style={{ ...inputAuth, minHeight: "100px", resize: "vertical" }}
+              placeholder="e.g.&#10;Client comms up to date&#10;Orders progressed&#10;1 visibility action"
+            />
+
+            {error && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b01904", marginTop: "8px" }}>{error}</p>}
+            
+            <div style={{ marginTop: "32px", textAlign: "center" }}>
+              <span onClick={handleProfileStep2}
+                style={{ ...boxBtn(true), padding: "10px 32px", fontSize: "15px", display: "inline-block" }}>
+                Continue
+              </span>
+            </div>
+            
+            <div style={{ textAlign: "center", marginTop: "20px" }}>
+              <span onClick={() => setMode("profile")} style={{ ...linkStyle, fontSize: "13px" }}>← Back</span>
+            </div>
+          </>
+        )}
+
+        {mode === "guide" && (
+          <>
+            <div style={{ fontFamily: TNR, fontSize: "14px", color: "#1a1a1a", lineHeight: "1.7" }}>
+              <p style={{ marginTop: 0, marginBottom: "20px", color: "#888", fontSize: "13px" }}>
+                A quick guide to using your planner.
+              </p>
+
+              <p style={{ ...sml, marginBottom: "8px", marginTop: "20px" }}>The grid</p>
+              <p style={{ marginBottom: "16px" }}>
+                The grid is your week, split into 2-hour blocks from 7am to 9pm. Tap a block to schedule it. Tap again to clear it. Pick a work type from the row above the grid before tapping. Block colour shows the executive demand: deeper blue means harder focus.
+              </p>
+
+              <p style={{ ...sml, marginBottom: "8px", marginTop: "20px" }}>Energy levels</p>
+              <p style={{ marginBottom: "16px" }}>
+                Each day has an energy level (high, medium, low). Tap the H/M/L letter under each day to change it. Different work types cost different amounts of energy. The number under each day (e.g. "8/5") shows how much you've scheduled vs your day's budget. Red means you're over.
+              </p>
+
+              <p style={{ ...sml, marginBottom: "8px", marginTop: "20px" }}>Balance</p>
+              <p style={{ marginBottom: "16px" }}>
+                Each day shows a colour: green means balanced, red means under-rested, default means in between. This is based on your rest ratio — how much rest you need per active hour. You can change your rest ratio anytime in Edit Profile.
+              </p>
+
+              <p style={{ ...sml, marginBottom: "8px", marginTop: "20px" }}>Targets page</p>
+              <p style={{ marginBottom: "16px" }}>
+                See your weekly minimums (Making, Comms, Growth, Systems), your health goals, your social target, and your daily balance breakdown. Tick things off as you complete them.
+              </p>
+
+              <p style={{ ...sml, marginBottom: "8px", marginTop: "20px" }}>Quarterly</p>
+              <p style={{ marginBottom: "16px" }}>
+                Add bigger projects with horizons (now / next / later). Mark a project as "Protected" to track time for your protected practice — you'll be reminded if you don't schedule it.
+              </p>
+
+              <p style={{ ...sml, marginBottom: "8px", marginTop: "20px" }}>Tasks</p>
+              <p style={{ marginBottom: "16px" }}>
+                Drop in tasks one at a time. They auto-categorise by keywords into Making, Comms, Growth, Systems, or Other.
+              </p>
+
+              <p style={{ ...sml, marginBottom: "8px", marginTop: "20px" }}>Plan</p>
+              <p style={{ marginBottom: "16px" }}>
+                Export your scheduled blocks as a .ics calendar file. Import to Google Calendar, Apple Calendar, or Outlook.
+              </p>
+
+              <p style={{ ...sml, marginBottom: "8px", marginTop: "20px" }}>Archive</p>
+              <p style={{ marginBottom: "16px" }}>
+                Save weeks for later reference. Useful for spotting patterns over time.
+              </p>
+
+              <p style={{ ...sml, marginBottom: "8px", marginTop: "20px" }}>Feeling stuck?</p>
+              <p style={{ marginBottom: "16px" }}>
+                If you don't know what to do, tap "Feeling stuck?" at the top — it gives you a small, low-friction next action.
+              </p>
+
+              <p style={{ ...sml, marginBottom: "8px", marginTop: "20px" }}>Sync</p>
+              <p style={{ marginBottom: "16px" }}>
+                Your planner syncs across all your devices automatically. Sign in with the same email anywhere to access it.
+              </p>
+
+              <p style={{ ...sml, marginBottom: "8px", marginTop: "20px" }}>Edit anytime</p>
+              <p style={{ marginBottom: "16px" }}>
+                Everything you set up is editable later via "Edit profile" at the top — including your work type names, descriptions, weekly targets, health goals, and warning messages.
+              </p>
+            </div>
+
+            {error && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b01904", marginTop: "8px" }}>{error}</p>}
+            
+            <div style={{ marginTop: "32px", textAlign: "center" }}>
+              <span onClick={!loading ? handleSignupComplete : undefined}
+                style={{ ...boxBtn(true), padding: "10px 32px", fontSize: "15px", display: "inline-block" }}>
+                {loading ? "..." : "Create account"}
+              </span>
+            </div>
+            
+            <div style={{ textAlign: "center", marginTop: "20px" }}>
+              <span onClick={() => setMode("targets")} style={{ ...linkStyle, fontSize: "13px" }}>← Back</span>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Profile Edit Screen ─────────────────────────────────────────────────────
+
+function ProfileEditScreen({ profile, onSave, onCancel }) {
+  const [editProfile, setEditProfile] = useState(profile);
+
+  const inputAuth = {
+    fontFamily: TNR, fontSize: "15px", color: "#1a1a1a",
+    border: "1px solid #1a1a1a", padding: "10px 12px",
+    width: "100%", outline: "none", boxSizing: "border-box",
+    background: "#fff", marginBottom: "12px",
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(255,255,255,0.98)", zIndex: 100, overflowY: "auto", padding: "60px 32px" }}>
+      <div style={{ maxWidth: "440px", margin: "0 auto" }}>
+        <div style={{ textAlign: "center", marginBottom: "40px" }}>
+          <p style={{ ...sml }}>Edit profile</p>
+        </div>
+
+        <p style={{ ...sml, marginBottom: "8px" }}>Your name</p>
+        <input value={editProfile.name} onChange={(e) => setEditProfile({ ...editProfile, name: e.target.value })} style={inputAuth} />
+        
+        <p style={{ ...sml, marginBottom: "8px" }}>Your role</p>
+        <input value={editProfile.role} onChange={(e) => setEditProfile({ ...editProfile, role: e.target.value })} style={inputAuth} />
+        
+        <p style={{ ...sml, marginBottom: "8px" }}>Planner title</p>
+        <input value={editProfile.plannerTitle} onChange={(e) => setEditProfile({ ...editProfile, plannerTitle: e.target.value })} style={inputAuth} />
+        
+        <p style={{ ...sml, marginBottom: "8px" }}>What you schedule around</p>
+        <input value={editProfile.scheduleAround} onChange={(e) => setEditProfile({ ...editProfile, scheduleAround: e.target.value })} style={inputAuth} />
+
+        <p style={{ ...sml, marginBottom: "12px", marginTop: "24px" }}>Executive demand</p>
+        {[
+          { key: "growth", label: "Growth" },
+          { key: "content", label: "Content" },
+          { key: "comms", label: "Comms & Admin" },
+          { key: "systems", label: "Systems" },
+          { key: "making", label: "Making" },
+        ].map(m => (
+          <div key={m.key} style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", flex: 1 }}>{m.label}</span>
+            <div style={{ display: "flex", gap: "4px" }}>
+              {[1, 2, 3, 4].map(n => (
+                <span key={n} onClick={() => setEditProfile({ ...editProfile, modeIntensity: { ...editProfile.modeIntensity, [m.key]: n } })}
+                  style={{
+                    fontFamily: TNR, fontSize: "12px",
+                    padding: "4px 10px",
+                    border: `1px solid ${editProfile.modeIntensity[m.key] === n ? LINK_BLUE : "#ddd"}`,
+                    color: editProfile.modeIntensity[m.key] === n ? LINK_BLUE : "#888",
+                    cursor: "pointer",
+                  }}>{n}</span>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        <p style={{ ...sml, marginBottom: "12px", marginTop: "24px" }}>Rest needed per active hour</p>
+        <p style={{ fontFamily: TNR, fontSize: "11px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
+          Hours of rest per active hour. Shapes your daily energy budget — lower ratio raises it, higher lowers it.
+        </p>
+        <div style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
+          <span style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", flex: 1 }}>
+            Ratio: <span style={{ color: LINK_BLUE }}>{editProfile.restRatio?.toFixed(1) || "1.0"}:1</span>
+          </span>
+          <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+            {[
+              { val: 0.3, label: "0.3" },
+              { val: 0.5, label: "0.5" },
+              { val: 0.7, label: "0.7" },
+              { val: 1.0, label: "1.0" },
+              { val: 1.5, label: "1.5" },
+              { val: 2.0, label: "2.0" },
+            ].map(r => (
+              <span key={r.val} onClick={() => setEditProfile({ ...editProfile, restRatio: r.val })}
+                style={{
+                  fontFamily: TNR, fontSize: "12px",
+                  padding: "4px 10px",
+                  border: `1px solid ${editProfile.restRatio === r.val ? LINK_BLUE : "#ddd"}`,
+                  color: editProfile.restRatio === r.val ? LINK_BLUE : "#888",
+                  cursor: "pointer",
+                }}>{r.label}</span>
+            ))}
+          </div>
+        </div>
+
+        {/* What each mode means to you */}
+        <p style={{ ...sml, marginBottom: "12px", marginTop: "32px" }}>Customise your work types</p>
+        <p style={{ fontFamily: TNR, fontSize: "11px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
+          Rename categories and describe what each involves for you.
+        </p>
+        {[
+          { key: "making", defaultLabel: "Making" },
+          { key: "comms", defaultLabel: "Comms & Admin" },
+          { key: "growth", defaultLabel: "Growth" },
+          { key: "content", defaultLabel: "Content" },
+          { key: "systems", defaultLabel: "Systems" },
+        ].map(m => (
+          <div key={m.key} style={{ marginBottom: "16px", paddingBottom: "10px", borderBottom: "1px solid #f0f0f0" }}>
+            <p style={{ fontFamily: TNR, fontSize: "11px", color: "#aaa", marginBottom: "4px" }}>Name (default: {m.defaultLabel})</p>
+            <input 
+              value={editProfile.modeLabels?.[m.key] ?? m.defaultLabel} 
+              onChange={(e) => setEditProfile({ ...editProfile, modeLabels: { ...editProfile.modeLabels, [m.key]: e.target.value } })} 
+              style={{ ...inputAuth, marginBottom: "6px" }} 
+              placeholder={m.defaultLabel} 
+            />
+            <p style={{ fontFamily: TNR, fontSize: "11px", color: "#aaa", marginBottom: "4px" }}>What this involves for you</p>
+            <input 
+              value={editProfile.modeDescriptions?.[m.key] || ""} 
+              onChange={(e) => setEditProfile({ ...editProfile, modeDescriptions: { ...editProfile.modeDescriptions, [m.key]: e.target.value } })} 
+              style={inputAuth} 
+              placeholder={`What does ${m.defaultLabel.toLowerCase()} involve for you?`} 
+            />
+          </div>
+        ))}
+
+        {/* Weekly targets */}
+        <p style={{ ...sml, marginBottom: "12px", marginTop: "24px" }}>Weekly minimum blocks</p>
+        <p style={{ fontFamily: TNR, fontSize: "11px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
+          How many blocks of each type per week?
+        </p>
+        {[
+          { key: "making", label: "Making" },
+          { key: "comms", label: "Comms & Admin" },
+          { key: "growth", label: "Growth" },
+          { key: "content", label: "Content" },
+          { key: "systems", label: "Systems" },
+        ].map(m => (
+          <div key={m.key} style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", flex: 1 }}>{m.label}</span>
+            <div style={{ display: "flex", gap: "4px" }}>
+              {[0, 1, 2, 3, 4, 5].map(n => (
+                <span key={n} onClick={() => setEditProfile({ ...editProfile, weeklyTargets: { ...editProfile.weeklyTargets, [m.key]: n } })}
+                  style={{
+                    fontFamily: TNR, fontSize: "12px",
+                    padding: "4px 10px",
+                    border: `1px solid ${editProfile.weeklyTargets?.[m.key] === n ? LINK_BLUE : "#ddd"}`,
+                    color: editProfile.weeklyTargets?.[m.key] === n ? LINK_BLUE : "#888",
+                    cursor: "pointer",
+                  }}>{n}</span>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {/* Protected practice */}
+        <p style={{ ...sml, marginBottom: "12px", marginTop: "24px" }}>Protected practice</p>
+        <div style={{ marginBottom: "10px", display: "flex", alignItems: "center", gap: "10px" }}>
+          <input type="checkbox" checked={editProfile.protectedPractice?.enabled ?? true} onChange={(e) => setEditProfile({ ...editProfile, protectedPractice: { ...editProfile.protectedPractice, enabled: e.target.checked } })} />
+          <span style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a" }}>Enable protected practice tracking</span>
+        </div>
+        {(editProfile.protectedPractice?.enabled ?? true) && (
+          <>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "4px", marginTop: "8px" }}>What you call this practice</p>
+            <input value={editProfile.protectedPractice?.label || ""} onChange={(e) => setEditProfile({ ...editProfile, protectedPractice: { ...editProfile.protectedPractice, label: e.target.value } })} style={inputAuth} placeholder="e.g. Fine art practice, Personal projects" />
+            
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "4px" }}>Warning shown when not scheduled</p>
+            <textarea value={editProfile.protectedPractice?.warningText || ""} onChange={(e) => setEditProfile({ ...editProfile, protectedPractice: { ...editProfile.protectedPractice, warningText: e.target.value } })} style={{ ...inputAuth, minHeight: "60px", resize: "vertical" }} placeholder="Custom warning message" />
+          </>
+        )}
+
+        {/* Health goals */}
+        <p style={{ ...sml, marginBottom: "12px", marginTop: "24px" }}>Health goals</p>
+        <p style={{ fontFamily: TNR, fontSize: "11px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
+          What health practices do you want to track? One per line.
+        </p>
+        <textarea 
+          value={(editProfile.healthGoals || []).join("\n")}
+          onChange={(e) => setEditProfile({ ...editProfile, healthGoals: e.target.value.split("\n").filter(l => l.trim()) })}
+          style={{ ...inputAuth, minHeight: "80px", resize: "vertical" }}
+          placeholder="Psychoanalysis&#10;Acupuncture&#10;Gym"
+        />
+
+        {/* Social goal */}
+        <p style={{ ...sml, marginBottom: "8px", marginTop: "16px" }}>Social goal</p>
+        <input value={editProfile.socialGoal || ""} onChange={(e) => setEditProfile({ ...editProfile, socialGoal: e.target.value })} style={inputAuth} placeholder="e.g. 1 meaningful connection this week" />
+
+        {/* Week evaluation */}
+        <p style={{ ...sml, marginBottom: "12px", marginTop: "16px" }}>Week evaluation</p>
+        <p style={{ fontFamily: TNR, fontSize: "11px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
+          What does a successful week look like? One item per line.
+        </p>
+        <textarea 
+          value={(editProfile.weekEvaluation || []).join("\n")}
+          onChange={(e) => setEditProfile({ ...editProfile, weekEvaluation: e.target.value.split("\n").filter(l => l.trim()) })}
+          style={{ ...inputAuth, minHeight: "100px", resize: "vertical" }}
+          placeholder="Stayed within capacity&#10;Avoided overload&#10;Completed at least one meaningful task"
+        />
+
+        {/* Weekly checklist */}
+        <p style={{ ...sml, marginBottom: "12px", marginTop: "16px" }}>Weekly checklist</p>
+        <p style={{ fontFamily: TNR, fontSize: "11px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
+          Recurring weekly tasks. One per line.
+        </p>
+        <textarea 
+          value={(editProfile.weeklyChecklist || []).join("\n")}
+          onChange={(e) => setEditProfile({ ...editProfile, weeklyChecklist: e.target.value.split("\n").filter(l => l.trim()) })}
+          style={{ ...inputAuth, minHeight: "100px", resize: "vertical" }}
+          placeholder="Client comms up to date&#10;Orders progressed&#10;1 visibility action"
+        />
+
+        <div style={{ marginTop: "40px", display: "flex", gap: "16px", justifyContent: "center" }}>
+          <span onClick={() => onSave(editProfile)} style={{ ...boxBtn(true), padding: "8px 24px", fontSize: "14px" }}>
+            Save changes
+          </span>
+          <span onClick={onCancel} style={{ ...linkStyle, fontSize: "14px", alignSelf: "center" }}>
+            Cancel
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+export default function WeeklyPlanner() {
+  // Auth state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
+const [, setAuthTimestamp] = useState(0);
+  const [profile, setProfile] = useState(loadProfile());
+  const [showProfileEdit, setShowProfileEdit] = useState(false);
+
+  const saved = loadLocal();
+
+  const [supabaseLoaded, setSupabaseLoaded] = useState(false);
+  // sundayWeekChoice: legacy fallback (kept for backwards compat with stored choices).
+  // No longer set from UI — the user picks dates directly at calendar export time.
+  const [sundayWeekChoice] = useState(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const stored = JSON.parse(localStorage.getItem("studio-planner-sunday-choice") || "null");
+      const today = new Date().toISOString().split("T")[0];
+      if (stored && stored.date === today) return stored.choice;
+    } catch (_) {}
+    return null;
+  });
+  const [hasUserInteracted, setHasUserInteracted] = useState(false);
+  const [schedule, setSchedule]           = useState(saved?.schedule || defaultSchedule());
+  const [activeMode, setActiveMode]       = useState("making");
+  const [restSubtype, setRestSubtype]     = useState("passive");
+  const [checklist, setChecklist]         = useState(saved?.checklist || CHECKLIST.map(() => false));
+  const [successMetrics, setSuccessMetrics] = useState(saved?.successMetrics || SUCCESS_METRICS.map(() => false));
+  const [healthTargets, setHealthTargets] = useState(saved?.healthTargets || HEALTH_TARGETS.map(() => false));
+  const [restTargets, setRestTargets]     = useState(saved?.restTargets || DAYS.map(() => false));
+  const [socialDone, setSocialDone]       = useState(saved?.socialDone ?? false);
+  const [weekNote, setWeekNote]           = useState(saved?.weekNote || "");
+  const [tab, setTab]                     = useState("today");
+  const [dayEnergyLevels, setDayEnergyLevels] = useState(saved?.dayEnergyLevels || DAYS.reduce((a, d) => ({ ...a, [d]: "medium" }), {}));
+
+  // Check session on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      const token = localStorage.getItem(AUTH_TOKEN_KEY);
+      if (token && USE_SUPABASE) {
+        const valid = await verifySession(token);
+        if (valid) {
+          setIsAuthenticated(true);
+          setAuthTimestamp(Date.now());
+        } else {
+          logoutUser();
+        }
+      }
+      setAuthChecking(false);
+    };
+    checkAuth();
+  }, []);
+
+  // Stuck state
+  const [stuckOpen, setStuckOpen]         = useState(false);
+  const [stuckStep, setStuckStep]         = useState(0);
+  const [stuckEnergy, setStuckEnergy]     = useState(null);
+
+  // Quarterly
+  const [projects, setProjects]           = useState(saved?.projects || []);
+  const [qView, setQView]                 = useState("roadmap");
+  const [editingProject, setEditingProject] = useState(null);
+  const [qFilter, setQFilter]             = useState("all");
+
+  // Health & mood tracking (localStorage, cross-week)
+  const [healthEntries, setHealthEntries] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("studio-planner-health-entries") || "{}"); } catch { return {}; }
+  });
+  const [trackedBehaviours, setTrackedBehaviours] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("studio-planner-tracked-behaviours") || '["focus","sleep","pain"]'); } catch { return ["focus", "sleep", "pain"]; }
+  });
   const [showAddBehaviour, setShowAddBehaviour] = useState(false);
   const [newBehaviourName, setNewBehaviourName] = useState("");
 
-  // Blood Pressure Tracking
-  const [bpReadings, setBpReadings] = useState([]);
+  // Blood pressure tracking
+  const [bpReadings, setBpReadings] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("studio-planner-bp-readings") || "[]"); } catch { return []; }
+  });
   const [showAddBP, setShowAddBP] = useState(false);
   const [newBPReading, setNewBPReading] = useState({
     date: new Date().toISOString().split("T")[0],
     time: new Date().toTimeString().slice(0, 5),
-    systolic: "",
-    diastolic: "",
-    heartRate: "",
+    systolic: "", diastolic: "", heartRate: "",
   });
 
-  // Toast notifications
-  const [toast, setToast] = useState(null);
-  const showToast = (message, duration = 3000) => {
-    setToast(message);
-    setTimeout(() => setToast(null), duration);
-  };
+  // Calendar
+  const [calStatus, setCalStatus]         = useState(null);
+  const [isExporting, setIsExporting]     = useState(false);
+  const [showExportPicker, setShowExportPicker] = useState(false);
+  const [exportStartDate, setExportStartDate] = useState("");
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // LOAD & SAVE STATE
-  // ────────────────────────────────────────────────────────────────────────────
+  // Archive
+  const [archive, setArchive]             = useState(saved?.archive || []);
+  const [expandedArchiveWeek, setExpandedArchiveWeek] = useState(null);
 
+  // Load from Supabase on mount (cloud-first, fallback to local)
   useEffect(() => {
-    const saved = localStorage.getItem(`week-${weekStartKey}`);
-    if (saved) {
-      const data = JSON.parse(saved);
-      setSchedule(data.schedule || {});
-      setWeekNote(data.weekNote || "");
-      setHealthTargets(data.healthTargets || {});
-      setSuccessMetrics(data.successMetrics || {});
-      setRestTargets(data.restTargets || {});
-      setDailyEnergy(data.dailyEnergy || {});
-      setCalendarEventMap(data.calendarEventMap || {});
+    const loadData = async () => {
+      if (USE_SUPABASE && !supabaseLoaded) {
+        const cloudData = await loadFromSupabase();
+        if (cloudData) {
+          if (cloudData.schedule) setSchedule(cloudData.schedule);
+          if (cloudData.checklist) setChecklist(cloudData.checklist);
+          if (cloudData.successMetrics) setSuccessMetrics(cloudData.successMetrics);
+          if (cloudData.healthTargets) setHealthTargets(cloudData.healthTargets);
+          if (cloudData.restTargets) setRestTargets(cloudData.restTargets);
+          if (cloudData.socialDone !== undefined) setSocialDone(cloudData.socialDone);
+          if (cloudData.weekNote !== undefined) setWeekNote(cloudData.weekNote);
+          if (cloudData.projects) setProjects(cloudData.projects);
+          if (cloudData.archive) setArchive(cloudData.archive);
+          if (cloudData.dayEnergyLevels) setDayEnergyLevels(cloudData.dayEnergyLevels);
+          if (cloudData.profile) {
+            setProfile({ ...DEFAULT_PROFILE, ...cloudData.profile });
+            saveProfile({ ...DEFAULT_PROFILE, ...cloudData.profile });
+          }
+        }
+        setSupabaseLoaded(true);
+      }
+    };
+    loadData();
+  }, [supabaseLoaded]);
+
+  // Autosave to both local and cloud
+  // CRITICAL: Only saves to cloud AFTER we have completed an initial load from cloud
+  // AND the user has made at least one real interaction.
+  useEffect(() => {
+    const data = { schedule, checklist, successMetrics, healthTargets, restTargets, socialDone, weekNote, projects, archive, dayEnergyLevels, profile };
+    // Always safe to save locally (per-device)
+    saveLocal(data);
+    
+    // Only save to cloud if:
+    // 1. We've finished loading from cloud (so we have the latest cloud state in memory)
+    // 2. The user has actually interacted with the app (not just rendered defaults or applied cloud data)
+    if (USE_SUPABASE && supabaseLoaded && hasUserInteracted) {
+      saveToSupabase(data);
     }
-  }, [weekStartKey]);
+  }, [schedule, checklist, successMetrics, healthTargets, restTargets, socialDone, weekNote, projects, archive, dayEnergyLevels, profile, supabaseLoaded, hasUserInteracted]);
+
+  // Track last save time so we don't fight with our own saves
+  const [lastSaveTime, setLastSaveTime] = useState(0);
 
   useEffect(() => {
-    const saved = localStorage.getItem("quarterlyView");
-    if (saved) setQuarterlyView(JSON.parse(saved));
-  }, []);
+    setLastSaveTime(Date.now());
+  }, [schedule, checklist, successMetrics, healthTargets, restTargets, socialDone, weekNote, projects, archive, dayEnergyLevels, profile]);
+
+  // Real-time sync: poll Supabase every 5s + refresh on tab focus
+  useEffect(() => {
+    if (!USE_SUPABASE || !isAuthenticated) return;
+
+    const syncFromCloud = async () => {
+      // Skip if we just saved (prevents fighting with own writes)
+      if (Date.now() - lastSaveTime < 3000) return;
+      
+      const cloudData = await loadFromSupabase();
+      if (cloudData) {
+        // SAFETY: If cloud data is essentially empty but local data is rich,
+        // SKIP the sync. This prevents another device's bad save from wiping our good data.
+        const cloudIsEmpty = (!cloudData.schedule || Object.values(cloudData.schedule).every(d => !d || Object.values(d).every(s => !s)))
+          && (!cloudData.projects || cloudData.projects.length === 0)
+          && (!cloudData.archive || cloudData.archive.length === 0);
+        const localIsRich = (schedule && Object.values(schedule).some(d => d && Object.values(d).some(s => s)))
+          || (projects && projects.length > 0)
+          || (archive && archive.length > 0);
+        if (cloudIsEmpty && localIsRich) {
+          console.warn("[syncFromCloud] BLOCKED sync: cloud data is empty but local data is rich. Refusing to overwrite local.");
+          return;
+        }
+        
+        // Only update state if data actually changed (prevents unnecessary re-renders)
+        if (JSON.stringify(cloudData.schedule) !== JSON.stringify(schedule)) {
+          setSchedule(cloudData.schedule);
+        }
+        if (JSON.stringify(cloudData.checklist) !== JSON.stringify(checklist)) {
+          setChecklist(cloudData.checklist);
+        }
+        if (JSON.stringify(cloudData.successMetrics) !== JSON.stringify(successMetrics)) {
+          setSuccessMetrics(cloudData.successMetrics);
+        }
+        if (JSON.stringify(cloudData.healthTargets) !== JSON.stringify(healthTargets)) {
+          setHealthTargets(cloudData.healthTargets);
+        }
+        if (JSON.stringify(cloudData.restTargets) !== JSON.stringify(restTargets)) {
+          setRestTargets(cloudData.restTargets);
+        }
+        if (cloudData.socialDone !== socialDone) {
+          setSocialDone(cloudData.socialDone);
+        }
+        if (cloudData.weekNote !== weekNote) {
+          setWeekNote(cloudData.weekNote);
+        }
+        if (JSON.stringify(cloudData.projects) !== JSON.stringify(projects)) {
+          setProjects(cloudData.projects);
+        }
+        if (JSON.stringify(cloudData.archive) !== JSON.stringify(archive)) {
+          setArchive(cloudData.archive);
+        }
+        if (JSON.stringify(cloudData.dayEnergyLevels) !== JSON.stringify(dayEnergyLevels)) {
+          setDayEnergyLevels(cloudData.dayEnergyLevels);
+        }
+        if (cloudData.profile && JSON.stringify(cloudData.profile) !== JSON.stringify(profile)) {
+          const merged = { ...DEFAULT_PROFILE, ...cloudData.profile };
+          setProfile(merged);
+          saveProfile(merged);
+        }
+      }
+    };
+
+    // Poll every 5 seconds
+    const interval = setInterval(syncFromCloud, 5000);
+
+    // Also sync when window regains focus
+    const handleFocus = () => syncFromCloud();
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, lastSaveTime]);
+
+  // ── Health & BP persistence ──────────────────────────────────────────────────
 
   useEffect(() => {
-    const saved = localStorage.getItem("healthEntries");
-    if (saved) setHealthEntries(JSON.parse(saved));
-  }, []);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("trackedBehaviours");
-    if (saved) setTrackedBehaviours(JSON.parse(saved));
-  }, []);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("bpReadings");
-    if (saved) setBpReadings(JSON.parse(saved));
-  }, []);
-
-  // Save week data
-  useEffect(() => {
-    localStorage.setItem(`week-${weekStartKey}`, JSON.stringify({
-      schedule,
-      weekNote,
-      healthTargets,
-      successMetrics,
-      restTargets,
-      dailyEnergy,
-      calendarEventMap,
-    }));
-  }, [schedule, weekNote, healthTargets, successMetrics, restTargets, dailyEnergy, calendarEventMap, weekStartKey]);
-
-  useEffect(() => {
-    localStorage.setItem("quarterlyView", JSON.stringify(quarterlyView));
-  }, [quarterlyView]);
-
-  useEffect(() => {
-    localStorage.setItem("healthEntries", JSON.stringify(healthEntries));
+    try { localStorage.setItem("studio-planner-health-entries", JSON.stringify(healthEntries)); } catch {}
   }, [healthEntries]);
 
   useEffect(() => {
-    localStorage.setItem("trackedBehaviours", JSON.stringify(trackedBehaviours));
+    try { localStorage.setItem("studio-planner-tracked-behaviours", JSON.stringify(trackedBehaviours)); } catch {}
   }, [trackedBehaviours]);
 
   useEffect(() => {
-    localStorage.setItem("bpReadings", JSON.stringify(bpReadings));
+    try { localStorage.setItem("studio-planner-bp-readings", JSON.stringify(bpReadings)); } catch {}
   }, [bpReadings]);
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // SCHEDULE HELPERS
-  // ────────────────────────────────────────────────────────────────────────────
-
-  const getBlockMode = (block) => {
-    if (!block) return null;
-    return typeof block === "string" ? block : block.mode;
-  };
-
-  const getBlockCustomNote = (block) => {
-    if (!block) return "";
-    return typeof block === "string" ? "" : (block.customNote || "");
-  };
-
-  const setMode = (day, slot, mode) => {
-    const modeToSet = mode || selectedMode;
-    if (!modeToSet) return;
-
-    const conflict = checkConflict(day, slot);
-    if (conflict) {
-      setConflictWarning({
-        day,
-        slot,
-        eventTitle: conflict.summary,
-        eventTime: `${new Date(conflict.startTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })} – ${new Date(conflict.endTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`,
-      });
-      return;
-    }
-
-    setConflictWarning(null);
-    setSchedule((prev) => {
-      const currentBlock = prev[day]?.[slot];
-      const currentMode = getBlockMode(currentBlock);
-
-      if (currentMode === modeToSet) {
-        return { ...prev, [day]: { ...prev[day], [slot]: null } };
-      }
-
-      return {
-        ...prev,
-        [day]: { ...prev[day], [slot]: { mode: modeToSet, customNote: "" } },
-      };
-    });
-  };
-
-  const openBlockEditor = (day, slot) => {
-    const block = schedule[day]?.[slot];
-    setEditingBlock({ day, slot, mode: getBlockMode(block) });
-    setBlockCustomNote(getBlockCustomNote(block));
-    setShowBlockEditor(true);
-  };
-
-  const saveBlockEdit = () => {
-    if (editingBlock) {
-      setSchedule((prev) => ({
-        ...prev,
-        [editingBlock.day]: {
-          ...prev[editingBlock.day],
-          [editingBlock.slot]: { mode: editingBlock.mode, customNote: blockCustomNote },
-        },
-      }));
-    }
-    setShowBlockEditor(false);
-    setEditingBlock(null);
-    setBlockCustomNote("");
-  };
-
-  const deleteBlock = (day, slot) => {
-    setSchedule((prev) => ({
-      ...prev,
-      [day]: { ...prev[day], [slot]: null },
-    }));
-    setShowBlockEditor(false);
-    setEditingBlock(null);
-  };
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // CAPACITY & HEALTH
-  // ────────────────────────────────────────────────────────────────────────────
-
-  const calculateCapacity = () => {
-    const counts = {};
-    Object.keys(MODES).forEach((m) => (counts[m] = 0));
-
-    Object.values(schedule).forEach((day) => {
-      Object.values(day).forEach((block) => {
-        const mode = getBlockMode(block);
-        if (mode) counts[mode]++;
-      });
-    });
-
-    const energyUsed = {
-      making: (counts.making || 0) * 2,
-      comms: (counts.comms || 0) * 2,
-      growth: (counts.growth || 0) * 1,
-      systems: (counts.systems || 0) * 2,
-      rest: (counts.rest || 0) * 1,
-      social: (counts.social || 0) * 1,
-      health: (counts.health || 0) * 1,
-      office: (counts.office || 0) * 1,
-    };
-
-    return { counts, energyUsed };
-  };
-
-  calculateCapacity(); // Used for calculations, kept for future enhancements
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // HEALTH TRACKING
-  // ────────────────────────────────────────────────────────────────────────────
+  const getHealthEntry = (dateStr) => healthEntries[dateStr] || { mood: null, energy: null, customBehaviours: {} };
 
   const updateHealthEntry = (dateStr, field, value) => {
-    setHealthEntries((prev) => ({
-      ...prev,
-      [dateStr]: { ...prev[dateStr], [field]: value },
-    }));
+    setHealthEntries(prev => ({ ...prev, [dateStr]: { ...getHealthEntry(dateStr), ...prev[dateStr], [field]: value } }));
   };
 
   const updateBehaviourEntry = (dateStr, behaviour, value) => {
-    setHealthEntries((prev) => ({
+    setHealthEntries(prev => ({
       ...prev,
       [dateStr]: {
+        ...getHealthEntry(dateStr),
         ...prev[dateStr],
         customBehaviours: { ...(prev[dateStr]?.customBehaviours || {}), [behaviour]: value },
       },
     }));
   };
 
-  const getHealthEntry = (dateStr) => {
-    return healthEntries[dateStr] || { mood: 3, energy: 3, customBehaviours: {} };
-  };
-
   const addTrackedBehaviour = () => {
-    if (newBehaviourName.trim() && !trackedBehaviours.includes(newBehaviourName.trim().toLowerCase())) {
-      setTrackedBehaviours([...trackedBehaviours, newBehaviourName.trim().toLowerCase()]);
-      setNewBehaviourName("");
-      setShowAddBehaviour(false);
+    const name = newBehaviourName.trim().toLowerCase();
+    if (name && !trackedBehaviours.includes(name)) {
+      setTrackedBehaviours([...trackedBehaviours, name]);
     }
+    setNewBehaviourName("");
+    setShowAddBehaviour(false);
   };
 
-  const removeTrackedBehaviour = (behaviour) => {
-    setTrackedBehaviours(trackedBehaviours.filter((b) => b !== behaviour));
-  };
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // BLOOD PRESSURE
-  // ────────────────────────────────────────────────────────────────────────────
+  const removeTrackedBehaviour = (b) => setTrackedBehaviours(trackedBehaviours.filter(x => x !== b));
 
   const addBPReading = () => {
     if (newBPReading.systolic && newBPReading.diastolic && newBPReading.heartRate) {
-      setBpReadings(
-        [
-          ...bpReadings,
-          {
-            id: Date.now(),
-            date: newBPReading.date,
-            time: newBPReading.time,
-            systolic: parseInt(newBPReading.systolic),
-            diastolic: parseInt(newBPReading.diastolic),
-            heartRate: parseInt(newBPReading.heartRate),
-          },
-        ].sort((a, b) => new Date(`${b.date}T${b.time}`) - new Date(`${a.date}T${a.time}`))
-      );
-
+      setBpReadings([...bpReadings, {
+        id: Date.now(),
+        date: newBPReading.date,
+        time: newBPReading.time,
+        systolic: parseInt(newBPReading.systolic, 10),
+        diastolic: parseInt(newBPReading.diastolic, 10),
+        heartRate: parseInt(newBPReading.heartRate, 10),
+      }].sort((a, b) => new Date(`${b.date}T${b.time}`) - new Date(`${a.date}T${a.time}`)));
       setNewBPReading({
         date: new Date().toISOString().split("T")[0],
         time: new Date().toTimeString().slice(0, 5),
-        systolic: "",
-        diastolic: "",
-        heartRate: "",
+        systolic: "", diastolic: "", heartRate: "",
       });
       setShowAddBP(false);
     }
   };
 
-  const removeBPReading = (id) => {
-    setBpReadings(bpReadings.filter((r) => r.id !== id));
-  };
+  const removeBPReading = (id) => setBpReadings(bpReadings.filter(r => r.id !== id));
 
   const exportBPAsCSV = () => {
     const headers = ["Date", "Time", "Systolic", "Diastolic", "Heart Rate"];
-    const rows = bpReadings.map((r) => [
-      new Date(r.date).toLocaleDateString("en-GB"),
-      r.time,
-      r.systolic,
-      r.diastolic,
-      r.heartRate,
-    ]);
-
-    const csvContent = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n");
-
-    const element = document.createElement("a");
-    element.setAttribute("href", "data:text/csv;charset=utf-8," + encodeURIComponent(csvContent));
-    element.setAttribute("download", `blood-pressure-${new Date().toISOString().split("T")[0]}.csv`);
-    element.style.display = "none";
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-    showToast("✓ Blood pressure data exported");
+    const rows = bpReadings.map(r => [new Date(r.date).toLocaleDateString("en-GB"), r.time, r.systolic, r.diastolic, r.heartRate]);
+    const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const a = document.createElement("a");
+    a.setAttribute("href", "data:text/csv;charset=utf-8," + encodeURIComponent(csv));
+    a.setAttribute("download", `blood-pressure-${new Date().toISOString().split("T")[0]}.csv`);
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // QUARTERLY
-  // ────────────────────────────────────────────────────────────────────────────
+  // ── Helpers ──────────────────────────────────────────────────────────────────
 
-  const addQItem = () => {
-    const currentMonth = new Date().getMonth() + 1;
-    const currentQuarter = Math.ceil(currentMonth / 3);
-    const quarterMap = { 1: "q1", 2: "q2", 3: "q3", 4: "q4" };
-
-    setQuarterlyView([
-      ...quarterlyView,
-      {
-        id: Date.now(),
-        title: "",
-        status: "not-started",
-        quarter: quarterMap[currentQuarter],
-      },
-    ]);
+  // Get display label for a mode — office uses the user's "schedule around" value
+  const getModeLabel = (key) => {
+    if (key === "office" && profile.scheduleAround) {
+      // Capitalise first letter of each word for display
+      return profile.scheduleAround
+        .split(" ")
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ");
+    }
+    // Use custom mode label if user has set one
+    if (profile.modeLabels?.[key]) return profile.modeLabels[key];
+    return MODES[key]?.label || key;
   };
 
-  const updateQItem = (id, field, value) => {
-    setQuarterlyView(quarterlyView.map((item) => (item.id === id ? { ...item, [field]: value } : item)));
+  const assign = (day, slot) => {
+    const current = schedule[day][slot];
+    setHasUserInteracted(true);
+    
+    // If clicking an office block:
+    //   - When office mode is active: toggle it off (remove)
+    //   - When any other mode is active: do nothing (protect from accidental overwrite)
+    if (current === "office" && activeMode !== "office") return;
+    
+    setSchedule(prev => ({ ...prev, [day]: { ...prev[day], [slot]: current === activeMode ? null : activeMode } }));
   };
 
-  const deleteQItem = (id) => {
-    setQuarterlyView(quarterlyView.filter((item) => item.id !== id));
+  const clearAll = () => {
+    setHasUserInteracted(true);
+    setSchedule(defaultSchedule());
   };
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // CALENDAR
-  // ────────────────────────────────────────────────────────────────────────────
+  const countSlots = (mode) => {
+    let n = 0;
+    DAYS.forEach(d => TIME_SLOTS.forEach(t => { if (schedule[d][t] === mode) n++; }));
+    return n;
+  };
 
-  const checkConflict = (day, slot) => {
-    const slotDate = new Date(weekStart);
-    slotDate.setDate(slotDate.getDate() + DAYS.indexOf(day));
-    const startTime = new Date(slotDate);
-    startTime.setHours(SLOT_START[slot], 0, 0);
-    const endTime = new Date(startTime);
-    endTime.setHours(endTime.getHours() + 2);
-
-    return existingEvents.find((event) => {
-      const eventStart = new Date(event.startTime);
-      const eventEnd = new Date(event.endTime);
-      return startTime < eventEnd && endTime > eventStart;
+  const countBlocks = (mode) => {
+    let n = 0;
+    DAYS.forEach(d => {
+      let inB = false;
+      TIME_SLOTS.forEach(t => {
+        if (schedule[d][t] === mode) { if (!inB) { n++; inB = true; } } else { inB = false; }
+      });
     });
+    return n;
   };
 
-  const generateCalendarEvents = () => {
-    const events = [];
-    Object.entries(schedule).forEach(([day, slots]) => {
-      Object.entries(slots).forEach(([slot, block]) => {
-        const mode = getBlockMode(block);
-        if (mode && MODES[mode].exportable) {
-          const customNote = getBlockCustomNote(block);
-          const slotDate = new Date(weekStart);
-          slotDate.setDate(slotDate.getDate() + DAYS.indexOf(day));
-          const startTime = new Date(slotDate);
-          startTime.setHours(SLOT_START[slot], 0, 0);
-          const endTime = new Date(startTime);
-          endTime.setHours(endTime.getHours() + 2);
+  const getToday = () => {
+    const d = new Date().getDay();
+    return DAYS[d === 0 ? 6 : d - 1];
+  };
 
-          events.push({
-            slotKey: `${day}-${slot}`,
-            summary: customNote || `${MODES[mode].label} — Practice`,
-            startTime: startTime.toISOString(),
-            endTime: endTime.toISOString(),
-          });
+  const today = getToday();
+
+  // Build weekly targets from profile
+  const WEEKLY_TARGETS = [
+    { mode: "making",  min: profile.weeklyTargets?.making  ?? 2, label: `${profile.weeklyTargets?.making  ?? 2} Making blocks` },
+    { mode: "comms",   min: profile.weeklyTargets?.comms   ?? 2, label: `${profile.weeklyTargets?.comms   ?? 2} Comms & Admin` },
+    { mode: "growth",  min: profile.weeklyTargets?.growth  ?? 1, label: `${profile.weeklyTargets?.growth  ?? 1} Growth` },
+    { mode: "systems", min: profile.weeklyTargets?.systems ?? 1, label: `${profile.weeklyTargets?.systems ?? 1} Systems` },
+  ];
+
+  const progress = WEEKLY_TARGETS.map(t => ({ ...t, current: countBlocks(t.mode), met: countBlocks(t.mode) >= t.min }));
+
+  const fineArtWarning = countBlocks("making") === 0;
+  const protectedFineArtMet = projects.some(p => p.isProtectedFineArt && p.horizon === "now");
+
+  // Per-day energy calculation
+  const getDayEnergy = (day) => {
+    let total = 0;
+    TIME_SLOTS.forEach(t => {
+      const v = schedule[day][t];
+      if (v && MODES[v]) total += MODES[v].energyCost;
+    });
+    return total;
+  };
+
+  const getDayBudget = (day) => {
+    const level = dayEnergyLevels[day] || "medium";
+    const baseBudget = ENERGY_LEVELS.find(e => e.key === level)?.budget || 11;
+    // Adjust budget by rest ratio: lower restRatio = less rest needed = higher tolerable load.
+    // restRatio 1.0 = neutral (baseline budget).
+    // restRatio 0.3 = "I need less rest" → increase budget by ~20%.
+    // restRatio 2.0 = "I need more rest" → decrease budget by ~30%.
+    // Formula: budget * (1 + (1 - restRatio) * 0.3), clamped to reasonable bounds.
+    const ratio = profile.restRatio ?? 1.0;
+    const multiplier = 1 + (1 - ratio) * 0.3;
+    return Math.round(baseBudget * Math.max(0.6, Math.min(1.5, multiplier)));
+  };
+
+  // Transition buffer detection: look for consecutive slots on the same day
+  // where the transition between them matches BUFFER_TRIGGERS
+  const getBufferSuggestions = (day) => {
+    const suggestions = [];
+    for (let i = 0; i < TIME_SLOTS.length - 1; i++) {
+      const from = schedule[day][TIME_SLOTS[i]];
+      const to   = schedule[day][TIME_SLOTS[i + 1]];
+      if (from && to && from !== to) {
+        const needsBuffer = BUFFER_TRIGGERS.some(([f, t]) => f === from && t === to);
+        if (needsBuffer) {
+          suggestions.push({ slot: TIME_SLOTS[i + 1], from, to });
+        }
+      }
+    }
+    return suggestions;
+  };
+
+  // ── Capacity model ────────────────────────────────────────────────────────────
+
+  const capacityCalc = () => {
+    const eveningSlots = ["3–5pm","5–7pm","7–9pm"];
+    let officeCount = 0, lateOfficeCount = 0;
+    DAYS.forEach(d => TIME_SLOTS.forEach(t => {
+      if (schedule[d][t] === "office") { officeCount++; if (eveningSlots.includes(t)) lateOfficeCount++; }
+    }));
+
+    const dailyRatios = DAYS.map(d => {
+      let active = 0, rest = 0, office = 0;
+      TIME_SLOTS.forEach(t => {
+        const v = schedule[d][t];
+        if (!v) return;
+        if (v === "office") { office++; return; }
+        if (v === "rest") { rest++; return; }
+        active++;
+      });
+      // Office shifts ALSO require energy and count toward total load
+      const totalLoad = active + office;
+      const ratio = totalLoad === 0 ? (rest > 0 ? profile.restRatio : null) : rest / totalLoad;
+      // Balanced if rest/load ratio is at least 80% of the user's target
+      const balanced  = ratio !== null && ratio >= profile.restRatio * 0.8;
+      // Overloaded if ratio is less than 40% of the user's target
+      const overloaded = totalLoad > 0 && (ratio === null || ratio < profile.restRatio * 0.4);
+      return { day: d, active, rest, office, ratio, balanced, overloaded };
+    });
+
+    let filled = 0, exposureBlocks = 0, makingBlocks = 0;
+    let restBlocks = 0, socialBlocks = 0, supportBlocks = 0, officeBlocks = 0;
+    DAYS.forEach(d => TIME_SLOTS.forEach(t => {
+      const v = schedule[d][t];
+      if (!v) return;
+      if (v === "office") { officeBlocks++; return; }
+      filled++;
+      if (v === "comms" || v === "growth") exposureBlocks++;
+      if (v === "making") makingBlocks++;
+      if (v === "rest") restBlocks++;
+      if (v === "social") socialBlocks++;
+      if (v === "systems") supportBlocks++;
+    }));
+
+    const activeDaysWithNoRest = dailyRatios.filter(r => (r.active + r.office) > 0 && r.rest === 0).length;
+    const balancedDays  = dailyRatios.filter(r => r.balanced).length;
+    const overloadedDays = dailyRatios.filter(r => r.overloaded).length;
+    // Weekly load now includes office shifts
+    const weeklyActive  = (filled - restBlocks) + officeBlocks;
+    const weeklyRatio   = weeklyActive === 0 ? profile.restRatio : restBlocks / weeklyActive;
+
+    // Score is based on how close the weekly ratio is to user's target
+    const targetRatio = profile.restRatio;
+    const lowerBound = targetRatio * 0.85;
+    const upperBound = targetRatio * 1.25;
+    let score;
+    if (weeklyRatio >= lowerBound && weeklyRatio <= upperBound) score = 50;
+    else if (weeklyRatio < lowerBound) score = Math.round(50 + ((lowerBound - weeklyRatio) / lowerBound) * 45);
+    else score = Math.round(50 - ((weeklyRatio - upperBound) / upperBound) * 30);
+
+    if (overloadedDays >= 3) score += 12;
+    if (activeDaysWithNoRest >= 4) score += 10;
+    const overSocial   = socialBlocks > 3;
+    const exposureHeavy = exposureBlocks > makingBlocks + 2;
+    const noRunway     = exposureBlocks > 0 && supportBlocks === 0;
+    if (overSocial) score += 6;
+    if (lateOfficeCount >= 4) score += 5;
+    score = Math.min(100, Math.max(10, score));
+
+    let label, color, textColor;
+    if (score < 30)       { label = "Under-loaded";   color = "#e8f0f8"; textColor = "#7a90a8"; }
+    else if (score < 45)  { label = "Light";           color = "#eef5ee"; textColor = "#7a9e96"; }
+    else if (score <= 60) { label = "Well balanced";   color = "#eef5ee"; textColor = "#7a9e96"; }
+    else if (score <= 76) { label = "Getting heavy";   color = "#fdf8ee"; textColor = "#c8a050"; }
+    else                  { label = "Over capacity";   color = "#fdf0ee"; textColor = "#b01904"; }
+
+    const flags = [];
+    if (activeDaysWithNoRest >= 3) flags.push(`${activeDaysWithNoRest} active days have no rest scheduled.`);
+    if (overloadedDays >= 2)       flags.push(`${overloadedDays} days are under-rested.`);
+    if (weeklyRatio < profile.restRatio * 0.5 && weeklyActive > 4) flags.push(`Rest is at ${Math.round(weeklyRatio * 100)}% of activity — aim for ${profile.restRatio.toFixed(1)}:1.`);
+    if (overSocial)    flags.push("Social looks heavy — protect some evenings.");
+    if (exposureHeavy) flags.push("More exposure than making — rebalance if possible.");
+    if (noRunway)      flags.push("Exposure with no support runway — add a Systems block.");
+    if (lateOfficeCount >= 4) flags.push("Several late shifts — protect mornings for studio work.");
+    if (balancedDays >= 4) flags.push(`${balancedDays} days are well balanced.`);
+
+    return { score, label, color, textColor, flags, officeCount, filled, dailyRatios, weeklyRatio, restBlocks, weeklyActive };
+  };
+
+  const capacity = capacityCalc();
+
+  // ── Calendar export ───────────────────────────────────────────────────────────
+
+  const getWeekStart = () => {
+    const now = new Date(), monday = new Date(now);
+    const dayOfWeek = now.getDay();
+    if (dayOfWeek === 0) {
+      const choice = sundayWeekChoice || "this";
+      if (choice === "next") {
+        monday.setDate(now.getDate() + 1);
+      } else {
+        monday.setDate(now.getDate() - 6);
+      }
+    } else {
+      monday.setDate(now.getDate() - (dayOfWeek - 1));
+    }
+    monday.setHours(0, 0, 0, 0);
+    return monday.toISOString().split("T")[0];
+  };
+
+  const getQuarterLabel = (isoDate) => {
+    const d = new Date(isoDate);
+    return `Q${Math.floor(d.getMonth() / 3) + 1} ${d.getFullYear()}`;
+  };
+
+  const [showSaveWeekPicker, setShowSaveWeekPicker] = useState(false);
+  const [saveWeekDate, setSaveWeekDate] = useState("");
+
+  // Snap any date to the Monday of its week
+  const mondayOf = (dateStr) => {
+    const d = new Date(dateStr);
+    const dow = d.getDay();
+    d.setDate(d.getDate() - (dow === 0 ? 6 : dow - 1));
+    d.setHours(0, 0, 0, 0);
+    return d.toISOString().split("T")[0];
+  };
+
+  const saveWeek = (customDate) => {
+    const cap = capacityCalc();
+    const weekKey = customDate ? mondayOf(customDate) : getWeekStart();
+    const entry = {
+      weekStart: weekKey, weekNote, schedule,
+      capacityScore: cap.score, capacityLabel: cap.label,
+      workTargetsMet: progress.filter(p => p.met).length,
+      workTargetsTotal: progress.length,
+      healthTargets: [...healthTargets], restTargets: [...restTargets],
+      socialDone, checklist: [...checklist], successMetrics: [...successMetrics],
+      savedAt: new Date().toISOString(),
+    };
+    setHasUserInteracted(true);
+    setArchive(prev => {
+      const filtered = prev.filter(w => w.weekStart !== entry.weekStart);
+      return [...filtered, entry].sort((a, b) => b.weekStart.localeCompare(a.weekStart));
+    });
+    setShowSaveWeekPicker(false);
+    setSaveWeekDate("");
+  };
+
+  // Opens the picker, pre-filled with the Monday of the current planning week
+  const openExportPicker = () => {
+    const now = new Date(), monday = new Date(now);
+    const dayOfWeek = now.getDay();
+    if (dayOfWeek === 0) {
+      const choice = sundayWeekChoice || "this";
+      if (choice === "next") monday.setDate(now.getDate() + 1);
+      else monday.setDate(now.getDate() - 6);
+    } else {
+      monday.setDate(now.getDate() - (dayOfWeek - 1));
+    }
+    monday.setHours(0, 0, 0, 0);
+    setExportStartDate(monday.toISOString().split("T")[0]);
+    setCalStatus(null);
+    setShowExportPicker(true);
+  };
+
+  const exportToCalendar = async (customStartDate) => {
+    setIsExporting(true); setCalStatus("connecting");
+    let monday;
+    if (customStartDate) {
+      // Use the user-chosen start date as Monday of the export week
+      monday = new Date(customStartDate + "T00:00:00");
+    } else {
+      const now = new Date();
+      monday = new Date(now);
+      const dayOfWeek = now.getDay();
+      if (dayOfWeek === 0) {
+        const choice = sundayWeekChoice || "this";
+        if (choice === "next") {
+          monday.setDate(now.getDate() + 1);
+        } else {
+          monday.setDate(now.getDate() - 6);
+        }
+      } else {
+        monday.setDate(now.getDate() - (dayOfWeek - 1));
+      }
+      monday.setHours(0, 0, 0, 0);
+    }
+    const dayOffsets = { Mon:0,Tue:1,Wed:2,Thu:3,Fri:4,Sat:5,Sun:6 };
+
+    // Merge contiguous same-mode slots per day
+    const events = [];
+    DAYS.forEach(day => {
+      let cur = null, sh = null, eh = null;
+      TIME_SLOTS.forEach(slot => {
+        const mode = schedule[day][slot];
+        const ok = mode && MODES[mode]?.exportable;
+        const h = SLOT_START[slot];
+        if (ok && mode === cur) { eh = h + 2; }
+        else {
+          if (cur && sh !== null) events.push({ day, mode: cur, sh, eh });
+          cur = ok ? mode : null; sh = ok ? h : null; eh = ok ? h + 2 : null;
         }
       });
+      if (cur && sh !== null) events.push({ day, mode: cur, sh, eh });
     });
-    return events;
-  };
 
-  const syncWithCalendar = async (calendarId) => {
-    setSyncing(true);
+    if (!events.length) { setCalStatus("empty"); setIsExporting(false); return; }
+    
     try {
-      const newEvents = generateCalendarEvents();
-
-      setCalendarEventMap((prev) => {
-        const newMap = {};
-        newEvents.forEach((e) => {
-          newMap[e.slotKey] = `event_${Date.now()}_${Math.random()}`;
-        });
-        return newMap;
+      // Format date for ICS (YYYYMMDDTHHmmSS)
+      const formatDateTime = (d, hour) => {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hr = String(hour).padStart(2, '0');
+        return `${year}${month}${day}T${hr}0000`;
+      };
+      
+      // Build a STABLE UID per event based on date + start time + duration.
+      // Same slot on same day will always produce the same UID, so re-importing
+      // updates existing calendar events instead of creating duplicates.
+      const makeUid = (eventDate, startHour, endHour) => {
+        const y = eventDate.getFullYear();
+        const m = String(eventDate.getMonth() + 1).padStart(2, '0');
+        const d = String(eventDate.getDate()).padStart(2, '0');
+        const sh = String(startHour).padStart(2, '0');
+        const eh = String(endHour).padStart(2, '0');
+        return `practice-planner-${y}${m}${d}-${sh}00-${eh}00@planner.local`;
+      };
+      
+      // Compute current event UIDs and metadata
+      const currentEvents = events.map(e => {
+        const eventDate = new Date(monday);
+        eventDate.setDate(monday.getDate() + dayOffsets[e.day]);
+        return {
+          uid: makeUid(eventDate, e.sh, e.eh),
+          eventDate,
+          ...e,
+        };
       });
-
-      showToast(`✓ Synced ${newEvents.length} events to Calendar`);
-    } catch (e) {
-      showToast("✗ Sync failed");
-    } finally {
-      setSyncing(false);
-      setShowCalendarSelector(false);
+      const currentUids = new Set(currentEvents.map(e => e.uid));
+      
+      // Look up previously-exported UIDs for this week.
+      // If any are missing now, emit cancellation events so the calendar removes them.
+      const weekKey = `studio-planner-exported-${monday.toISOString().split("T")[0]}`;
+      let previousUids = [];
+      try {
+        const stored = JSON.parse(localStorage.getItem(weekKey) || "null");
+        if (stored && Array.isArray(stored.uids)) previousUids = stored.uids;
+      } catch (_) {}
+      const removedUids = previousUids.filter(uid => !currentUids.has(uid));
+      
+      // SEQUENCE increments each export so calendar apps know this is an update
+      let sequence = 0;
+      try {
+        const stored = JSON.parse(localStorage.getItem(weekKey) || "null");
+        if (stored && typeof stored.sequence === "number") sequence = stored.sequence + 1;
+      } catch (_) {}
+      
+      const dtstamp = formatDateTime(new Date(), new Date().getHours());
+      
+      // Build ICS — METHOD:REQUEST tells calendar apps to treat as updates/changes
+      let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Practice Planner//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:REQUEST\r\n";
+      
+      currentEvents.forEach(e => {
+        const start = formatDateTime(e.eventDate, e.sh);
+        const end = formatDateTime(e.eventDate, e.eh);
+        ics += `BEGIN:VEVENT\r\n`;
+        ics += `UID:${e.uid}\r\n`;
+        ics += `SEQUENCE:${sequence}\r\n`;
+        ics += `DTSTAMP:${dtstamp}\r\n`;
+        ics += `DTSTART:${start}\r\n`;
+        ics += `DTEND:${end}\r\n`;
+        ics += `SUMMARY:${MODES[e.mode].label} — Practice\r\n`;
+        ics += `DESCRIPTION:${MODES[e.mode].sub || ''}\r\n`;
+        ics += `STATUS:CONFIRMED\r\n`;
+        ics += `END:VEVENT\r\n`;
+      });
+      
+      // Cancellations for events that existed previously but no longer do
+      removedUids.forEach(uid => {
+        ics += `BEGIN:VEVENT\r\n`;
+        ics += `UID:${uid}\r\n`;
+        ics += `SEQUENCE:${sequence}\r\n`;
+        ics += `DTSTAMP:${dtstamp}\r\n`;
+        ics += `STATUS:CANCELLED\r\n`;
+        ics += `METHOD:CANCEL\r\n`;
+        ics += `SUMMARY:Practice block (removed)\r\n`;
+        ics += `END:VEVENT\r\n`;
+      });
+      
+      ics += "END:VCALENDAR\r\n";
+      
+      // Remember this export so the next one knows what to cancel
+      try {
+        localStorage.setItem(weekKey, JSON.stringify({
+          uids: Array.from(currentUids),
+          sequence,
+          exportedAt: new Date().toISOString(),
+        }));
+      } catch (_) {}
+      
+      // Download the .ics file
+      const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `practice-planner-week-${monday.toISOString().split("T")[0]}.ics`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      setCalStatus("success");
+    } catch (err) {
+      console.error("Calendar export error:", err);
+      setCalStatus("error");
     }
+    setIsExporting(false);
   };
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // STYLES
-  // ────────────────────────────────────────────────────────────────────────────
+  const addProject = () => {
+    setHasUserInteracted(true);
+    const p = emptyProject();
+    setProjects(prev => [...prev, p]);
+    setEditingProject(p.id);
+  };
+  const updateProject = (id, field, value) => { setHasUserInteracted(true); setProjects(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p)); };
+  const deleteProject = (id) => { setHasUserInteracted(true); setProjects(prev => prev.filter(p => p.id !== id)); if (editingProject === id) setEditingProject(null); };
+  const stuckReset = () => { setStuckOpen(false); setStuckStep(0); setStuckEnergy(null); };
+  const runway = stuckEnergy ? RUNWAY_MAP[stuckEnergy] : null;
 
-  const sml = { fontFamily: TNR, fontSize: "12px", color: "#999", textTransform: "uppercase", letterSpacing: "0.5px", margin: 0 };
+  // ── Today data ────────────────────────────────────────────────────────────────
 
-  // ════════════════════════════════════════════════════════════════════════════════
-  // RENDER
-  // ════════════════════════════════════════════════════════════════════════════════
+  const todaySlots = TIME_SLOTS.map(t => ({ slot: t, mode: schedule[today]?.[t] || null })).filter(s => s.mode);
+  const todayEnergy = getDayEnergy(today);
+  const todayBudget = getDayBudget(today);
+  const todayOver = todayEnergy > todayBudget;
+  const bufferSuggestions = getBufferSuggestions(today);
+
+  // Next action: first non-null non-rest block from current hour onwards
+  const getNextAction = () => {
+    const nowHour = new Date().getHours();
+    for (const t of TIME_SLOTS) {
+      const h = SLOT_START[t];
+      const mode = schedule[today]?.[t];
+      if (h >= nowHour && mode && mode !== "rest" && mode !== "office") {
+        return { slot: t, mode };
+      }
+    }
+    return null;
+  };
+  const nextAction = getNextAction();
+
+  // ── Project row renderer ─────────────────────────────────────────────────────
+  const renderProjectRow = (p) => {
+    const statusObj = Q_STATUSES.find(s => s.key === p.status) || Q_STATUSES[0];
+    const isEditing = editingProject === p.id;
+    const statusColor = {
+      "on-track": "#0fa97f", "at-risk": "#e8c070", "behind": "#b01904",
+      "done": "#0fa97f", "not-started": "#888",
+    }[p.status] || "#888";
+    return (
+      <div key={p.id} style={{ marginBottom: "2px" }}>
+        {/* Row — year-list style */}
+        <div style={{ display: "flex", alignItems: "baseline", gap: "16px", padding: "10px 0", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}
+          onClick={() => setEditingProject(isEditing ? null : p.id)}>
+          <span style={{ fontFamily: TNR, fontSize: "12px", color: "#888", width: "52px", flexShrink: 0 }}>
+            {p.dueMonth || "—"}
+          </span>
+          <span style={{ flex: 1, display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
+            {p.isProtectedFineArt && <span style={{ fontFamily: TNR, fontSize: "11px", color: "#b01904" }}>[protected]</span>}
+            {p.isFineArt && !p.isProtectedFineArt && <span style={{ fontFamily: TNR, fontSize: "11px", color: "#b01904" }}>[fine art]</span>}
+            <span style={{ fontFamily: TNR, fontSize: "15px", color: p.title ? (p.isFineArt ? "#b01904" : "#1a1a1a") : "#888",
+              textDecoration: p.title ? "underline" : "none", textUnderlineOffset: "2px",
+              textDecorationColor: p.isFineArt ? "#b01904" : "#1a1a1a",
+            }}>{p.title || "Untitled goal"}</span>
+            {p.nextAction && <span style={{ fontFamily: TNR, fontSize: "12px", color: "#888" }}>→ {p.nextAction.slice(0, 40)}{p.nextAction.length > 40 ? "…" : ""}</span>}
+          </span>
+          <span style={{ fontFamily: TNR, fontSize: "12px", color: statusColor, flexShrink: 0 }}>{statusObj.label}</span>
+          <span style={{ fontFamily: TNR, fontSize: "12px", color: "#888", flexShrink: 0, minWidth: "28px", textAlign: "right" }}>{p.progress}%</span>
+        </div>
+
+        {isEditing && (
+          <div style={{ padding: "16px 0 22px 72px", borderBottom: "1px solid #f0f0f0" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "14px" }}>
+              <div><p style={{ ...sml, marginBottom: "5px" }}>Title</p><input style={inp} value={p.title} onChange={e => updateProject(p.id, "title", e.target.value)} placeholder="Goal title" /></div>
+              <div><p style={{ ...sml, marginBottom: "5px" }}>Category</p><select style={{ ...inp, cursor: "pointer" }} value={p.category} onChange={e => updateProject(p.id, "category", e.target.value)}>{Q_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+              <div><p style={{ ...sml, marginBottom: "5px" }}>Status</p><select style={{ ...inp, cursor: "pointer" }} value={p.status} onChange={e => updateProject(p.id, "status", e.target.value)}>{Q_STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}</select></div>
+              <div><p style={{ ...sml, marginBottom: "5px" }}>Horizon</p><select style={{ ...inp, cursor: "pointer" }} value={p.horizon} onChange={e => updateProject(p.id, "horizon", e.target.value)}>{Q_HORIZONS.map(h => <option key={h.key} value={h.key}>{h.label}</option>)}</select></div>
+              <div><p style={{ ...sml, marginBottom: "5px" }}>Quarter</p><select style={{ ...inp, cursor: "pointer" }} value={p.quarter || currentQuarterKey()} onChange={e => updateProject(p.id, "quarter", e.target.value)}>{QUARTERS.map(q => <option key={q.key} value={q.key}>{q.label} ({q.sub})</option>)}</select></div>
+              <div><p style={{ ...sml, marginBottom: "5px" }}>Progress — {p.progress}%</p><input type="range" min="0" max="100" value={p.progress} onChange={e => updateProject(p.id, "progress", Number(e.target.value))} style={{ width: "100%", accentColor: statusColor }} /></div>
+              <div><p style={{ ...sml, marginBottom: "5px" }}>Confidence</p><select style={{ ...inp, cursor: "pointer" }} value={p.confidence} onChange={e => updateProject(p.id, "confidence", e.target.value)}>{CONFIDENCE.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}</select></div>
+              <div><p style={{ ...sml, marginBottom: "5px" }}>Due month</p><input style={inp} value={p.dueMonth} onChange={e => updateProject(p.id, "dueMonth", e.target.value)} placeholder="e.g. June" /></div>
+              <div><p style={{ ...sml, marginBottom: "5px" }}>Next milestone</p><input style={inp} value={p.nextMilestone} onChange={e => updateProject(p.id, "nextMilestone", e.target.value)} placeholder="Next concrete step" /></div>
+            </div>
+            {/* Next physical action — plain, no card */}
+            <div style={{ marginBottom: "14px" }}>
+              <p style={{ ...sml, marginBottom: "5px", color: "#b01904" }}>Next physical action</p>
+              <input style={inp} value={p.nextAction} onChange={e => updateProject(p.id, "nextAction", e.target.value)} placeholder="e.g. open the wax file and cut one shape" />
+              {!p.nextAction && <p style={{ fontFamily: TNR, fontSize: "12px", color: "#e8c070", marginTop: "5px" }}>Required — what is the very next physical action?</p>}
+            </div>
+            <div style={{ marginBottom: "12px" }}><p style={{ ...sml, marginBottom: "5px" }}>Notes</p><textarea value={p.notes} onChange={e => updateProject(p.id, "notes", e.target.value)} placeholder="Context, risks, reflections..." style={{ ...inp, minHeight: "52px", resize: "vertical", lineHeight: "1.6" }} /></div>
+            <div style={{ display: "flex", gap: "20px", alignItems: "center", flexWrap: "wrap" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "7px", cursor: "pointer", fontFamily: TNR, fontSize: "13px", color: p.isFineArt ? "#b01904" : "#888" }}>
+                <input type="checkbox" checked={p.isFineArt} onChange={e => updateProject(p.id, "isFineArt", e.target.checked)} style={{ accentColor: "#b01904" }} />
+                Fine art practice
+              </label>
+              {p.isFineArt && (
+                <label style={{ display: "flex", alignItems: "center", gap: "7px", cursor: "pointer", fontFamily: TNR, fontSize: "13px", color: p.isProtectedFineArt ? "#b01904" : "#888" }}>
+                  <input type="checkbox" checked={p.isProtectedFineArt} onChange={e => updateProject(p.id, "isProtectedFineArt", e.target.checked)} style={{ accentColor: "#b01904" }} />
+                  Protected (cannot be displaced)
+                </label>
+              )}
+              <span style={{ marginLeft: "auto", fontFamily: TNR, fontSize: "13px", color: "#888", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }} onClick={() => deleteProject(p.id)}>remove</span>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────────
+
+  // Show loading while checking auth
+  if (authChecking) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: TNR, fontSize: "14px", color: "#888" }}>
+        Loading...
+      </div>
+    );
+  }
+
+  // Show login screen if not authenticated
+  if (!isAuthenticated) {
+    return <AuthScreen onSuccess={(p) => { setProfile(p); setIsAuthenticated(true); setAuthTimestamp(Date.now()); setSupabaseLoaded(false); }} />;
+  }
 
   return (
-    <div style={{ fontFamily: TNR, background: "#fafafa", minHeight: "100vh", padding: "20px", color: "#1a1a1a" }}>
-      {/* TOAST NOTIFICATION */}
-      {toast && (
-        <div
-          style={{
-            position: "fixed",
-            top: "20px",
-            right: "20px",
-            background: toast.includes("✗") ? "#ffebee" : "#e8f5e9",
-            border: `1px solid ${toast.includes("✗") ? "#ffcccc" : "#81c784"}`,
-            color: toast.includes("✗") ? "#c62828" : "#2e7d32",
-            padding: "14px 20px",
-            borderRadius: "4px",
-            fontFamily: TNR,
-            fontSize: "13px",
-            fontWeight: "500",
-            zIndex: 2000,
-            animation: "slideIn 0.3s ease-out",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-          }}
-        >
-          {toast}
+    <div style={{ minHeight: "100vh", background: "#fff", color: "#1a1a1a", fontFamily: TNR, padding: "60px 32px 100px" }}>
+
+      {/* ════ PROFILE EDIT OVERLAY ════ */}
+      {showProfileEdit && (
+        <ProfileEditScreen
+          profile={profile}
+          onSave={(p) => { setHasUserInteracted(true); setProfile(p); saveProfile(p); setShowProfileEdit(false); }}
+          onCancel={() => setShowProfileEdit(false)}
+        />
+      )}
+
+      {/* ════ STUCK OVERLAY ════ */}
+      {stuckOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(255,255,255,0.97)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "32px" }}>
+          <div style={{ maxWidth: "440px", width: "100%", textAlign: "center" }}>
+            {stuckStep === 0 && (
+              <>
+                <p style={{ ...sml, marginBottom: "28px" }}>Stuck state</p>
+                <div style={{ fontSize: "17px", lineHeight: "2", marginBottom: "36px" }}>
+                  <div>What energy level</div><div>are you at right now?</div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px", alignItems: "center" }}>
+                  {ENERGY_LEVELS.map(e => (
+                    <div key={e.key} onClick={() => { setStuckEnergy(e.key); setStuckStep(1); }}
+                      style={{ padding: "10px 16px", cursor: "pointer", textAlign: "center" }}>
+                      <span style={{ ...linkStyle, fontSize: "17px" }}>{e.label}</span>
+                      <div style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginTop: "3px" }}>{e.sub}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ marginTop: "32px" }}><span onClick={stuckReset} style={{ fontFamily: TNR, fontSize: "13px", color: "#888", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}>cancel</span></div>
+              </>
+            )}
+            {stuckStep === 1 && runway && (
+              <>
+                <p style={{ ...sml, marginBottom: "28px" }}>Runway</p>
+                <div style={{ fontSize: "16px", lineHeight: "1.9", marginBottom: "24px" }}>{runway.note}</div>
+                {runway.runwayNeeded && (
+                  <div style={{ marginBottom: "24px", textAlign: "left", paddingBottom: "20px", borderBottom: "1px solid #f0f0f0" }}>
+                    <p style={{ ...sml, marginBottom: "8px" }}>Start here</p>
+                    <p style={{ fontFamily: TNR, fontSize: "15px", color: "#1a1a1a", lineHeight: "1.6" }}>{runway.runway}</p>
+                  </div>
+                )}
+                <div style={{ textAlign: "left", marginBottom: "24px" }}>
+                  <p style={{ ...sml, marginBottom: "10px" }}>Pick one</p>
+                  {runway.actions.map((a, i) => (
+                    <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid #f0f0f0" }}>
+                      <span style={{ fontFamily: TNR, fontSize: "14px", color: "#1a1a1a" }}>{a}</span>
+                    </div>
+                  ))}
+                </div>
+                {runway.expose && (
+                  <div style={{ marginBottom: "28px", textAlign: "left", paddingTop: "12px", borderTop: "1px solid #f0f0f0" }}>
+                    <p style={{ ...sml, marginBottom: "8px" }}>{runway.expose.label}</p>
+                    {runway.expose.examples.map((ex, i) => (
+                      <div key={i} style={{ fontFamily: TNR, fontSize: "13px", color: "#888", padding: "3px 0" }}>— {ex}</div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+                  <span onClick={() => { stuckReset(); setTab("grid"); }} style={{ ...linkStyle, fontSize: "14px" }}>Go to grid</span>
+                  <span onClick={stuckReset} style={{ fontFamily: TNR, fontSize: "13px", color: "#888", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px", alignSelf: "center" }}>dismiss</span>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
 
-      {/* HEADER */}
-      <div style={{ marginBottom: "32px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-          <h1 style={{ fontFamily: TNR, fontSize: "28px", fontWeight: "bold", margin: 0 }}>Studio Planner</h1>
+      {/* ── Header ── */}
+      <div style={{ textAlign: "center", marginBottom: "40px" }}>
+        <p style={{ ...sml, marginBottom: "20px" }}>{profile.name || "Your Name"}</p>
+        <p style={{ ...sml, marginBottom: "20px", letterSpacing: "0.06em" }}>{profile.plannerTitle}</p>
+        <div style={{ fontSize: "17px", lineHeight: "2", color: "#1a1a1a" }}>
+          <div>A weekly planner for mapping making,</div>
+          <div>admin, growth and systems work</div>
+          <div>around occupied time.</div>
+          <div>Mark your {profile.scheduleAround},</div>
+          <div>fill your free</div>
+          <div>blocks.</div>
         </div>
+        <p style={{ fontFamily: TNR, fontSize: "14px", color: "#1a1a1a", marginTop: "24px", marginBottom: "6px" }}>{profile.role || "Your Role"}</p>
+      </div>
 
-        {/* TABS */}
-        <div style={{ display: "flex", gap: "2px", marginBottom: "32px", borderBottom: "2px solid #eee", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ display: "flex", gap: "2px" }}>
-            {["weekly-schedule", "health", "quarterly", "archive", "guide"].map((t) => {
-              const label = t === "weekly-schedule" ? "Weekly Schedule" : t.charAt(0).toUpperCase() + t.slice(1);
-              return (
-                <button
-                  key={t}
-                  onClick={() => setTab(t)}
+      {/* ── Controls row ── */}
+      <div style={{ textAlign: "center", marginBottom: "36px", display: "flex", gap: "20px", justifyContent: "center", alignItems: "center" }}>
+        <span onClick={() => { setStuckOpen(true); setStuckStep(0); setStuckEnergy(null); }}
+          style={{ ...linkStyle, fontSize: "14px" }}>
+          Feeling stuck?
+        </span>
+        <span onClick={() => setShowProfileEdit(true)}
+          style={{ ...linkStyle, fontSize: "14px" }}>
+          Edit profile
+        </span>
+        <span onClick={() => { logoutUser(); setIsAuthenticated(false); setSupabaseLoaded(false); setAuthTimestamp(0); }}
+          style={{ ...linkStyle, fontSize: "14px" }}>
+          Sign out
+        </span>
+      </div>
+
+      {/* ── Tabs as boxed buttons ── */}
+      <div style={{ textAlign: "center", marginBottom: "52px", display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
+        {[["today","Today"],["grid","Grid"],["targets","Targets"],["quarterly","Quarterly"],["health","Health"],["plan","Plan"],["archive","Archive"]].map(([key, lbl]) => (
+          <span key={key} onClick={() => setTab(key)} style={boxBtn(tab === key)}>{lbl}</span>
+        ))}
+      </div>
+
+      {/* ════ TODAY ════ */}
+      {tab === "today" && (
+        <div style={{ maxWidth: "440px", margin: "0 auto" }}>
+          <div style={{ marginBottom: "40px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
+              <p style={{ ...sml, margin: 0 }}>{today}</p>
+              {(() => {
+                const atCapacity = !todayOver && todayEnergy >= todayBudget * 0.9 && todayEnergy >= 1;
+                const color = todayOver ? "#b01904" : atCapacity ? "#c47100" : "#888";
+                const label = todayOver ? "— over" : atCapacity ? "— at capacity" : "";
+                return (
+                  <span style={{ fontFamily: TNR, fontSize: "13px", color }}>
+                    {todayEnergy} / {todayBudget} energy {label}
+                  </span>
+                );
+              })()}
+            </div>
+
+            {/* Energy level as plain underlined links */}
+            <div style={{ display: "flex", gap: "20px", marginBottom: "32px" }}>
+              {ENERGY_LEVELS.map(e => (
+                <span key={e.key} onClick={() => { setHasUserInteracted(true); setDayEnergyLevels(prev => ({ ...prev, [today]: e.key })); }}
                   style={{
-                    fontFamily: TNR,
-                    fontSize: "14px",
-                    padding: "10px 16px",
-                    background: "transparent",
-                    border: "none",
-                    cursor: "pointer",
-                    color: tab === t ? "#1a1a1a" : "#aaa",
-                    borderBottom: tab === t ? "2px solid #1a1a1a" : "2px solid transparent",
-                    textTransform: "capitalize",
-                    transition: "all 0.2s",
-                  }}
-                >
-                  {label}
-                </button>
+                    fontFamily: TNR, fontSize: "14px", cursor: "pointer",
+                    color: dayEnergyLevels[today] === e.key ? LINK_BLUE : "#1a1a1a",
+                    textDecoration: dayEnergyLevels[today] === e.key ? "underline" : "none",
+                    textUnderlineOffset: "2px",
+                  }}>
+                  {e.label}
+                </span>
+              ))}
+            </div>
+
+            {/* Today's blocks */}
+            {todaySlots.length === 0 ? (
+              <p style={{ fontFamily: TNR, fontSize: "15px", color: "#888", textAlign: "center", lineHeight: "2" }}>
+                Nothing scheduled today.<br />Fill in the grid.
+              </p>
+            ) : (
+              <div>
+                {todaySlots.map(({ slot, mode }) => {
+                  const m = MODES[mode];
+                  return (
+                    <div key={slot} style={{
+                      display: "flex", alignItems: "baseline", gap: "16px",
+                      padding: "10px 0", borderBottom: "1px solid #f0f0f0",
+                    }}>
+                      <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888", width: "52px", flexShrink: 0 }}>{slot}</span>
+                      <span style={{
+                        fontFamily: TNR, fontSize: "15px",
+                        color: WORK_MODES.includes(mode)
+                          ? `rgba(26, 13, 171, ${(EXEC_INTENSITY[mode]?.opacity ?? 0.5)})`
+                          : MODE_COLORS[mode]
+                      }}>{m.label}</span>
+                      <span style={{ fontFamily: TNR, fontSize: "12px", color: "#888" }}>
+                        {m.energyCost > 0 ? `+${m.energyCost}` : m.energyCost}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Next action — plain line, no card */}
+          {nextAction && (
+            <div style={{ marginBottom: "32px" }}>
+              <p style={{ ...sml, marginBottom: "10px" }}>Next up</p>
+              <div style={{ display: "flex", alignItems: "baseline", gap: "14px" }}>
+                <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888", width: "52px" }}>{nextAction.slot}</span>
+                <span style={{
+                  fontFamily: TNR, fontSize: "16px",
+                  color: WORK_MODES.includes(nextAction.mode)
+                    ? `rgba(26, 13, 171, ${(EXEC_INTENSITY[nextAction.mode]?.opacity ?? 0.5)})`
+                    : MODE_COLORS[nextAction.mode]
+                }}>
+                  {MODES[nextAction.mode].label}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Transition buffer — plain warning text */}
+          {bufferSuggestions.length > 0 && (
+            <div style={{ marginBottom: "28px" }}>
+              <p style={{ ...sml, marginBottom: "10px" }}>Buffer suggestions</p>
+              {bufferSuggestions.map((b, i) => (
+                <div key={i} style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", padding: "6px 0", borderBottom: "1px solid #f0f0f0" }}>
+                  Before {b.slot}: 15–30 min between {MODES[b.from]?.label} and {MODES[b.to]?.label}.
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ════ GRID ════ */}
+      {tab === "grid" && (
+        <>
+          {fineArtWarning && profile.protectedPractice?.enabled && (
+            <div style={{ maxWidth: "600px", margin: "0 auto 24px", textAlign: "center" }}>
+              <p style={{ fontFamily: TNR, fontSize: "14px", color: "#b01904", margin: 0 }}>
+                — {profile.protectedPractice.warningText}
+              </p>
+            </div>
+          )}
+
+          {/* Mode selector — boxed buttons, Eilidh style */}
+          <div style={{ textAlign: "center", marginBottom: "12px", display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
+            {Object.entries(MODES).map(([key, m]) => (
+              <span key={key} onClick={() => setActiveMode(key)}
+                style={{
+                  display: "inline-block", padding: "5px 16px",
+                  border: `1px solid ${activeMode === key ? MODE_COLORS[key] : "#1a1a1a"}`,
+                  background: "#fff",
+                  color: activeMode === key ? MODE_COLORS[key] : "#1a1a1a",
+                  fontFamily: TNR, fontSize: "14px", cursor: "pointer", userSelect: "none",
+                }}>
+                {getModeLabel(key)}
+              </span>
+            ))}
+            <span onClick={clearAll}
+              style={{ fontFamily: TNR, fontSize: "13px", color: "#888", cursor: "pointer", alignSelf: "center", textDecoration: "underline", textUnderlineOffset: "2px" }}>
+              clear
+            </span>
+          </div>
+
+          {/* Rest subtype — smaller boxed */}
+          {activeMode === "rest" && (
+            <div style={{ textAlign: "center", marginBottom: "10px", display: "flex", gap: "8px", justifyContent: "center", flexWrap: "wrap" }}>
+              {Object.entries(REST_TYPES).map(([key, rt]) => (
+                <span key={key} onClick={() => setRestSubtype(key)}
+                  style={{
+                    display: "inline-block", padding: "3px 12px",
+                    border: `1px solid ${restSubtype === key ? "#1a1a1a" : "#cccccc"}`,
+                    background: "#fff",
+                    color: restSubtype === key ? "#1a1a1a" : "#888",
+                    fontFamily: TNR, fontSize: "12px", cursor: "pointer",
+                  }}>
+                  {rt.label}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div style={{ textAlign: "center", fontFamily: TNR, fontSize: "13px", color: "#bbb", marginBottom: "20px" }}>
+            {activeMode === "rest" ? REST_TYPES[restSubtype]?.sub : (profile.modeDescriptions?.[activeMode] || MODES[activeMode]?.sub)}
+            {MODES[activeMode] && (
+              <span style={{ marginLeft: "12px", color: "#ddd" }}>
+                friction: {MODES[activeMode].friction} · sensory: {MODES[activeMode].sensory}
+              </span>
+            )}
+          </div>
+
+          {/* Per-day energy budget row — minimal Eilidh style */}
+          <div style={{ marginBottom: "12px" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", tableLayout: "fixed" }}>
+              <thead>
+                <tr>
+                  <th style={{ width: "44px" }}></th>
+                  {DAYS.map(d => {
+                    const de = getDayEnergy(d);
+                    const db = getDayBudget(d);
+                    const over = de > db;
+                    // "At capacity" = within 10% of budget (or right at it). 
+                    // Signals "you've used your day" without being overload.
+                    const atCapacity = !over && de >= db * 0.9 && de >= 1;
+                    const currentLevel = dayEnergyLevels[d] || "medium";
+                    // Get this day's balance status from capacity calc
+                    const dayStatus = capacity.dailyRatios?.find(r => r.day === d);
+                    const isUnderRested = dayStatus?.overloaded;  // really out of balance
+                    const isBalanced = dayStatus?.balanced;       // close to target
+                    // Colour priority: overload (red) > at capacity (amber) > balanced (green) > neutral
+                    const dayColor = (isUnderRested || over) 
+                      ? "#b01904" 
+                      : atCapacity 
+                        ? "#c47100"  // amber/orange = at capacity, no more room
+                        : isBalanced 
+                          ? "#0fa97f" 
+                          : "#1a1a1a";
+                    const energyColor = (isUnderRested || over)
+                      ? "#b01904"
+                      : atCapacity
+                        ? "#c47100"
+                        : isBalanced 
+                          ? "#0fa97f" 
+                          : "#888";
+                    // Cycle through H/M/L on click
+                    const cycleEnergy = () => {
+                      setHasUserInteracted(true);
+                      const next = currentLevel === "high" ? "medium" : currentLevel === "medium" ? "low" : "high";
+                      setDayEnergyLevels(prev => ({ ...prev, [d]: next }));
+                    };
+                    return (
+                      <th key={d} style={{ padding: "0 2px 12px", textAlign: "center", fontWeight: "normal" }}>
+                        <div style={{ fontFamily: TNR, fontSize: "13px", color: dayColor, marginBottom: "3px", fontWeight: "normal" }}>{d.charAt(0)}</div>
+                        <div onClick={cycleEnergy} style={{ 
+                          fontFamily: TNR, fontSize: "9px", 
+                          color: "#888", cursor: "pointer", fontWeight: "normal",
+                          textDecoration: "underline", textUnderlineOffset: "2px",
+                          textDecorationColor: "#ddd",
+                        }}>
+                          {currentLevel.charAt(0).toUpperCase()} · <span style={{ color: energyColor }}>{de}/{db}</span>
+                        </div>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+            </table>
+          </div>
+
+          {/* Grid */}
+          <div style={{ marginBottom: "36px" }}>
+            <table style={{ borderCollapse: "collapse", width: "100%", tableLayout: "fixed" }}>
+              <tbody>
+                {TIME_SLOTS.map(slot => (
+                  <tr key={slot}>
+                    <td style={{ fontFamily: TNR, fontSize: "9px", color: "#ccc", padding: "1px 4px 1px 0", verticalAlign: "middle", width: "44px" }}>{slot}</td>
+                    {DAYS.map(day => {
+                      const val = schedule[day][slot];
+                      const isOffice = val === "office";
+                      const isWorkMode = val && WORK_MODES.includes(val);
+                      const intensity = isWorkMode ? (EXEC_INTENSITY[val] || { opacity: 0.5 }) : null;
+                      const cellColor = isWorkMode 
+                        ? `rgba(26, 13, 171, ${intensity.opacity})`  // hyperlink blue at varying opacity
+                        : val ? MODE_COLORS[val] : null;
+                      
+                      return (
+                        <td key={day} style={{ padding: "1px 1px" }}>
+                          <div onClick={() => assign(day, slot)} title={val ? MODES[val]?.label : ""}
+                            style={{
+                              height: "26px",
+                              border: `1px solid ${val ? (isOffice ? "#ddd" : cellColor || "#e8e8e8") : "#e8e8e8"}`,
+                              background: val ? (isOffice ? "#f5f5f5" : cellColor) : "#fff",
+                              cursor: isOffice ? "default" : "pointer",
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              transition: "all 0.08s",
+                            }}>
+                            {isOffice
+                              ? <span style={{ fontFamily: TNR, fontSize: "9px", color: "#999" }}>{getModeLabel("office").slice(0, 4).toLowerCase()}</span>
+                              : val && <span style={{ fontFamily: TNR, fontSize: "10px", color: "#fff", letterSpacing: "0.02em" }}>{getModeLabel(val).slice(0, 3).toLowerCase()}</span>}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Key — 3-char abbrev + label, coloured (work modes use intensity scale) */}
+          <div style={{ display: "flex", gap: "20px", flexWrap: "wrap", justifyContent: "center", marginBottom: "36px" }}>
+            {Object.entries(MODES).map(([key, m]) => {
+              const isWorkMode = WORK_MODES.includes(key);
+              const intensity = isWorkMode ? (EXEC_INTENSITY[key] || { opacity: 0.5, desc: "" }) : null;
+              const color = isWorkMode 
+                ? `rgba(26, 13, 171, ${intensity.opacity})`
+                : MODE_COLORS[key];
+              const label = getModeLabel(key);
+              return (
+                <span key={key} style={{ fontFamily: TNR, fontSize: "13px", color }}>
+                  <span style={{ fontSize: "11px" }}>{label.slice(0, 3).toLowerCase()}</span>  {label}
+                  {isWorkMode && <span style={{ fontFamily: TNR, fontSize: "10px", color: "#888" }}> ({intensity.desc})</span>}
+                </span>
               );
             })}
           </div>
 
-          {tab === "weekly-schedule" && (
-            <button
-              onClick={() => setShowCalendarPanel(!showCalendarPanel)}
-              style={{
-                fontFamily: TNR,
-                fontSize: "12px",
-                padding: "6px 12px",
-                background: showCalendarPanel ? LINK_BLUE : "#eee",
-                color: showCalendarPanel ? "#fff" : "#666",
-                border: "none",
-                borderRadius: "3px",
-                cursor: "pointer",
-                fontWeight: "500",
-              }}
-            >
-              {showCalendarPanel ? "Hide" : "Show"} calendar
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* ════ WEEKLY SCHEDULE TAB ════ */}
-      {tab === "weekly-schedule" && (
-        <div style={{ maxWidth: "900px", margin: "0 auto" }}>
-          {/* Week Navigation */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-            <button
-              onClick={() => setCurrentDate(new Date(currentDate.getTime() - 7 * 24 * 60 * 60 * 1000))}
-              style={{ fontFamily: TNR, fontSize: "13px", padding: "8px 12px", background: "#f0f0f0", border: "1px solid #ddd", borderRadius: "3px", cursor: "pointer" }}
-            >
-              ← Prev week
-            </button>
-            <p style={{ fontFamily: TNR, fontSize: "14px", fontWeight: "600", margin: 0 }}>
-              {weekStart.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} – {new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+          {/* Export */}
+          <div style={{ textAlign: "center" }}>
+            <p style={{ ...sml, marginBottom: "8px" }}>Export blocks to your calendar</p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb", marginBottom: "14px" }}>
+              Downloads an .ics file. Open it to add events to Google Calendar, Apple Calendar, or Outlook.<br />
+              Re-export and re-import any time you change blocks — existing events are updated, removed blocks are cancelled.
             </p>
-            <button
-              onClick={() => setCurrentDate(new Date(currentDate.getTime() + 7 * 24 * 60 * 60 * 1000))}
-              style={{ fontFamily: TNR, fontSize: "13px", padding: "8px 12px", background: "#f0f0f0", border: "1px solid #ddd", borderRadius: "3px", cursor: "pointer" }}
-            >
-              Next week →
-            </button>
+            {!showExportPicker && (
+              <span onClick={!isExporting ? openExportPicker : undefined}
+                style={{ ...linkStyle, fontSize: "15px", color: isExporting ? "#bbb" : LINK_BLUE, textDecorationColor: isExporting ? "#bbb" : LINK_BLUE, cursor: isExporting ? "default" : "pointer" }}>
+                {isExporting ? "Generating..." : "Download calendar file"}
+              </span>
+            )}
+            {showExportPicker && (
+              <div style={{ padding: "16px", border: "1px solid #e7e7e7", borderRadius: "4px", marginTop: "10px", textAlign: "left" }}>
+                <p style={{ fontFamily: TNR, fontSize: "13px", color: "#888", marginBottom: "10px" }}>
+                  Which week's blocks should be exported? Pick the <strong>Monday</strong> the week starts on.
+                </p>
+                <input
+                  type="date"
+                  value={exportStartDate}
+                  onChange={e => setExportStartDate(e.target.value)}
+                  style={{ fontFamily: TNR, fontSize: "14px", padding: "6px 10px", border: "1px solid #ccc", borderRadius: "3px", marginBottom: "12px", width: "100%", boxSizing: "border-box" }}
+                />
+                {exportStartDate && new Date(exportStartDate + "T00:00:00").getDay() !== 1 && (
+                  <p style={{ fontFamily: TNR, fontSize: "12px", color: "#b01904", marginBottom: "10px" }}>
+                    Note: {new Date(exportStartDate + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })} isn't a Monday. The export will treat this date as Monday and the next 6 days as Tue-Sun.
+                  </p>
+                )}
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <span onClick={() => { setShowExportPicker(false); exportToCalendar(exportStartDate); }}
+                    style={{ ...linkStyle, fontSize: "14px", cursor: "pointer" }}>
+                    Download
+                  </span>
+                  <span onClick={() => { setShowExportPicker(false); setCalStatus(null); }}
+                    style={{ fontFamily: TNR, fontSize: "14px", color: "#888", cursor: "pointer", textDecoration: "underline" }}>
+                    Cancel
+                  </span>
+                </div>
+              </div>
+            )}
+            {calStatus === "success" && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#0fa97f", marginTop: "10px" }}>File downloaded. Open it to import to your calendar.</p>}
+            {calStatus === "error"   && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b01904", marginTop: "10px" }}>Export failed. Try again.</p>}
+            {calStatus === "empty"   && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#888", marginTop: "10px" }}>No exportable blocks found.</p>}
           </div>
+        </>
+      )}
 
-          {/* Mode Palette */}
-          <div style={{ marginBottom: "20px", padding: "16px", background: "#f9f9f9", border: "1px solid #eee", borderRadius: "4px" }}>
-            <p style={{ ...sml, marginBottom: "12px" }}>Step 1: Select a mode</p>
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              {["making", "comms", "growth", "systems"].map((key) => (
-                <button
-                  key={key}
-                  onClick={() => setSelectedMode(selectedMode === key ? null : key)}
-                  style={{
-                    fontFamily: TNR,
-                    padding: "10px 16px",
-                    background: selectedMode === key ? MODE_COLORS[key] : "#fff",
-                    border: `2px solid ${MODE_COLORS[key]}`,
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    color: selectedMode === key ? "#fff" : MODE_COLORS[key],
-                    fontSize: "13px",
-                    fontWeight: "600",
-                    transition: "all 0.2s",
-                  }}
-                >
-                  {MODES[key].label}
-                </button>
-              ))}
+      {/* ════ TARGETS ════ */}
+      {tab === "targets" && (
+        <div style={{ maxWidth: "520px", margin: "0 auto" }}>
+
+          {/* Capacity — stripped to plain typographic line */}
+          <div style={{ marginBottom: "40px", paddingBottom: "20px", borderBottom: "1px solid #1a1a1a" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
+              <span style={sml}>Weekly capacity</span>
+              <span style={{ fontFamily: TNR, fontSize: "14px", color: capacity.textColor }}>{capacity.label}</span>
             </div>
-            <p style={{ fontFamily: TNR, fontSize: "11px", color: "#999", margin: "10px 0 0" }}>
-              {selectedMode ? `✓ Selected: ${MODES[selectedMode].label} — Now click a cell to add it` : "Click a mode above, then click a cell to add it to your schedule"}
-            </p>
-          </div>
-
-          {/* Grid & Calendar */}
-          <div style={{ marginBottom: "32px", display: "grid", gridTemplateColumns: showCalendarPanel ? "1fr 280px" : "1fr", gap: "16px" }}>
-            {/* Schedule Grid */}
-            <div style={{ background: "#fff", border: "1px solid #eee", borderRadius: "4px", overflow: "hidden" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: TNR, fontSize: "13px" }}>
-                <thead>
-                  <tr style={{ background: "#f9f9f9", borderBottom: "2px solid #eee" }}>
-                    <th style={{ padding: "12px", textAlign: "left", color: "#999", fontWeight: "600", width: "80px" }}>Time</th>
-                    {DAYS.map((day) => (
-                      <th key={day} style={{ padding: "12px", textAlign: "center", color: "#999", fontWeight: "600" }}>
-                        {day}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {TIME_SLOTS.map((slot, slotIdx) => (
-                    <tr key={slot} style={{ borderBottom: "1px solid #f0f0f0" }}>
-                      <td style={{ padding: "12px", textAlign: "left", color: "#999", fontSize: "11px", background: "#fafafa", fontWeight: "500" }}>
-                        {slot}
-                      </td>
-                      {DAYS.map((day) => {
-                        const block = schedule[day]?.[slotIdx];
-                        const mode = getBlockMode(block);
-                        const customNote = getBlockCustomNote(block);
-                        const conflict = checkConflict(day, slotIdx);
-                        const cellColor = mode ? MODE_COLORS[mode] : conflict ? "#ffebee" : "#f9f9f9";
-
-                        return (
-                          <td
-                            key={`${day}-${slotIdx}`}
-                            onClick={() => (mode ? openBlockEditor(day, slotIdx) : selectedMode ? setMode(day, slotIdx, selectedMode) : null)}
-                            style={{
-                              padding: "12px",
-                              textAlign: "center",
-                              background: cellColor,
-                              border: `1px solid ${conflict ? "#ffcccc" : "#eee"}`,
-                              cursor: mode ? "pointer" : selectedMode ? "pointer" : "default",
-                              minHeight: "80px",
-                              position: "relative",
-                              transition: "all 0.2s",
-                            }}
-                            onContextMenu={(e) => {
-                              e.preventDefault();
-                              if (mode) deleteBlock(day, slotIdx);
-                            }}
-                          >
-                            {conflict && <div style={{ position: "absolute", top: "8px", right: "8px", fontSize: "16px" }}>⚠</div>}
-                            {mode && (
-                              <>
-                                <p style={{ fontFamily: TNR, fontSize: "12px", fontWeight: "600", color: "#fff", margin: "0 0 4px" }}>
-                                  {MODES[mode].label}
-                                </p>
-                                {customNote && <p style={{ fontFamily: TNR, fontSize: "10px", color: "#fff", fontStyle: "italic", margin: 0 }}>{customNote.substring(0, 12)}…</p>}
-                              </>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={{ position: "relative", height: "1px", background: "#e8e8e8", marginBottom: "14px" }}>
+              <div style={{ position: "absolute", left: "45%", width: "17%", height: "100%", background: "#1a1a1a" }} />
+              <div style={{
+                position: "absolute", top: "-3px",
+                left: `calc(${Math.min(96, capacity.score)}% - 4px)`,
+                width: "8px", height: "8px",
+                background: capacity.textColor,
+                transition: "left 0.4s ease",
+              }} />
             </div>
-
-            {/* Sidebar: Calendar & Lookahead */}
-            {showCalendarPanel && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                {/* Week Lookahead */}
-                <div style={{ background: "#fff", border: "1px solid #eee", borderRadius: "4px", padding: "16px" }}>
-                  <p style={{ ...sml, marginBottom: "12px" }}>Next 2 weeks</p>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                    {[1, 2].map((weekOffset) => {
-                      const lookaheadStart = new Date(weekStart);
-                      lookaheadStart.setDate(lookaheadStart.getDate() + weekOffset * 7);
-                      return (
-                        <div key={weekOffset} style={{ padding: "10px", background: "#f9f9f9", borderRadius: "3px", border: "1px solid #f0f0f0" }}>
-                          <p style={{ fontFamily: TNR, fontSize: "12px", fontWeight: "600", color: "#1a1a1a", margin: "0 0 6px" }}>
-                            W+{weekOffset}: {lookaheadStart.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                          </p>
-                          <p style={{ fontFamily: TNR, fontSize: "11px", color: "#999", margin: 0 }}>No plan yet</p>
-                        </div>
-                      );
-                    })}
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: capacity.flags.length ? "14px" : "0" }}>
+              <span style={{ fontFamily: TNR, fontSize: "11px", color: "#aaa" }}>Under</span>
+              <span style={{ fontFamily: TNR, fontSize: "11px", color: "#aaa" }}>Balanced</span>
+              <span style={{ fontFamily: TNR, fontSize: "11px", color: "#aaa" }}>Over</span>
+            </div>
+            {capacity.flags.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {capacity.flags.map((f, i) => (
+                  <div key={i} style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", display: "flex", gap: "10px" }}>
+                    <span style={{ color: "#888" }}>—</span><span>{f}</span>
                   </div>
-                </div>
-
-                {/* Calendar Events */}
-                <div style={{ background: "#fff", border: "1px solid #eee", borderRadius: "4px", padding: "16px" }}>
-                  <p style={{ ...sml, marginBottom: "12px" }}>Existing events</p>
-                  {existingEvents.length === 0 ? (
-                    <p style={{ fontFamily: TNR, fontSize: "13px", color: "#bbb" }}>No events</p>
-                  ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                      {existingEvents.map((event, i) => (
-                        <div key={i} style={{ padding: "10px", background: "#f9f9f9", borderLeft: "3px solid #ff6b6b", borderRadius: "2px" }}>
-                          <p style={{ fontFamily: TNR, fontSize: "11px", fontWeight: "600", color: "#1a1a1a", margin: 0 }}>
-                            {event.summary}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Calendar Sync */}
-                <button
-                  onClick={() => setShowCalendarSelector(true)}
-                  disabled={syncing}
-                  style={{
-                    fontFamily: TNR,
-                    fontSize: "12px",
-                    padding: "10px",
-                    background: syncing ? "#ddd" : LINK_BLUE,
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "3px",
-                    cursor: syncing ? "default" : "pointer",
-                    fontWeight: "600",
-                    opacity: syncing ? 0.6 : 1,
-                  }}
-                >
-                  {syncing ? "Syncing…" : "Update calendar"}
-                </button>
+                ))}
               </div>
             )}
           </div>
 
-          {/* Calendar Selector Modal */}
-          {showCalendarSelector && (
-            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-              <div style={{ background: "#fff", padding: "20px", borderRadius: "4px", minWidth: "300px" }}>
-                <p style={{ fontFamily: TNR, fontSize: "14px", fontWeight: "600", marginBottom: "16px" }}>Select calendar</p>
-                {["primary", "studio"].map((cal) => (
-                  <button
-                    key={cal}
-                    onClick={() => syncWithCalendar(cal)}
-                    style={{
-                      width: "100%",
-                      fontFamily: TNR,
-                      fontSize: "13px",
-                      padding: "10px",
-                      background: "#f9f9f9",
-                      border: "1px solid #eee",
-                      borderRadius: "3px",
-                      cursor: "pointer",
-                      marginBottom: "10px",
-                      textAlign: "left",
-                    }}
-                  >
-                    {cal === "primary" ? "Primary Calendar" : "Studio Calendar"}
-                  </button>
-                ))}
-                <button
-                  onClick={() => setShowCalendarSelector(false)}
-                  style={{
-                    width: "100%",
-                    fontFamily: TNR,
-                    fontSize: "13px",
-                    padding: "10px",
-                    background: "#eee",
-                    border: "none",
-                    borderRadius: "3px",
-                    cursor: "pointer",
-                    color: "#666",
-                  }}
-                >
-                  Cancel
-                </button>
+          {/* Work targets */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "18px" }}>
+            <span style={sml}>Work</span>
+            <span style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb" }}>{progress.filter(p => p.met).length}/{progress.length} met</span>
+          </div>
+          {progress.map(p => {
+            const pct = Math.min(100, Math.round((p.current / p.min) * 100));
+            const status = p.met ? "done" : pct >= 50 ? "progress" : pct > 0 ? "started" : "empty";
+            const sc = { done: "#0fa97f", progress: "#e8c070", started: "#e8c070", empty: "#ccc" }[status];
+            const sl = { done: "done", progress: "in progress", started: "started", empty: "not started" }[status];
+            return (
+              <div key={p.mode} style={{ display: "flex", alignItems: "baseline", gap: "20px", padding: "10px 0", borderBottom: "1px solid #f0f0f0" }}>
+                <span style={{ fontFamily: TNR, fontSize: "15px", color: "#1a1a1a", flex: 1 }}>{p.label}</span>
+                <span style={{ fontFamily: TNR, fontSize: "13px", color: sc }}>{sl}</span>
+                <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888", minWidth: "32px", textAlign: "right" }}>{p.current}/{p.min}</span>
               </div>
-            </div>
+            );
+          })}
+
+          {/* Protected practice — only show if enabled */}
+          {profile.protectedPractice?.enabled && (
+            <>
+              <div style={{ display: "flex", alignItems: "baseline", gap: "20px", padding: "10px 0", borderBottom: "1px solid #f0f0f0" }}>
+                <span style={{ fontFamily: TNR, fontSize: "15px", color: "#1a1a1a", flex: 1 }}>{profile.protectedPractice.label} (protected)</span>
+                <span style={{ fontFamily: TNR, fontSize: "13px", color: protectedFineArtMet ? "#b01904" : "#888" }}>
+                  {protectedFineArtMet ? "active" : "not set"}
+                </span>
+              </div>
+              <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginTop: "6px", marginBottom: "36px" }}>
+                Flag a Quarterly goal as "Protected" to activate.
+              </p>
+            </>
           )}
 
-          {/* Block Editor Modal */}
-          {showBlockEditor && editingBlock && (
-            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-              <div style={{ background: "#fff", padding: "20px", borderRadius: "4px", minWidth: "400px" }}>
-                <p style={{ fontFamily: TNR, fontSize: "14px", fontWeight: "600", marginBottom: "16px" }}>
-                  {DAYS[Object.keys(schedule).indexOf(editingBlock.day)]} · {TIME_SLOTS[editingBlock.slot]}
-                </p>
-                <textarea
-                  value={blockCustomNote}
-                  onChange={(e) => setBlockCustomNote(e.target.value)}
-                  placeholder="Add details about this block…"
-                  style={{
-                    width: "100%",
-                    fontFamily: TNR,
-                    fontSize: "13px",
-                    padding: "10px",
-                    border: "1px solid #eee",
-                    borderRadius: "3px",
-                    minHeight: "80px",
-                    marginBottom: "16px",
-                    boxSizing: "border-box",
-                  }}
-                />
-                <div style={{ display: "flex", gap: "10px" }}>
-                  <button
-                    onClick={saveBlockEdit}
-                    style={{
-                      flex: 1,
-                      fontFamily: TNR,
-                      fontSize: "13px",
-                      padding: "10px",
-                      background: LINK_BLUE,
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: "3px",
-                      cursor: "pointer",
-                      fontWeight: "600",
-                    }}
-                  >
-                    Save
-                  </button>
-                  <button
-                    onClick={() => deleteBlock(editingBlock.day, editingBlock.slot)}
-                    style={{
-                      fontFamily: TNR,
-                      fontSize: "13px",
-                      padding: "10px 20px",
-                      background: "#fee",
-                      color: "#c00",
-                      border: "none",
-                      borderRadius: "3px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Delete
-                  </button>
-                  <button
-                    onClick={() => setShowBlockEditor(false)}
-                    style={{
-                      fontFamily: TNR,
-                      fontSize: "13px",
-                      padding: "10px 20px",
-                      background: "#eee",
-                      color: "#666",
-                      border: "none",
-                      borderRadius: "3px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Cancel
-                  </button>
+          {/* Health */}
+          <div style={{ marginBottom: "32px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
+              <span style={sml}>Health</span>
+              <span style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb" }}>{healthTargets.filter(Boolean).length}/{(profile.healthGoals || []).length}</span>
+            </div>
+            {(profile.healthGoals || []).map((label, i) => (
+              <div key={i} onClick={() => { setHasUserInteracted(true); setHealthTargets(prev => {
+                const next = [...prev];
+                while (next.length < (profile.healthGoals || []).length) next.push(false);
+                next[i] = !next[i];
+                return next;
+              }); }}
+                style={{ display: "flex", alignItems: "baseline", gap: "14px", padding: "8px 0", borderBottom: "1px solid #f0f0f0", cursor: "pointer" }}>
+                <span style={{ fontFamily: TNR, fontSize: "15px", color: healthTargets[i] ? "#888" : "#1a1a1a", textDecoration: healthTargets[i] ? "line-through" : "none" }}>{label}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Rest & daily balance */}
+          <div style={{ marginBottom: "32px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
+              <span style={sml}>Rest & daily balance</span>
+              <span style={{ fontFamily: TNR, fontSize: "12px", color: "#aaa" }}>aim {profile.restRatio.toFixed(1)}:1</span>
+            </div>
+            {capacity.dailyRatios.map(r => {
+              const hasAny = r.active > 0 || r.rest > 0 || r.office > 0;
+              const statusText = !hasAny ? "" : r.balanced ? "balanced" : r.overloaded ? "under-rested" : "close";
+              const statusColor = !hasAny ? "#ccc" : r.balanced ? "#0fa97f" : r.overloaded ? "#b01904" : "#888";
+              return (
+                <div key={r.day} style={{ display: "flex", alignItems: "baseline", gap: "20px", padding: "8px 0", borderBottom: "1px solid #f0f0f0" }}>
+                  <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888", width: "42px" }}>{r.day}</span>
+                  <span style={{ fontFamily: TNR, fontSize: "14px", color: "#1a1a1a", flex: 1 }}>
+                    {hasAny ? `${r.active + r.office} active · ${r.rest} rest${r.office > 0 ? ` (incl ${r.office} ${getModeLabel("office").toLowerCase()})` : ""}` : "—"}
+                  </span>
+                  <span style={{ fontFamily: TNR, fontSize: "12px", color: statusColor }}>{statusText}</span>
                 </div>
+              );
+            })}
+            <div style={{ display: "flex", gap: "20px", padding: "10px 0 0" }}>
+              <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888" }}>{capacity.weeklyActive} active · {capacity.restBlocks} rest</span>
+              <span style={{ fontFamily: TNR, fontSize: "13px", color: capacity.weeklyRatio >= profile.restRatio * 0.8 ? "#0fa97f" : capacity.weeklyRatio < profile.restRatio * 0.4 ? "#b01904" : "#888" }}>
+                {capacity.weeklyActive === 0 ? "—" : `${Math.round(capacity.weeklyRatio * 100)}% rest coverage`}
+              </span>
+            </div>
+            <div style={{ marginTop: "24px" }}>
+              <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "10px" }}>Mark days you actually got rest</p>
+              <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
+                {DAYS.map((d, i) => (
+                  <span key={d} onClick={() => { setHasUserInteracted(true); setRestTargets(prev => prev.map((v, j) => j === i ? !v : v)); }}
+                    style={{ fontFamily: TNR, fontSize: "14px", cursor: "pointer", color: restTargets[i] ? LINK_BLUE : "#1a1a1a", textDecoration: restTargets[i] ? "underline" : "none", textUnderlineOffset: "2px" }}>
+                    {d}
+                  </span>
+                ))}
               </div>
+            </div>
+          </div>
+
+          {/* Social */}
+          <div style={{ marginBottom: "32px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
+              <span style={sml}>Social</span>
+              <span style={{ fontFamily: TNR, fontSize: "12px", color: "#aaa" }}>min 1 / max 3–4</span>
+            </div>
+            <div onClick={() => { setHasUserInteracted(true); setSocialDone(v => !v); }}
+              style={{ display: "flex", alignItems: "baseline", gap: "14px", padding: "8px 0", borderBottom: "1px solid #f0f0f0", cursor: "pointer" }}>
+              <span style={{ fontFamily: TNR, fontSize: "14px", color: socialDone ? "#888" : "#1a1a1a", textDecoration: socialDone ? "line-through" : "none" }}>{profile.socialGoal || "1 meaningful connection this week"}</span>
+            </div>
+            {countSlots("social") > 3 && <p style={{ fontFamily: TNR, fontSize: "12px", color: "#c8a050", marginTop: "8px" }}>{countSlots("social")} social slots — protect some evenings.</p>}
+          </div>
+
+          {/* Success metrics */}
+          <div style={{ marginBottom: "32px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
+              <span style={sml}>Week evaluation</span>
+              <span style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb" }}>{successMetrics.filter(Boolean).length}/{(profile.weekEvaluation || []).length}</span>
+            </div>
+            {(profile.weekEvaluation || []).map((label, i) => (
+              <div key={i} onClick={() => { setHasUserInteracted(true); setSuccessMetrics(prev => {
+                const next = [...prev];
+                while (next.length < (profile.weekEvaluation || []).length) next.push(false);
+                next[i] = !next[i];
+                return next;
+              }); }}
+                style={{ display: "flex", alignItems: "baseline", gap: "14px", padding: "8px 0", borderBottom: "1px solid #f0f0f0", cursor: "pointer" }}>
+                <span style={{ fontFamily: TNR, fontSize: "15px", color: successMetrics[i] ? "#888" : "#1a1a1a", textDecoration: successMetrics[i] ? "line-through" : "none" }}>{label}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Weekly checklist */}
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
+              <span style={sml}>Checklist</span>
+              <span style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb" }}>{checklist.filter(Boolean).length}/{(profile.weeklyChecklist || []).length}</span>
+            </div>
+            {(profile.weeklyChecklist || []).map((item, i) => (
+              <div key={i} onClick={() => { setHasUserInteracted(true); setChecklist(prev => {
+                const next = [...prev];
+                while (next.length < (profile.weeklyChecklist || []).length) next.push(false);
+                next[i] = !next[i];
+                return next;
+              }); }}
+                style={{ display: "flex", alignItems: "baseline", gap: "14px", padding: "8px 0", borderBottom: "1px solid #f0f0f0", cursor: "pointer" }}>
+                <span style={{ fontFamily: TNR, fontSize: "15px", color: checklist[i] ? "#888" : "#1a1a1a", textDecoration: checklist[i] ? "line-through" : "none" }}>{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ════ QUARTERLY ════ */}
+      {tab === "quarterly" && (
+        <div style={{ maxWidth: "720px", margin: "0 auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "28px", flexWrap: "wrap", gap: "10px" }}>
+            <span style={sml}>Quarterly goals</span>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+              <span onClick={() => setQView("quarters")} style={{ ...boxBtn(qView === "quarters"), fontSize: "12px", padding: "4px 12px" }}>Quarters</span>
+              <span onClick={() => setQView("roadmap")} style={{ ...boxBtn(qView === "roadmap"), fontSize: "12px", padding: "4px 12px" }}>Roadmap</span>
+              <span onClick={() => setQView("horizon")} style={{ ...boxBtn(qView === "horizon"), fontSize: "12px", padding: "4px 12px" }}>Now / Next / Later</span>
+              <span onClick={addProject} style={{ ...linkStyle, fontSize: "13px", marginLeft: "4px" }}>+ Add goal</span>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "28px" }}>
+            {["all", ...Q_CATEGORIES].map(c => (
+              <span key={c} onClick={() => setQFilter(c)}
+                style={{
+                  fontFamily: TNR, fontSize: "13px", cursor: "pointer",
+                  color: qFilter === c ? LINK_BLUE : "#888",
+                  textDecoration: qFilter === c ? "underline" : "none",
+                  textUnderlineOffset: "2px",
+                }}>
+                {c === "all" ? "All" : c}
+              </span>
+            ))}
+          </div>
+
+          {projects.length === 0 && (
+            <div style={{ textAlign: "center", fontFamily: TNR, fontSize: "17px", lineHeight: "2", color: "#bbb" }}>
+              <div>No goals yet.</div><div>Add your first.</div>
             </div>
           )}
 
-          {/* Conflict Warning Modal */}
-          {conflictWarning && (
-            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
-              <div style={{ background: "#fff", padding: "20px", borderRadius: "4px", minWidth: "350px", border: "2px solid #f44336" }}>
-                <p style={{ fontFamily: TNR, fontSize: "14px", fontWeight: "600", color: "#f44336", marginBottom: "12px" }}>Calendar conflict</p>
-                <p style={{ fontFamily: TNR, fontSize: "13px", color: "#666", marginBottom: "8px" }}>
-                  <strong>{conflictWarning.eventTitle}</strong>
-                </p>
-                <p style={{ fontFamily: TNR, fontSize: "13px", color: "#999", marginBottom: "16px" }}>
-                  {conflictWarning.day} · {conflictWarning.eventTime}
-                </p>
-                <button
-                  onClick={() => setConflictWarning(null)}
-                  style={{
-                    width: "100%",
-                    fontFamily: TNR,
-                    fontSize: "13px",
-                    padding: "10px",
-                    background: "#f44336",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "3px",
-                    cursor: "pointer",
-                    fontWeight: "600",
-                  }}
-                >
-                  OK
-                </button>
-              </div>
+          {qView === "roadmap" && (
+            <div>
+              {/* Fine art section — always shown first if any */}
+              {projects.filter(p => p.isFineArt && (qFilter === "all" || qFilter === p.category)).length > 0 && (
+                <div style={{ marginBottom: "36px" }}>
+                  <p style={{ ...sml, marginBottom: "14px", color: "#b5936a" }}>Fine Art Practice</p>
+                  {projects.filter(p => p.isFineArt && (qFilter === "all" || qFilter === p.category)).map(p => renderProjectRow(p))}
+                </div>
+              )}
+              {/* All other categories */}
+              {Q_CATEGORIES.filter(cat => qFilter === "all" || qFilter === cat).map(cat => {
+                const catProjects = projects.filter(p => !p.isFineArt && p.category === cat);
+                if (catProjects.length === 0) return null;
+                return (
+                  <div key={cat} style={{ marginBottom: "32px" }}>
+                    <p style={{ ...sml, marginBottom: "12px" }}>{cat}</p>
+                    {catProjects.map(p => renderProjectRow(p))}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {qView === "quarters" && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "32px" }}>
+              {QUARTERS.map(q => {
+                const isCurrent = q.key === currentQuarterKey();
+                const qProjects = projects.filter(p => (p.quarter || "q1") === q.key && (qFilter === "all" || qFilter === p.category));
+                return (
+                  <div key={q.key}>
+                    <div style={{ marginBottom: "16px", paddingBottom: "8px", borderBottom: isCurrent ? `2px solid ${LINK_BLUE}` : "1px solid #f0f0f0" }}>
+                      <p style={{ fontFamily: TNR, fontSize: "17px", color: isCurrent ? LINK_BLUE : "#1a1a1a", margin: "0 0 3px" }}>{q.label}{isCurrent ? " — current" : ""}</p>
+                      <p style={{ ...sml, fontSize: "10px" }}>{q.sub}</p>
+                    </div>
+                    {qProjects.length === 0
+                      ? <p style={{ fontFamily: TNR, fontSize: "13px", color: "#aaa" }}>None.</p>
+                      : qProjects.map(p => {
+                        const sc = {
+                          "on-track": "#0fa97f", "at-risk": "#e8c070", "behind": "#b01904",
+                          "done": "#0fa97f", "not-started": "#888",
+                        }[p.status] || "#888";
+                        return (
+                          <div key={p.id} onClick={() => { setQView("roadmap"); setEditingProject(p.id); }}
+                            style={{ marginBottom: "10px", padding: "8px 0", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "8px" }}>
+                              <span style={{
+                                fontFamily: TNR, fontSize: "14px",
+                                color: p.isFineArt ? "#b01904" : LINK_BLUE,
+                                textDecoration: "underline", textUnderlineOffset: "2px",
+                              }}>{p.title || "Untitled"}</span>
+                              <span style={{ fontFamily: TNR, fontSize: "11px", color: sc, flexShrink: 0 }}>{p.progress}%</span>
+                            </div>
+                            {p.nextAction && (
+                              <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", margin: "3px 0 0 0" }}>→ {p.nextAction}</p>
+                            )}
+                          </div>
+                        );
+                      })
+                    }
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {qView === "horizon" && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "32px" }}>
+              {Q_HORIZONS.map(h => {
+                const hProjects = projects.filter(p => p.horizon === h.key && (qFilter === "all" || qFilter === p.category));
+                return (
+                  <div key={h.key}>
+                    <div style={{ marginBottom: "16px" }}>
+                      <p style={{ fontFamily: TNR, fontSize: "17px", color: "#1a1a1a", margin: "0 0 3px" }}>{h.label}</p>
+                      <p style={{ ...sml, fontSize: "10px" }}>{h.sub}</p>
+                    </div>
+                    {hProjects.length === 0
+                      ? <p style={{ fontFamily: TNR, fontSize: "13px", color: "#aaa" }}>None.</p>
+                      : hProjects.map(p => {
+                        const sc = {
+                          "on-track": "#0fa97f", "at-risk": "#e8c070", "behind": "#b01904",
+                          "done": "#0fa97f", "not-started": "#888",
+                        }[p.status] || "#888";
+                        return (
+                          <div key={p.id} onClick={() => { setQView("roadmap"); setEditingProject(p.id); }}
+                            style={{ marginBottom: "10px", padding: "8px 0", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "8px" }}>
+                              <span style={{
+                                fontFamily: TNR, fontSize: "14px",
+                                color: p.isFineArt ? "#b01904" : LINK_BLUE,
+                                textDecoration: "underline", textUnderlineOffset: "2px",
+                              }}>{p.title || "Untitled"}</span>
+                              <span style={{ fontFamily: TNR, fontSize: "11px", color: sc, flexShrink: 0 }}>{p.progress}%</span>
+                            </div>
+                            {p.nextAction && (
+                              <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", margin: "3px 0 0 0" }}>→ {p.nextAction}</p>
+                            )}
+                          </div>
+                        );
+                      })
+                    }
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
       )}
 
-      {/* ════ HEALTH TAB ════ */}
+      {/* ════ HEALTH ════ */}
       {tab === "health" && (
-        <div style={{ maxWidth: "900px", margin: "0 auto" }}>
-          {/* Tracked Behaviours */}
-          <div style={{ marginBottom: "32px", padding: "20px", background: "#fff", border: "1px solid #eee", borderRadius: "4px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+        <div style={{ maxWidth: "560px", margin: "0 auto" }}>
+          {/* Tracked behaviours */}
+          <div style={{ marginBottom: "44px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
               <p style={{ ...sml, margin: 0 }}>Tracked behaviours & symptoms</p>
-              <button
-                onClick={() => setShowAddBehaviour(true)}
-                style={{
-                  fontFamily: TNR,
-                  fontSize: "12px",
-                  padding: "6px 12px",
-                  background: LINK_BLUE,
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "3px",
-                  cursor: "pointer",
-                  fontWeight: "600",
-                }}
-              >
-                + Add
-              </button>
+              <span onClick={() => setShowAddBehaviour(!showAddBehaviour)} style={{ ...linkStyle, fontSize: "13px" }}>+ Add</span>
             </div>
-
             {showAddBehaviour && (
-              <div style={{ marginBottom: "16px", padding: "12px", background: "#f9f9f9", borderRadius: "4px", display: "flex", gap: "8px" }}>
-                <input
-                  type="text"
-                  value={newBehaviourName}
-                  onChange={(e) => setNewBehaviourName(e.target.value)}
-                  onKeyPress={(e) => e.key === "Enter" && addTrackedBehaviour()}
-                  placeholder="e.g. 'pain', 'mood', 'focus'"
-                  style={{
-                    flex: 1,
-                    fontFamily: TNR,
-                    fontSize: "13px",
-                    padding: "8px",
-                    border: "1px solid #ddd",
-                    borderRadius: "3px",
-                    color: "#1a1a1a",
-                  }}
-                />
-                <button
-                  onClick={addTrackedBehaviour}
-                  style={{
-                    fontFamily: TNR,
-                    fontSize: "12px",
-                    padding: "8px 12px",
-                    background: LINK_BLUE,
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "3px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Save
-                </button>
-                <button
-                  onClick={() => {
-                    setShowAddBehaviour(false);
-                    setNewBehaviourName("");
-                  }}
-                  style={{
-                    fontFamily: TNR,
-                    fontSize: "12px",
-                    padding: "8px 12px",
-                    background: "#eee",
-                    color: "#666",
-                    border: "none",
-                    borderRadius: "3px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Cancel
-                </button>
+              <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
+                <input style={{ ...inp, flex: 1 }} value={newBehaviourName}
+                  onChange={e => setNewBehaviourName(e.target.value)}
+                  onKeyPress={e => e.key === "Enter" && addTrackedBehaviour()}
+                  placeholder="e.g. pain, appetite, focus" />
+                <span onClick={addTrackedBehaviour} style={{ ...linkStyle, fontSize: "13px", paddingTop: "8px" }}>Save</span>
               </div>
             )}
-
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              {trackedBehaviours.map((behaviour) => (
-                <div
-                  key={behaviour}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    padding: "8px 12px",
-                    background: "#f0f0f0",
-                    border: "1px solid #ddd",
-                    borderRadius: "20px",
-                    fontFamily: TNR,
-                    fontSize: "13px",
-                    color: "#666",
-                  }}
-                >
-                  <span style={{ textTransform: "capitalize" }}>{behaviour}</span>
-                  <button
-                    onClick={() => removeTrackedBehaviour(behaviour)}
-                    style={{
-                      background: "transparent",
-                      border: "none",
-                      cursor: "pointer",
-                      color: "#999",
-                      fontSize: "14px",
-                      padding: 0,
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
+            <div style={{ display: "flex", gap: "14px", flexWrap: "wrap" }}>
+              {trackedBehaviours.map(b => (
+                <span key={b} style={{ fontFamily: TNR, fontSize: "14px", color: "#1a1a1a" }}>
+                  {b}
+                  <span onClick={() => removeTrackedBehaviour(b)} style={{ color: "#bbb", cursor: "pointer", marginLeft: "6px" }}>×</span>
+                </span>
               ))}
             </div>
           </div>
 
-          {/* Daily Entries */}
-          <div style={{ marginBottom: "32px", padding: "20px", background: "#fff", border: "1px solid #eee", borderRadius: "4px" }}>
-            <p style={{ ...sml, marginBottom: "20px" }}>This week</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-              {DAYS.map((day, dayIdx) => {
-                const dateForDay = new Date(weekStart);
-                dateForDay.setDate(dateForDay.getDate() + dayIdx);
-                const dateStr = dateForDay.toISOString().split("T")[0];
-                const entry = getHealthEntry(dateStr);
+          {/* Daily entries for this week */}
+          <div style={{ marginBottom: "44px" }}>
+            <p style={{ ...sml, marginBottom: "18px" }}>This week</p>
+            {DAYS.map((day, dayIdx) => {
+              const d = new Date(getWeekStart());
+              d.setDate(d.getDate() + dayIdx);
+              const dateStr = d.toISOString().split("T")[0];
+              const entry = getHealthEntry(dateStr);
+              const scaleBtn = (active) => ({
+                fontFamily: TNR, fontSize: "12px", width: "30px", height: "30px",
+                border: active ? `1px solid ${LINK_BLUE}` : "1px solid #e8e8e8",
+                background: active ? LINK_BLUE : "transparent",
+                color: active ? "#fff" : "#888",
+                cursor: "pointer", borderRadius: "2px",
+              });
+              return (
+                <div key={day} style={{ marginBottom: "20px", paddingBottom: "18px", borderBottom: "1px solid #f0f0f0" }}>
+                  <p style={{ fontFamily: TNR, fontSize: "14px", color: "#1a1a1a", margin: "0 0 10px" }}>
+                    {day} · {d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                  </p>
+                  <div style={{ display: "flex", gap: "28px", flexWrap: "wrap" }}>
+                    {[["mood", "Mood"], ["energy", "Energy"]].map(([key, label]) => (
+                      <div key={key}>
+                        <p style={{ ...sml, fontSize: "10px", marginBottom: "6px" }}>{label}</p>
+                        <div style={{ display: "flex", gap: "4px" }}>
+                          {[1, 2, 3, 4, 5].map(i => (
+                            <button key={i} onClick={() => updateHealthEntry(dateStr, key, entry[key] === i ? null : i)} style={scaleBtn(entry[key] === i)}>{i}</button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    {trackedBehaviours.map(b => (
+                      <div key={b}>
+                        <p style={{ ...sml, fontSize: "10px", marginBottom: "6px" }}>{b}</p>
+                        <div style={{ display: "flex", gap: "4px" }}>
+                          {[1, 2, 3, 4, 5].map(i => (
+                            <button key={i} onClick={() => updateBehaviourEntry(dateStr, b, entry.customBehaviours?.[b] === i ? null : i)} style={scaleBtn(entry.customBehaviours?.[b] === i)}>{i}</button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
 
+          {/* Week averages */}
+          <div style={{ marginBottom: "44px" }}>
+            <p style={{ ...sml, marginBottom: "14px" }}>This week's averages</p>
+            <div style={{ display: "flex", gap: "28px", flexWrap: "wrap" }}>
+              {["mood", "energy", ...trackedBehaviours].map(item => {
+                let total = 0, count = 0;
+                DAYS.forEach((_, idx) => {
+                  const d = new Date(getWeekStart());
+                  d.setDate(d.getDate() + idx);
+                  const e = getHealthEntry(d.toISOString().split("T")[0]);
+                  const v = item === "mood" ? e.mood : item === "energy" ? e.energy : e.customBehaviours?.[item];
+                  if (v) { total += v; count++; }
+                });
+                const avg = count ? (total / count).toFixed(1) : "—";
                 return (
-                  <div key={day} style={{ paddingBottom: "20px", borderBottom: dayIdx < DAYS.length - 1 ? "1px solid #f0f0f0" : "none" }}>
-                    <p style={{ fontFamily: TNR, fontSize: "14px", fontWeight: "600", color: "#1a1a1a", marginBottom: "12px" }}>
-                      {day} · {dateForDay.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                    </p>
-
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
-                      <div>
-                        <label style={{ fontFamily: TNR, fontSize: "12px", color: "#999", display: "block", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                          Mood
-                        </label>
-                        <div style={{ display: "flex", gap: "6px" }}>
-                          {[1, 2, 3, 4, 5].map((i) => (
-                            <button
-                              key={i}
-                              onClick={() => updateHealthEntry(dateStr, "mood", i)}
-                              style={{
-                                flex: 1,
-                                fontFamily: TNR,
-                                padding: "10px",
-                                background: entry.mood === i ? ["#b88686", "#c8a050", "#7a9e96", "#9db58d", "#5ba87e"][i - 1] : "#f9f9f9",
-                                border: `1px solid ${entry.mood === i ? "transparent" : "#ddd"}`,
-                                borderRadius: "3px",
-                                cursor: "pointer",
-                                color: entry.mood === i ? "#fff" : "#999",
-                                fontSize: "12px",
-                                fontWeight: entry.mood === i ? "600" : "400",
-                              }}
-                            >
-                              {i}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div>
-                        <label style={{ fontFamily: TNR, fontSize: "12px", color: "#999", display: "block", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                          Energy
-                        </label>
-                        <div style={{ display: "flex", gap: "6px" }}>
-                          {[1, 2, 3, 4, 5].map((i) => (
-                            <button
-                              key={i}
-                              onClick={() => updateHealthEntry(dateStr, "energy", i)}
-                              style={{
-                                flex: 1,
-                                fontFamily: TNR,
-                                padding: "10px",
-                                background: entry.energy === i ? ["#b88686", "#c8a050", "#7a9e96", "#9db58d", "#5ba87e"][i - 1] : "#f9f9f9",
-                                border: `1px solid ${entry.energy === i ? "transparent" : "#ddd"}`,
-                                borderRadius: "3px",
-                                cursor: "pointer",
-                                color: entry.energy === i ? "#fff" : "#999",
-                                fontSize: "12px",
-                                fontWeight: entry.energy === i ? "600" : "400",
-                              }}
-                            >
-                              {i}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {trackedBehaviours.length > 0 && (
-                      <div>
-                        <p style={{ fontFamily: TNR, fontSize: "12px", color: "#999", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "12px" }}>
-                          Other tracking
-                        </p>
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px" }}>
-                          {trackedBehaviours.map((behaviour) => (
-                            <div key={behaviour}>
-                              <p style={{ fontFamily: TNR, fontSize: "11px", color: "#999", marginBottom: "6px", textTransform: "capitalize" }}>
-                                {behaviour}
-                              </p>
-                              <div style={{ display: "flex", gap: "4px" }}>
-                                {[1, 2, 3, 4, 5].map((i) => (
-                                  <button
-                                    key={i}
-                                    onClick={() => updateBehaviourEntry(dateStr, behaviour, i)}
-                                    style={{
-                                      flex: 1,
-                                      fontFamily: TNR,
-                                      padding: "8px",
-                                      background: entry.customBehaviours[behaviour] === i ? LINK_BLUE : "#f9f9f9",
-                                      border: `1px solid ${entry.customBehaviours[behaviour] === i ? "transparent" : "#ddd"}`,
-                                      borderRadius: "2px",
-                                      cursor: "pointer",
-                                      color: entry.customBehaviours[behaviour] === i ? "#fff" : "#999",
-                                      fontSize: "10px",
-                                      fontWeight: entry.customBehaviours[behaviour] === i ? "600" : "400",
-                                    }}
-                                  >
-                                    {i}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                  <div key={item}>
+                    <p style={{ ...sml, fontSize: "10px", marginBottom: "4px" }}>{item}</p>
+                    <p style={{ fontFamily: TNR, fontSize: "22px", color: avg === "—" ? "#ccc" : LINK_BLUE, margin: 0 }}>{avg}<span style={{ fontSize: "12px", color: "#ccc" }}> /5</span></p>
                   </div>
                 );
               })}
             </div>
           </div>
 
-          {/* Blood Pressure */}
-          <div style={{ marginBottom: "32px", padding: "20px", background: "#fff", border: "1px solid #eee", borderRadius: "4px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+          {/* Blood pressure */}
+          <div style={{ marginBottom: "44px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
               <p style={{ ...sml, margin: 0 }}>Blood pressure readings</p>
-              <div style={{ display: "flex", gap: "8px" }}>
+              <div style={{ display: "flex", gap: "16px" }}>
                 {bpReadings.length > 0 && (
-                  <button
-                    onClick={exportBPAsCSV}
-                    style={{
-                      fontFamily: TNR,
-                      fontSize: "12px",
-                      padding: "6px 12px",
-                      background: "#f0f0f0",
-                      border: "1px solid #ddd",
-                      borderRadius: "3px",
-                      cursor: "pointer",
-                      color: "#666",
-                      fontWeight: "500",
-                    }}
-                  >
-                    ↓ Export CSV
-                  </button>
+                  <span onClick={exportBPAsCSV} style={{ ...linkStyle, fontSize: "13px" }}>Export CSV</span>
                 )}
-                <button
-                  onClick={() => setShowAddBP(!showAddBP)}
-                  style={{
-                    fontFamily: TNR,
-                    fontSize: "12px",
-                    padding: "6px 12px",
-                    background: LINK_BLUE,
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "3px",
-                    cursor: "pointer",
-                    fontWeight: "600",
-                  }}
-                >
-                  + Add
-                </button>
+                <span onClick={() => setShowAddBP(!showAddBP)} style={{ ...linkStyle, fontSize: "13px" }}>+ Add</span>
               </div>
             </div>
 
             {showAddBP && (
-              <div style={{ marginBottom: "16px", padding: "16px", background: "#f9f9f9", borderRadius: "4px", border: "1px solid #eee" }}>
+              <div style={{ marginBottom: "18px", paddingBottom: "18px", borderBottom: "1px solid #f0f0f0" }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
-                  <div>
-                    <label style={{ fontFamily: TNR, fontSize: "11px", color: "#999", display: "block", marginBottom: "6px", textTransform: "uppercase" }}>
-                      Date
-                    </label>
-                    <input
-                      type="date"
-                      value={newBPReading.date}
-                      onChange={(e) => setNewBPReading({ ...newBPReading, date: e.target.value })}
-                      style={{
-                        width: "100%",
-                        fontFamily: TNR,
-                        fontSize: "13px",
-                        padding: "8px",
-                        border: "1px solid #ddd",
-                        borderRadius: "3px",
-                        color: "#1a1a1a",
-                        boxSizing: "border-box",
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontFamily: TNR, fontSize: "11px", color: "#999", display: "block", marginBottom: "6px", textTransform: "uppercase" }}>
-                      Time
-                    </label>
-                    <input
-                      type="time"
-                      value={newBPReading.time}
-                      onChange={(e) => setNewBPReading({ ...newBPReading, time: e.target.value })}
-                      style={{
-                        width: "100%",
-                        fontFamily: TNR,
-                        fontSize: "13px",
-                        padding: "8px",
-                        border: "1px solid #ddd",
-                        borderRadius: "3px",
-                        color: "#1a1a1a",
-                        boxSizing: "border-box",
-                      }}
-                    />
-                  </div>
+                  <div><p style={{ ...sml, fontSize: "10px", marginBottom: "5px" }}>Date</p>
+                    <input type="date" style={inp} value={newBPReading.date} onChange={e => setNewBPReading({ ...newBPReading, date: e.target.value })} /></div>
+                  <div><p style={{ ...sml, fontSize: "10px", marginBottom: "5px" }}>Time</p>
+                    <input type="time" style={inp} value={newBPReading.time} onChange={e => setNewBPReading({ ...newBPReading, time: e.target.value })} /></div>
                 </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "12px" }}>
-                  <div>
-                    <label style={{ fontFamily: TNR, fontSize: "11px", color: "#999", display: "block", marginBottom: "6px", textTransform: "uppercase" }}>
-                      Systolic
-                    </label>
-                    <input
-                      type="number"
-                      value={newBPReading.systolic}
-                      onChange={(e) => setNewBPReading({ ...newBPReading, systolic: e.target.value })}
-                      placeholder="e.g. 120"
-                      style={{
-                        width: "100%",
-                        fontFamily: TNR,
-                        fontSize: "13px",
-                        padding: "8px",
-                        border: "1px solid #ddd",
-                        borderRadius: "3px",
-                        color: "#1a1a1a",
-                        boxSizing: "border-box",
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontFamily: TNR, fontSize: "11px", color: "#999", display: "block", marginBottom: "6px", textTransform: "uppercase" }}>
-                      Diastolic
-                    </label>
-                    <input
-                      type="number"
-                      value={newBPReading.diastolic}
-                      onChange={(e) => setNewBPReading({ ...newBPReading, diastolic: e.target.value })}
-                      placeholder="e.g. 80"
-                      style={{
-                        width: "100%",
-                        fontFamily: TNR,
-                        fontSize: "13px",
-                        padding: "8px",
-                        border: "1px solid #ddd",
-                        borderRadius: "3px",
-                        color: "#1a1a1a",
-                        boxSizing: "border-box",
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontFamily: TNR, fontSize: "11px", color: "#999", display: "block", marginBottom: "6px", textTransform: "uppercase" }}>
-                      Heart rate
-                    </label>
-                    <input
-                      type="number"
-                      value={newBPReading.heartRate}
-                      onChange={(e) => setNewBPReading({ ...newBPReading, heartRate: e.target.value })}
-                      placeholder="e.g. 72"
-                      style={{
-                        width: "100%",
-                        fontFamily: TNR,
-                        fontSize: "13px",
-                        padding: "8px",
-                        border: "1px solid #ddd",
-                        borderRadius: "3px",
-                        color: "#1a1a1a",
-                        boxSizing: "border-box",
-                      }}
-                    />
-                  </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "14px" }}>
+                  <div><p style={{ ...sml, fontSize: "10px", marginBottom: "5px" }}>Systolic</p>
+                    <input type="number" style={inp} value={newBPReading.systolic} onChange={e => setNewBPReading({ ...newBPReading, systolic: e.target.value })} placeholder="120" /></div>
+                  <div><p style={{ ...sml, fontSize: "10px", marginBottom: "5px" }}>Diastolic</p>
+                    <input type="number" style={inp} value={newBPReading.diastolic} onChange={e => setNewBPReading({ ...newBPReading, diastolic: e.target.value })} placeholder="80" /></div>
+                  <div><p style={{ ...sml, fontSize: "10px", marginBottom: "5px" }}>Heart rate</p>
+                    <input type="number" style={inp} value={newBPReading.heartRate} onChange={e => setNewBPReading({ ...newBPReading, heartRate: e.target.value })} placeholder="72" /></div>
                 </div>
-
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <button
-                    onClick={addBPReading}
-                    style={{
-                      flex: 1,
-                      fontFamily: TNR,
-                      fontSize: "13px",
-                      padding: "8px",
-                      background: LINK_BLUE,
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: "3px",
-                      cursor: "pointer",
-                      fontWeight: "600",
-                    }}
-                  >
-                    Save reading
-                  </button>
-                  <button
-                    onClick={() => setShowAddBP(false)}
-                    style={{
-                      flex: 1,
-                      fontFamily: TNR,
-                      fontSize: "13px",
-                      padding: "8px",
-                      background: "#eee",
-                      color: "#666",
-                      border: "none",
-                      borderRadius: "3px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
+                <span onClick={addBPReading} style={{ ...linkStyle, fontSize: "14px" }}>Save reading</span>
               </div>
             )}
 
             {bpReadings.length === 0 ? (
-              <p style={{ fontFamily: TNR, fontSize: "13px", color: "#bbb", textAlign: "center", margin: "24px 0" }}>
-                No readings yet
-              </p>
+              <p style={{ fontFamily: TNR, fontSize: "14px", color: "#bbb" }}>No readings yet.</p>
             ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: TNR, fontSize: "13px" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "2px solid #eee" }}>
-                      <th style={{ padding: "10px", textAlign: "left", color: "#999", fontWeight: "600", fontSize: "11px", textTransform: "uppercase" }}>
-                        Date
-                      </th>
-                      <th style={{ padding: "10px", textAlign: "left", color: "#999", fontWeight: "600", fontSize: "11px", textTransform: "uppercase" }}>
-                        Time
-                      </th>
-                      <th style={{ padding: "10px", textAlign: "center", color: "#999", fontWeight: "600", fontSize: "11px", textTransform: "uppercase" }}>
-                        Systolic
-                      </th>
-                      <th style={{ padding: "10px", textAlign: "center", color: "#999", fontWeight: "600", fontSize: "11px", textTransform: "uppercase" }}>
-                        Diastolic
-                      </th>
-                      <th style={{ padding: "10px", textAlign: "center", color: "#999", fontWeight: "600", fontSize: "11px", textTransform: "uppercase" }}>
-                        HR
-                      </th>
-                      <th style={{ padding: "10px", textAlign: "center", color: "#999", fontWeight: "600", fontSize: "11px", textTransform: "uppercase" }}>
-                        Delete
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bpReadings.map((reading) => (
-                      <tr key={reading.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
-                        <td style={{ padding: "10px", color: "#1a1a1a" }}>
-                          {new Date(reading.date).toLocaleDateString("en-GB")}
-                        </td>
-                        <td style={{ padding: "10px", color: "#1a1a1a" }}>{reading.time}</td>
-                        <td style={{ padding: "10px", textAlign: "center", color: "#1a1a1a", fontWeight: "600" }}>
-                          {reading.systolic}
-                        </td>
-                        <td style={{ padding: "10px", textAlign: "center", color: "#1a1a1a", fontWeight: "600" }}>
-                          {reading.diastolic}
-                        </td>
-                        <td style={{ padding: "10px", textAlign: "center", color: "#666" }}>
-                          {reading.heartRate}
-                        </td>
-                        <td style={{ padding: "10px", textAlign: "center" }}>
-                          <button
-                            onClick={() => removeBPReading(reading.id)}
-                            style={{
-                              background: "transparent",
-                              border: "none",
-                              cursor: "pointer",
-                              color: "#999",
-                              fontSize: "14px",
-                              padding: 0,
-                            }}
-                          >
-                            ×
-                          </button>
-                        </td>
-                      </tr>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: TNR, fontSize: "13px" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid #e8e8e8" }}>
+                    {["Date", "Time", "Sys", "Dia", "HR", ""].map(h => (
+                      <th key={h} style={{ ...sml, fontSize: "10px", padding: "6px 4px", textAlign: "left" }}>{h}</th>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bpReadings.map(r => (
+                    <tr key={r.id} style={{ borderBottom: "1px solid #f5f5f5" }}>
+                      <td style={{ padding: "8px 4px", color: "#1a1a1a" }}>{new Date(r.date).toLocaleDateString("en-GB")}</td>
+                      <td style={{ padding: "8px 4px", color: "#1a1a1a" }}>{r.time}</td>
+                      <td style={{ padding: "8px 4px", color: "#1a1a1a" }}>{r.systolic}</td>
+                      <td style={{ padding: "8px 4px", color: "#1a1a1a" }}>{r.diastolic}</td>
+                      <td style={{ padding: "8px 4px", color: "#888" }}>{r.heartRate}</td>
+                      <td style={{ padding: "8px 4px" }}>
+                        <span onClick={() => removeBPReading(r.id)} style={{ color: "#bbb", cursor: "pointer" }}>×</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
           </div>
         </div>
       )}
 
-      {/* ════ QUARTERLY TAB ════ */}
-      {tab === "quarterly" && (
-        <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
-          <div style={{ marginBottom: "32px" }}>
-            <p style={{ ...sml, marginBottom: "16px" }}>Quarterly goals</p>
-            <button
-              onClick={addQItem}
-              style={{
-                fontFamily: TNR,
-                fontSize: "13px",
-                padding: "8px 16px",
-                background: LINK_BLUE,
-                color: "#fff",
-                border: "none",
-                borderRadius: "3px",
-                cursor: "pointer",
-                fontWeight: "600",
-              }}
-            >
-              + Add goal
-            </button>
+      {/* ════ PLAN ════ */}
+      {tab === "plan" && (
+        <div style={{ maxWidth: "520px", margin: "0 auto" }}>
+          <div style={{ marginBottom: "44px" }}>
+            <p style={{ ...sml, marginBottom: "12px" }}>Week note</p>
+            <textarea value={weekNote} onChange={e => { setHasUserInteracted(true); setWeekNote(e.target.value); }}
+              placeholder="What's on this week? Shifts, deadlines, intentions..."
+              style={{ width: "100%", minHeight: "72px", border: "none", borderBottom: "1px solid #e8e8e8", resize: "vertical", fontFamily: TNR, fontSize: "16px", color: "#1a1a1a", padding: "8px 0", outline: "none", background: "transparent", lineHeight: "1.7", boxSizing: "border-box" }} />
           </div>
-
-          {quarterlyView.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "60px 20px", color: "#bbb", fontFamily: TNR, fontSize: "14px" }}>
-              No quarterly goals yet. Click "+ Add goal" to start.
-            </div>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "20px" }}>
-              {Q_HORIZONS.map((quarter) => {
-                const itemsInQuarter = quarterlyView.filter((item) => item.quarter === quarter.key);
-                return (
-                  <div key={quarter.key} style={{ padding: "20px", background: "#fff", border: `2px solid ${quarter.color}`, borderRadius: "4px" }}>
-                    <p style={{ fontFamily: TNR, fontSize: "14px", fontWeight: "600", color: quarter.color, margin: "0 0 16px 0" }}>
-                      {quarter.label}
-                    </p>
-
-                    {itemsInQuarter.length === 0 ? (
-                      <p style={{ fontFamily: TNR, fontSize: "13px", color: "#ccc", textAlign: "center", margin: "24px 0" }}>
-                        No goals
-                      </p>
-                    ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                        {itemsInQuarter.map((item) => {
-                          const status = Q_STATUSES.find((s) => s.key === item.status);
-                          return (
-                            <div
-                              key={item.id}
-                              style={{
-                                padding: "12px",
-                                background: "#f9f9f9",
-                                borderLeft: `3px solid ${status?.color || "#ccc"}`,
-                                borderRadius: "2px",
-                              }}
-                            >
-                              <div style={{ marginBottom: "8px" }}>
-                                <input
-                                  type="text"
-                                  value={item.title}
-                                  onChange={(e) => updateQItem(item.id, "title", e.target.value)}
-                                  placeholder="Goal…"
-                                  style={{
-                                    width: "100%",
-                                    fontFamily: TNR,
-                                    fontSize: "13px",
-                                    border: "none",
-                                    background: "transparent",
-                                    color: "#1a1a1a",
-                                    fontWeight: "600",
-                                    padding: 0,
-                                    margin: 0,
-                                  }}
-                                />
-                              </div>
-
-                              <select
-                                value={item.status}
-                                onChange={(e) => updateQItem(item.id, "status", e.target.value)}
-                                style={{
-                                  width: "100%",
-                                  fontFamily: TNR,
-                                  fontSize: "11px",
-                                  padding: "4px 6px",
-                                  background: "#fff",
-                                  border: `1px solid ${status?.color || "#ccc"}`,
-                                  borderRadius: "2px",
-                                  color: status?.color || "#999",
-                                  marginBottom: "8px",
-                                  cursor: "pointer",
-                                }}
-                              >
-                                {Q_STATUSES.map((s) => (
-                                  <option key={s.key} value={s.key}>
-                                    {s.label}
-                                  </option>
-                                ))}
-                              </select>
-
-                              <select
-                                value={item.quarter}
-                                onChange={(e) => updateQItem(item.id, "quarter", e.target.value)}
-                                style={{
-                                  width: "100%",
-                                  fontFamily: TNR,
-                                  fontSize: "11px",
-                                  padding: "4px 6px",
-                                  background: "#fff",
-                                  border: "1px solid #ddd",
-                                  borderRadius: "2px",
-                                  color: "#666",
-                                  marginBottom: "8px",
-                                  cursor: "pointer",
-                                }}
-                              >
-                                {Q_HORIZONS.map((q) => (
-                                  <option key={q.key} value={q.key}>
-                                    {q.label}
-                                  </option>
-                                ))}
-                              </select>
-
-                              <button
-                                onClick={() => deleteQItem(item.id)}
-                                style={{
-                                  fontFamily: TNR,
-                                  fontSize: "11px",
-                                  padding: "4px 8px",
-                                  background: "#fee",
-                                  color: "#c00",
-                                  border: "none",
-                                  borderRadius: "2px",
-                                  cursor: "pointer",
-                                  width: "100%",
-                                }}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+          <div style={{ marginBottom: "44px" }}>
+            <p style={{ ...sml, marginBottom: "14px" }}>Coming up</p>
+            {[1, 2, 3].map(offset => {
+              const ws = new Date(getWeekStart());
+              ws.setDate(ws.getDate() + offset * 7);
+              const we = new Date(ws);
+              we.setDate(we.getDate() + 6);
+              const monthName = ws.toLocaleDateString("en-GB", { month: "long" });
+              const dueGoals = projects.filter(p =>
+                p.status !== "done" &&
+                p.dueMonth && p.dueMonth.toLowerCase().includes(monthName.toLowerCase())
+              );
+              const activeGoals = offset === 1 ? projects.filter(p => p.horizon === "now" && p.status !== "done") : [];
+              const shown = dueGoals.length > 0 ? dueGoals : activeGoals;
+              return (
+                <div key={offset} style={{ marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid #f0f0f0" }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: "16px", marginBottom: shown.length ? "6px" : 0 }}>
+                    <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888", width: "56px", flexShrink: 0 }}>W+{offset}</span>
+                    <span style={{ fontFamily: TNR, fontSize: "15px", color: "#1a1a1a" }}>
+                      {ws.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} – {we.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                    </span>
                   </div>
-                );
-              })}
+                  <div style={{ paddingLeft: "72px" }}>
+                    {shown.length === 0
+                      ? <span style={{ fontFamily: TNR, fontSize: "13px", color: "#bbb" }}>Nothing scheduled yet.</span>
+                      : shown.map(p => (
+                        <p key={p.id} style={{ fontFamily: TNR, fontSize: "13px", color: "#888", margin: "2px 0", lineHeight: "1.6" }}>
+                          <span style={{ color: p.isFineArt ? "#b01904" : LINK_BLUE }}>{p.title || "Untitled"}</span>
+                          {p.dueMonth && dueGoals.length > 0 ? ` — due ${p.dueMonth}` : ""}
+                          {p.nextAction ? ` → ${p.nextAction.slice(0, 50)}` : ""}
+                        </p>
+                      ))
+                    }
+                  </div>
+                </div>
+              );
+            })}
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb", lineHeight: "1.7" }}>
+              Shows goals due in each week's month, plus active "Now" goals for next week.
+            </p>
+          </div>
+
+          <div style={{ marginBottom: "44px" }}>
+            <p style={{ ...sml, marginBottom: "18px" }}>Energy matching</p>
+            {[
+              {
+                level: "High",
+                mode: "making",
+                primary: "Go straight to making",
+                note: "No runway needed. Set a block, lay out materials, start.",
+              },
+              {
+                level: "Medium",
+                mode: "systems",
+                primary: "Support first, then exposure",
+                note: "10–15 mins organising or planning, then move to one harder task.",
+              },
+              {
+                level: "Low",
+                mode: "rest",
+                primary: "Runway only — one small action",
+                note: "Do the easiest available thing. One reply, one file, then stop or rest.",
+              },
+            ].map((e, i) => (
+              <div key={i} style={{ marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid #f0f0f0" }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: "16px", marginBottom: "5px" }}>
+                  <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888", width: "56px", flexShrink: 0 }}>{e.level}</span>
+                  <span style={{
+                    fontFamily: TNR, fontSize: "16px",
+                    color: WORK_MODES.includes(e.mode)
+                      ? `rgba(26, 13, 171, ${(EXEC_INTENSITY[e.mode]?.opacity ?? 0.5)})`
+                      : MODE_COLORS[e.mode]
+                  }}>{e.primary}</span>
+                </div>
+                <div style={{ paddingLeft: "72px" }}>
+                  <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888", lineHeight: "1.7" }}>{e.note}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginBottom: "44px" }}>
+            <p style={{ ...sml, marginBottom: "12px" }}>Runway logic</p>
+            <p style={{ fontFamily: TNR, fontSize: "16px", color: "#1a1a1a", margin: 0 }}>
+              Support → Exposure → Exit
+            </p>
+            <p style={{ fontFamily: TNR, fontSize: "13px", color: "#888", marginTop: "6px" }}>
+              Organise first. One hard task. Then stop.
+            </p>
+          </div>
+          <div style={{ marginBottom: "44px", paddingTop: "28px", borderTop: "1px solid #f0f0f0" }}>
+            <p style={{ ...sml, marginBottom: "8px" }}>Archive this week</p>
+            <p style={{ fontFamily: TNR, fontSize: "13px", color: "#bbb", marginBottom: "14px", lineHeight: "1.7" }}>Save a snapshot of this week's grid, targets, and notes.</p>
+            <div style={{ display: "flex", gap: "20px", alignItems: "baseline", flexWrap: "wrap" }}>
+              <span onClick={() => saveWeek()} style={{ ...linkStyle, fontSize: "15px" }}>Save week</span>
+              <span onClick={() => setShowSaveWeekPicker(!showSaveWeekPicker)} style={{ ...linkStyle, fontSize: "13px", color: "#888" }}>Save under a different week…</span>
             </div>
-          )}
+            {showSaveWeekPicker && (
+              <div style={{ marginTop: "14px", display: "flex", gap: "12px", alignItems: "baseline", flexWrap: "wrap" }}>
+                <input type="date" style={{ ...inp, width: "auto" }} value={saveWeekDate} onChange={e => setSaveWeekDate(e.target.value)} />
+                <span onClick={() => saveWeekDate && saveWeek(saveWeekDate)} style={{ ...linkStyle, fontSize: "13px", opacity: saveWeekDate ? 1 : 0.4 }}>Save</span>
+                <p style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb", margin: 0, width: "100%" }}>
+                  Pick any date — the snapshot is filed under that week's Monday. Useful for backfilling a past week or filing a plan drafted ahead of time.
+                </p>
+              </div>
+            )}
+          </div>
+          <div>
+            <p style={{ ...sml, marginBottom: "8px" }}>Install as app</p>
+            <p style={{ fontFamily: TNR, fontSize: "13px", color: "#bbb", lineHeight: "1.8" }}>
+              iPhone: Safari → share → "Add to Home Screen".<br />
+              Android: Chrome → menu → "Add to Home Screen".
+            </p>
+          </div>
         </div>
       )}
 
-      {/* ════ ARCHIVE TAB ════ */}
+      {/* ════ ARCHIVE ════ */}
       {tab === "archive" && (
-        <div style={{ maxWidth: "800px", margin: "0 auto" }}>
-          <div style={{ textAlign: "center", padding: "40px 20px", color: "#bbb", fontFamily: TNR, fontSize: "14px" }}>
-            Archive feature coming soon.
-          </div>
+        <div style={{ maxWidth: "600px", margin: "0 auto" }}>
+          {archive.length === 0 ? (
+            <div style={{ textAlign: "center", fontFamily: TNR, fontSize: "17px", lineHeight: "2", color: "#bbb" }}>
+              <div>No archived weeks yet.</div><div>Save a week from the Plan tab.</div>
+            </div>
+          ) : (() => {
+            const byQuarter = {};
+            archive.forEach(w => { const q = getQuarterLabel(w.weekStart); if (!byQuarter[q]) byQuarter[q] = []; byQuarter[q].push(w); });
+            return Object.entries(byQuarter).map(([quarter, weeks]) => (
+              <div key={quarter} style={{ marginBottom: "48px" }}>
+                <p style={{ ...sml, marginBottom: "20px", textAlign: "center" }}>{quarter}</p>
+                {weeks.map(w => {
+                  const isOpen = expandedArchiveWeek === w.weekStart;
+                  const capColor = w.capacityScore <= 60 ? "#7a9e96" : w.capacityScore <= 76 ? "#c8a050" : "#b01904";
+                  const weekLabel = new Date(w.weekStart).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+                  return (
+                    <div key={w.weekStart} style={{ marginBottom: "2px" }}>
+                      <div onClick={() => setExpandedArchiveWeek(isOpen ? null : w.weekStart)}
+                        style={{ display: "flex", alignItems: "baseline", gap: "18px", padding: "6px 0", cursor: "pointer" }}>
+                        <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888", minWidth: "56px" }}>{weekLabel}</span>
+                        <span style={{ flex: 1, textAlign: "center" }}>
+                          <span style={{ ...linkStyle, fontSize: "15px" }}>
+                            Week summary {isOpen ? "−" : "+"}
+                          </span>
+                        </span>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "10px", minWidth: "120px", justifyContent: "flex-end" }}>
+                          <span style={{ fontFamily: TNR, fontSize: "13px", color: capColor }}>{w.capacityLabel}</span>
+                        </span>
+                      </div>
+                      {isOpen && (
+                        <div style={{ padding: "12px 0 18px 56px", borderBottom: "1px solid #f0f0f0", marginBottom: "8px" }}>
+                          <div style={{ display: "flex", gap: "24px", flexWrap: "wrap", marginBottom: "14px" }}>
+                            <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888" }}>{w.workTargetsMet}/{w.workTargetsTotal} work targets</span>
+                            <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888" }}>{w.healthTargets?.filter(Boolean).length || 0}/{HEALTH_TARGETS.length} health</span>
+                          </div>
+                          {w.weekNote && <div style={{ marginBottom: "14px" }}><p style={{ ...sml, marginBottom: "5px" }}>Note</p><p style={{ fontFamily: TNR, fontSize: "14px", color: "#1a1a1a", lineHeight: "1.7" }}>{w.weekNote}</p></div>}
+                          <div style={{ marginBottom: "12px" }}>
+                            <p style={{ ...sml, marginBottom: "8px" }}>Blocks</p>
+                            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                              {Object.entries(MODES).filter(([k]) => k !== "office").map(([key, m]) => {
+                                let count = 0;
+                                DAYS.forEach(d => TIME_SLOTS.forEach(t => { if (w.schedule?.[d]?.[t] === key) count++; }));
+                                if (count === 0) return null;
+                                return (
+                                  <div key={key} style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                                    <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: MODE_COLORS[key], display: "inline-block" }} />
+                                    <span style={{ fontFamily: TNR, fontSize: "12px", color: "#888" }}>{m.label} ×{count}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                          {w.restTargets?.some(Boolean) && (
+                            <div style={{ marginBottom: "12px" }}>
+                              <p style={{ ...sml, marginBottom: "7px" }}>Rest days</p>
+                              <div style={{ display: "flex", gap: "5px" }}>
+                                {DAYS.map((d, i) => (
+                                  <span key={d} style={{ fontFamily: TNR, fontSize: "11px", padding: "2px 6px", background: w.restTargets[i] ? "#f2f2f2" : "transparent", border: `1px solid ${w.restTargets[i] ? "#ddd" : "#eee"}`, borderRadius: "2px", color: w.restTargets[i] ? "#999" : "#ddd" }}>{d}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          <div>
+                            <p style={{ ...sml, marginBottom: "7px" }}>Health</p>
+                            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                              {HEALTH_TARGETS.map((ht, i) => (
+                                <span key={ht.key} style={{ fontFamily: TNR, fontSize: "12px", color: w.healthTargets?.[i] ? "#7a9eb8" : "#ddd" }}>
+                                  {w.healthTargets?.[i] ? "✓" : "○"} {ht.label}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          {w.successMetrics?.some(Boolean) && (
+                            <div style={{ marginTop: "12px" }}>
+                              <p style={{ ...sml, marginBottom: "7px" }}>Week evaluation</p>
+                              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                                {SUCCESS_METRICS.map((sm, i) => w.successMetrics?.[i] ? (
+                                  <span key={sm.key} style={{ fontFamily: TNR, fontSize: "12px", color: "#7a9e96" }}>✓ {sm.label}</span>
+                                ) : null)}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ));
+          })()}
         </div>
       )}
 
-      {/* ════ GUIDE TAB ════ */}
-      {tab === "guide" && (
-        <div style={{ maxWidth: "700px", margin: "0 auto" }}>
-          <div style={{ marginBottom: "40px" }}>
-            <p style={{ ...sml, marginBottom: "16px" }}>How to schedule</p>
-            <p style={{ fontFamily: TNR, fontSize: "14px", color: "#666", lineHeight: "1.8", marginBottom: "12px" }}>
-              At the top of the Weekly Schedule tab, you'll see a mode palette (Making, Comms & Admin, Growth, Systems). Click a mode to select it, then click any empty cell in the grid to add that activity to your week.
-            </p>
-            <p style={{ fontFamily: TNR, fontSize: "14px", color: "#666", lineHeight: "1.8" }}>
-              Once a block is scheduled, click it to add custom details about what you'll actually be doing.
-            </p>
-          </div>
-
-          <div style={{ marginBottom: "40px" }}>
-            <p style={{ ...sml, marginBottom: "16px" }}>Planning ahead</p>
-            <p style={{ fontFamily: TNR, fontSize: "14px", color: "#666", lineHeight: "1.8" }}>
-              Use the Prev/Next buttons at the top to navigate between weeks and plan ahead. When the calendar sidebar is open, you'll see a "Next 2 weeks" preview showing upcoming weeks so you can spot busy periods.
-            </p>
-          </div>
-
-          <div style={{ marginBottom: "40px" }}>
-            <p style={{ ...sml, marginBottom: "16px" }}>Blood pressure tracking</p>
-            <p style={{ fontFamily: TNR, fontSize: "14px", color: "#666", lineHeight: "1.8", marginBottom: "12px" }}>
-              Log your blood pressure readings with date, time, systolic, diastolic, and heart rate. Readings are displayed in a sortable table.
-            </p>
-            <p style={{ fontFamily: TNR, fontSize: "14px", color: "#666", lineHeight: "1.8" }}>
-              Click "↓ Export CSV" to download all your blood pressure readings as a spreadsheet file for medical tracking or sharing with your doctor.
-            </p>
-          </div>
-
-          <div style={{ marginBottom: "40px" }}>
-            <p style={{ ...sml, marginBottom: "16px" }}>Health & mood tracking</p>
-            <p style={{ fontFamily: TNR, fontSize: "14px", color: "#666", lineHeight: "1.8", marginBottom: "12px" }}>
-              Track your mood, energy, and custom behaviours/symptoms daily to spot patterns across your cycle. Rate each 1–5, with 1 being lowest and 5 being highest.
-            </p>
-            <p style={{ fontFamily: TNR, fontSize: "14px", color: "#666", lineHeight: "1.8" }}>
-              At the bottom of the Health tab, you'll see this week's averages for each tracked item. Over time, you can correlate patterns with your studio schedule, cycle, and life events.
-            </p>
-          </div>
-
-          <div style={{ marginBottom: "40px" }}>
-            <p style={{ ...sml, marginBottom: "16px" }}>Calendar integration</p>
-            <p style={{ fontFamily: TNR, fontSize: "14px", color: "#666", lineHeight: "1.8", marginBottom: "12px" }}>
-              Your existing Google Calendar events appear in a sidebar on the week view. This shows all your committed time at a glance.
-            </p>
-            <p style={{ fontFamily: TNR, fontSize: "14px", color: "#666", lineHeight: "1.8" }}>
-              Click "Update calendar" to sync your week's exportable work blocks to Google Calendar. Entries deleted from the planner are automatically removed from your calendar.
-            </p>
-          </div>
-        </div>
-      )}
-
-      <style>{`
-        @keyframes slideIn {
-          from {
-            transform: translateX(400px);
-            opacity: 0;
-          }
-          to {
-            transform: translateX(0);
-            opacity: 1;
-          }
-        }
-        textarea::placeholder { color: #ccc; font-family: ${TNR}; } 
-        input::placeholder { color: #ccc; font-family: ${TNR}; } 
-        * { box-sizing: border-box; }
-      `}</style>
+      <style>{`textarea::placeholder { color: #ccc; font-family: ${TNR}; } select { font-family: ${TNR}; } * { box-sizing: border-box; }`}</style>
     </div>
   );
 }

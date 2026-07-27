@@ -2692,6 +2692,24 @@ const [, setAuthTimestamp] = useState(0);
             {calStatus === "error"   && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#b01904", marginTop: "10px" }}>Export failed. Try again.</p>}
             {calStatus === "empty"   && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#888", marginTop: "10px" }}>No exportable blocks found.</p>}
           </div>
+
+          <div style={{ marginBottom: "44px", paddingTop: "28px", borderTop: "1px solid #f0f0f0" }}>
+            <p style={{ ...sml, marginBottom: "8px" }}>Archive this week</p>
+            <p style={{ fontFamily: TNR, fontSize: "13px", color: "#bbb", marginBottom: "14px", lineHeight: "1.7" }}>Save a snapshot of this week's grid, targets, and notes.</p>
+            <div style={{ display: "flex", gap: "20px", alignItems: "baseline", flexWrap: "wrap" }}>
+              <span onClick={() => saveWeek()} style={{ ...linkStyle, fontSize: "15px" }}>Save week</span>
+              <span onClick={() => setShowSaveWeekPicker(!showSaveWeekPicker)} style={{ ...linkStyle, fontSize: "13px", color: "#888" }}>Save under a different week…</span>
+            </div>
+            {showSaveWeekPicker && (
+              <div style={{ marginTop: "14px", display: "flex", gap: "12px", alignItems: "baseline", flexWrap: "wrap" }}>
+                <input type="date" style={{ ...inp, width: "auto" }} value={saveWeekDate} onChange={e => setSaveWeekDate(e.target.value)} />
+                <span onClick={() => saveWeekDate && saveWeek(saveWeekDate)} style={{ ...linkStyle, fontSize: "13px", opacity: saveWeekDate ? 1 : 0.4 }}>Save</span>
+                <p style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb", margin: 0, width: "100%" }}>
+                  Pick any date — the snapshot is filed under that week's Monday. Useful for backfilling a past week or filing a plan drafted ahead of time.
+                </p>
+              </div>
+            )}
+          </div>
         </>
       )}
 
@@ -3114,23 +3132,6 @@ const [, setAuthTimestamp] = useState(0);
             <p style={{ fontFamily: TNR, fontSize: "13px", color: "#888", marginTop: "6px" }}>
               Organise first. One hard task. Then stop.
             </p>
-          </div>
-          <div style={{ marginBottom: "44px", paddingTop: "28px", borderTop: "1px solid #f0f0f0" }}>
-            <p style={{ ...sml, marginBottom: "8px" }}>Archive this week</p>
-            <p style={{ fontFamily: TNR, fontSize: "13px", color: "#bbb", marginBottom: "14px", lineHeight: "1.7" }}>Save a snapshot of this week's grid, targets, and notes.</p>
-            <div style={{ display: "flex", gap: "20px", alignItems: "baseline", flexWrap: "wrap" }}>
-              <span onClick={() => saveWeek()} style={{ ...linkStyle, fontSize: "15px" }}>Save week</span>
-              <span onClick={() => setShowSaveWeekPicker(!showSaveWeekPicker)} style={{ ...linkStyle, fontSize: "13px", color: "#888" }}>Save under a different week…</span>
-            </div>
-            {showSaveWeekPicker && (
-              <div style={{ marginTop: "14px", display: "flex", gap: "12px", alignItems: "baseline", flexWrap: "wrap" }}>
-                <input type="date" style={{ ...inp, width: "auto" }} value={saveWeekDate} onChange={e => setSaveWeekDate(e.target.value)} />
-                <span onClick={() => saveWeekDate && saveWeek(saveWeekDate)} style={{ ...linkStyle, fontSize: "13px", opacity: saveWeekDate ? 1 : 0.4 }}>Save</span>
-                <p style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb", margin: 0, width: "100%" }}>
-                  Pick any date — the snapshot is filed under that week's Monday. Useful for backfilling a past week or filing a plan drafted ahead of time.
-                </p>
-              </div>
-            )}
           </div>
           <div>
             <p style={{ ...sml, marginBottom: "8px" }}>Install as app</p>

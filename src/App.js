@@ -1535,27 +1535,6 @@ const [, setAuthTimestamp] = useState(0);
   const [editingProject, setEditingProject] = useState(null);
   const [qFilter, setQFilter]             = useState("all");
 
-  // Health & mood tracking (localStorage, cross-week)
-  const [healthEntries, setHealthEntries] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("studio-planner-health-entries") || "{}"); } catch { return {}; }
-  });
-  const [trackedBehaviours, setTrackedBehaviours] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("studio-planner-tracked-behaviours") || '["focus","sleep","pain"]'); } catch { return ["focus", "sleep", "pain"]; }
-  });
-  const [showAddBehaviour, setShowAddBehaviour] = useState(false);
-  const [newBehaviourName, setNewBehaviourName] = useState("");
-
-  // Blood pressure tracking
-  const [bpReadings, setBpReadings] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("studio-planner-bp-readings") || "[]"); } catch { return []; }
-  });
-  const [showAddBP, setShowAddBP] = useState(false);
-  const [newBPReading, setNewBPReading] = useState({
-    date: new Date().toISOString().split("T")[0],
-    time: new Date().toTimeString().slice(0, 5),
-    systolic: "", diastolic: "", heartRate: "",
-  });
-
   // Calendar
   const [calStatus, setCalStatus]         = useState(null);
   const [isExporting, setIsExporting]     = useState(false);
@@ -1693,82 +1672,6 @@ const [, setAuthTimestamp] = useState(0);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, lastSaveTime]);
-
-  // ── Health & BP persistence ──────────────────────────────────────────────────
-
-  useEffect(() => {
-    try { localStorage.setItem("studio-planner-health-entries", JSON.stringify(healthEntries)); } catch {}
-  }, [healthEntries]);
-
-  useEffect(() => {
-    try { localStorage.setItem("studio-planner-tracked-behaviours", JSON.stringify(trackedBehaviours)); } catch {}
-  }, [trackedBehaviours]);
-
-  useEffect(() => {
-    try { localStorage.setItem("studio-planner-bp-readings", JSON.stringify(bpReadings)); } catch {}
-  }, [bpReadings]);
-
-  const getHealthEntry = (dateStr) => healthEntries[dateStr] || { mood: null, energy: null, customBehaviours: {} };
-
-  const updateHealthEntry = (dateStr, field, value) => {
-    setHealthEntries(prev => ({ ...prev, [dateStr]: { ...getHealthEntry(dateStr), ...prev[dateStr], [field]: value } }));
-  };
-
-  const updateBehaviourEntry = (dateStr, behaviour, value) => {
-    setHealthEntries(prev => ({
-      ...prev,
-      [dateStr]: {
-        ...getHealthEntry(dateStr),
-        ...prev[dateStr],
-        customBehaviours: { ...(prev[dateStr]?.customBehaviours || {}), [behaviour]: value },
-      },
-    }));
-  };
-
-  const addTrackedBehaviour = () => {
-    const name = newBehaviourName.trim().toLowerCase();
-    if (name && !trackedBehaviours.includes(name)) {
-      setTrackedBehaviours([...trackedBehaviours, name]);
-    }
-    setNewBehaviourName("");
-    setShowAddBehaviour(false);
-  };
-
-  const removeTrackedBehaviour = (b) => setTrackedBehaviours(trackedBehaviours.filter(x => x !== b));
-
-  const addBPReading = () => {
-    if (newBPReading.systolic && newBPReading.diastolic && newBPReading.heartRate) {
-      setBpReadings([...bpReadings, {
-        id: Date.now(),
-        date: newBPReading.date,
-        time: newBPReading.time,
-        systolic: parseInt(newBPReading.systolic, 10),
-        diastolic: parseInt(newBPReading.diastolic, 10),
-        heartRate: parseInt(newBPReading.heartRate, 10),
-      }].sort((a, b) => new Date(`${b.date}T${b.time}`) - new Date(`${a.date}T${a.time}`)));
-      setNewBPReading({
-        date: new Date().toISOString().split("T")[0],
-        time: new Date().toTimeString().slice(0, 5),
-        systolic: "", diastolic: "", heartRate: "",
-      });
-      setShowAddBP(false);
-    }
-  };
-
-  const removeBPReading = (id) => setBpReadings(bpReadings.filter(r => r.id !== id));
-
-  const exportBPAsCSV = () => {
-    const headers = ["Date", "Time", "Systolic", "Diastolic", "Heart Rate"];
-    const rows = bpReadings.map(r => [new Date(r.date).toLocaleDateString("en-GB"), r.time, r.systolic, r.diastolic, r.heartRate]);
-    const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
-    const a = document.createElement("a");
-    a.setAttribute("href", "data:text/csv;charset=utf-8," + encodeURIComponent(csv));
-    a.setAttribute("download", `blood-pressure-${new Date().toISOString().split("T")[0]}.csv`);
-    a.style.display = "none";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  };
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -2419,7 +2322,7 @@ const [, setAuthTimestamp] = useState(0);
 
       {/* ── Tabs as boxed buttons ── */}
       <div style={{ textAlign: "center", marginBottom: "52px", display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
-        {[["today","Today"],["grid","Grid"],["targets","Targets"],["quarterly","Quarterly"],["health","Health"],["plan","Plan"],["archive","Archive"]].map(([key, lbl]) => (
+        {[["today","Today"],["grid","Grid"],["targets","Targets"],["quarterly","Quarterly"],["plan","Plan"],["archive","Archive"]].map(([key, lbl]) => (
           <span key={key} onClick={() => setTab(key)} style={boxBtn(tab === key)}>{lbl}</span>
         ))}
       </div>
@@ -3061,168 +2964,6 @@ const [, setAuthTimestamp] = useState(0);
               })}
             </div>
           )}
-        </div>
-      )}
-
-      {/* ════ HEALTH ════ */}
-      {tab === "health" && (
-        <div style={{ maxWidth: "560px", margin: "0 auto" }}>
-          {/* Tracked behaviours */}
-          <div style={{ marginBottom: "44px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
-              <p style={{ ...sml, margin: 0 }}>Tracked behaviours & symptoms</p>
-              <span onClick={() => setShowAddBehaviour(!showAddBehaviour)} style={{ ...linkStyle, fontSize: "13px" }}>+ Add</span>
-            </div>
-            {showAddBehaviour && (
-              <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
-                <input style={{ ...inp, flex: 1 }} value={newBehaviourName}
-                  onChange={e => setNewBehaviourName(e.target.value)}
-                  onKeyPress={e => e.key === "Enter" && addTrackedBehaviour()}
-                  placeholder="e.g. pain, appetite, focus" />
-                <span onClick={addTrackedBehaviour} style={{ ...linkStyle, fontSize: "13px", paddingTop: "8px" }}>Save</span>
-              </div>
-            )}
-            <div style={{ display: "flex", gap: "14px", flexWrap: "wrap" }}>
-              {trackedBehaviours.map(b => (
-                <span key={b} style={{ fontFamily: TNR, fontSize: "14px", color: "#1a1a1a" }}>
-                  {b}
-                  <span onClick={() => removeTrackedBehaviour(b)} style={{ color: "#bbb", cursor: "pointer", marginLeft: "6px" }}>×</span>
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* Daily entries for this week */}
-          <div style={{ marginBottom: "44px" }}>
-            <p style={{ ...sml, marginBottom: "18px" }}>This week</p>
-            {DAYS.map((day, dayIdx) => {
-              const d = new Date(getWeekStart());
-              d.setDate(d.getDate() + dayIdx);
-              const dateStr = d.toISOString().split("T")[0];
-              const entry = getHealthEntry(dateStr);
-              const scaleBtn = (active) => ({
-                fontFamily: TNR, fontSize: "12px", width: "30px", height: "30px",
-                border: active ? `1px solid ${LINK_BLUE}` : "1px solid #e8e8e8",
-                background: active ? LINK_BLUE : "transparent",
-                color: active ? "#fff" : "#888",
-                cursor: "pointer", borderRadius: "2px",
-              });
-              return (
-                <div key={day} style={{ marginBottom: "20px", paddingBottom: "18px", borderBottom: "1px solid #f0f0f0" }}>
-                  <p style={{ fontFamily: TNR, fontSize: "14px", color: "#1a1a1a", margin: "0 0 10px" }}>
-                    {day} · {d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                  </p>
-                  <div style={{ display: "flex", gap: "28px", flexWrap: "wrap" }}>
-                    {[["mood", "Mood"], ["energy", "Energy"]].map(([key, label]) => (
-                      <div key={key}>
-                        <p style={{ ...sml, fontSize: "10px", marginBottom: "6px" }}>{label}</p>
-                        <div style={{ display: "flex", gap: "4px" }}>
-                          {[1, 2, 3, 4, 5].map(i => (
-                            <button key={i} onClick={() => updateHealthEntry(dateStr, key, entry[key] === i ? null : i)} style={scaleBtn(entry[key] === i)}>{i}</button>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                    {trackedBehaviours.map(b => (
-                      <div key={b}>
-                        <p style={{ ...sml, fontSize: "10px", marginBottom: "6px" }}>{b}</p>
-                        <div style={{ display: "flex", gap: "4px" }}>
-                          {[1, 2, 3, 4, 5].map(i => (
-                            <button key={i} onClick={() => updateBehaviourEntry(dateStr, b, entry.customBehaviours?.[b] === i ? null : i)} style={scaleBtn(entry.customBehaviours?.[b] === i)}>{i}</button>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Week averages */}
-          <div style={{ marginBottom: "44px" }}>
-            <p style={{ ...sml, marginBottom: "14px" }}>This week's averages</p>
-            <div style={{ display: "flex", gap: "28px", flexWrap: "wrap" }}>
-              {["mood", "energy", ...trackedBehaviours].map(item => {
-                let total = 0, count = 0;
-                DAYS.forEach((_, idx) => {
-                  const d = new Date(getWeekStart());
-                  d.setDate(d.getDate() + idx);
-                  const e = getHealthEntry(d.toISOString().split("T")[0]);
-                  const v = item === "mood" ? e.mood : item === "energy" ? e.energy : e.customBehaviours?.[item];
-                  if (v) { total += v; count++; }
-                });
-                const avg = count ? (total / count).toFixed(1) : "—";
-                return (
-                  <div key={item}>
-                    <p style={{ ...sml, fontSize: "10px", marginBottom: "4px" }}>{item}</p>
-                    <p style={{ fontFamily: TNR, fontSize: "22px", color: avg === "—" ? "#ccc" : LINK_BLUE, margin: 0 }}>{avg}<span style={{ fontSize: "12px", color: "#ccc" }}> /5</span></p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Blood pressure */}
-          <div style={{ marginBottom: "44px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
-              <p style={{ ...sml, margin: 0 }}>Blood pressure readings</p>
-              <div style={{ display: "flex", gap: "16px" }}>
-                {bpReadings.length > 0 && (
-                  <span onClick={exportBPAsCSV} style={{ ...linkStyle, fontSize: "13px" }}>Export CSV</span>
-                )}
-                <span onClick={() => setShowAddBP(!showAddBP)} style={{ ...linkStyle, fontSize: "13px" }}>+ Add</span>
-              </div>
-            </div>
-
-            {showAddBP && (
-              <div style={{ marginBottom: "18px", paddingBottom: "18px", borderBottom: "1px solid #f0f0f0" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "12px" }}>
-                  <div><p style={{ ...sml, fontSize: "10px", marginBottom: "5px" }}>Date</p>
-                    <input type="date" style={inp} value={newBPReading.date} onChange={e => setNewBPReading({ ...newBPReading, date: e.target.value })} /></div>
-                  <div><p style={{ ...sml, fontSize: "10px", marginBottom: "5px" }}>Time</p>
-                    <input type="time" style={inp} value={newBPReading.time} onChange={e => setNewBPReading({ ...newBPReading, time: e.target.value })} /></div>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "14px" }}>
-                  <div><p style={{ ...sml, fontSize: "10px", marginBottom: "5px" }}>Systolic</p>
-                    <input type="number" style={inp} value={newBPReading.systolic} onChange={e => setNewBPReading({ ...newBPReading, systolic: e.target.value })} placeholder="120" /></div>
-                  <div><p style={{ ...sml, fontSize: "10px", marginBottom: "5px" }}>Diastolic</p>
-                    <input type="number" style={inp} value={newBPReading.diastolic} onChange={e => setNewBPReading({ ...newBPReading, diastolic: e.target.value })} placeholder="80" /></div>
-                  <div><p style={{ ...sml, fontSize: "10px", marginBottom: "5px" }}>Heart rate</p>
-                    <input type="number" style={inp} value={newBPReading.heartRate} onChange={e => setNewBPReading({ ...newBPReading, heartRate: e.target.value })} placeholder="72" /></div>
-                </div>
-                <span onClick={addBPReading} style={{ ...linkStyle, fontSize: "14px" }}>Save reading</span>
-              </div>
-            )}
-
-            {bpReadings.length === 0 ? (
-              <p style={{ fontFamily: TNR, fontSize: "14px", color: "#bbb" }}>No readings yet.</p>
-            ) : (
-              <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: TNR, fontSize: "13px" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid #e8e8e8" }}>
-                    {["Date", "Time", "Sys", "Dia", "HR", ""].map(h => (
-                      <th key={h} style={{ ...sml, fontSize: "10px", padding: "6px 4px", textAlign: "left" }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {bpReadings.map(r => (
-                    <tr key={r.id} style={{ borderBottom: "1px solid #f5f5f5" }}>
-                      <td style={{ padding: "8px 4px", color: "#1a1a1a" }}>{new Date(r.date).toLocaleDateString("en-GB")}</td>
-                      <td style={{ padding: "8px 4px", color: "#1a1a1a" }}>{r.time}</td>
-                      <td style={{ padding: "8px 4px", color: "#1a1a1a" }}>{r.systolic}</td>
-                      <td style={{ padding: "8px 4px", color: "#1a1a1a" }}>{r.diastolic}</td>
-                      <td style={{ padding: "8px 4px", color: "#888" }}>{r.heartRate}</td>
-                      <td style={{ padding: "8px 4px" }}>
-                        <span onClick={() => removeBPReading(r.id)} style={{ color: "#bbb", cursor: "pointer" }}>×</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
         </div>
       )}
 

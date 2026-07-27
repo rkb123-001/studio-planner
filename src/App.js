@@ -637,12 +637,24 @@ const loadFromSupabase = async () => {
       }
     );
     let data = await resp.json();
-    
-    // If no data for this week, try to get profile from any previous week
+
+    // Archive and projects are (mis-)duplicated onto every week's row rather than
+    // stored once. A brand-new week's row starts empty for these fields, and if that
+    // empty state gets saved back, it buries (not deletes) older, richer copies sitting
+    // on previous weeks' rows. To make loads self-healing regardless of which row is
+    // "current", reconstruct archive/projects/profile by scanning recent row history
+    // and merging, rather than trusting a single row.
     let profileFallback = null;
-    if (!data || !data[0] || !data[0].profile) {
+    let archiveFallback = null;
+    let projectsFallback = null;
+
+    const needsFallback = !data || !data[0] || !data[0].profile
+      || !data[0].archive || data[0].archive.length === 0
+      || !data[0].projects || data[0].projects.length === 0;
+
+    if (needsFallback) {
       const allResp = await fetch(
-        `${SUPABASE_URL}/rest/v1/planner_data?user_id=eq.${USER_ID}&order=week_start.desc&limit=1`,
+        `${SUPABASE_URL}/rest/v1/planner_data?user_id=eq.${USER_ID}&order=week_start.asc&limit=60`,
         {
           headers: {
             "apikey": SUPABASE_KEY,
@@ -651,12 +663,44 @@ const loadFromSupabase = async () => {
         }
       );
       const allData = await allResp.json();
-      if (allData && allData[0] && allData[0].profile) {
-        profileFallback = allData[0].profile;
+      if (allData && allData.length) {
+        // Most recent profile wins.
+        for (let i = allData.length - 1; i >= 0; i--) {
+          if (allData[i].profile) { profileFallback = allData[i].profile; break; }
+        }
+
+        // Merge every archive entry seen across every row, keyed by weekStart,
+        // keeping whichever version has the latest savedAt. This can only grow —
+        // no single row's empty/short archive can erase entries found elsewhere.
+        const archiveByWeek = {};
+        allData.forEach(row => {
+          (row.archive || []).forEach(entry => {
+            const key = entry.weekStart;
+            if (!key) return;
+            const existing = archiveByWeek[key];
+            if (!existing || new Date(entry.savedAt) > new Date(existing.savedAt)) {
+              archiveByWeek[key] = entry;
+            }
+          });
+        });
+        const mergedArchive = Object.values(archiveByWeek).sort((a, b) => b.weekStart.localeCompare(a.weekStart));
+        if (mergedArchive.length) archiveFallback = mergedArchive;
+
+        // Merge projects by id across all rows, later rows (by week_start) win so
+        // status updates (e.g. "done") stick, but a project dropped from a later
+        // row still surfaces from wherever it last appeared.
+        const projectsById = {};
+        allData.forEach(row => {
+          (row.projects || []).forEach(p => { if (p.id !== undefined) projectsById[p.id] = p; });
+        });
+        const mergedProjects = Object.values(projectsById);
+        if (mergedProjects.length) projectsFallback = mergedProjects;
       }
     }
-    
+
     if (data && data[0]) {
+      const archive = (data[0].archive && data[0].archive.length) ? data[0].archive : (archiveFallback || data[0].archive);
+      const projects = (data[0].projects && data[0].projects.length) ? data[0].projects : (projectsFallback || data[0].projects);
       return {
         schedule: data[0].schedule,
         checklist: data[0].checklist,
@@ -665,14 +709,15 @@ const loadFromSupabase = async () => {
         restTargets: data[0].rest_targets,
         socialDone: data[0].social_done,
         weekNote: data[0].week_note,
-        projects: data[0].projects,
-        archive: data[0].archive,
+        projects,
+        archive,
         dayEnergyLevels: data[0].day_energy_levels,
         profile: data[0].profile || profileFallback,
       };
-    } else if (profileFallback) {
-      // Return just profile if no week data exists
-      return { profile: profileFallback };
+    } else if (profileFallback || archiveFallback || projectsFallback) {
+      // No row for this week yet — hand back whatever we could reconstruct so a
+      // fresh week never starts blinder than it needs to.
+      return { profile: profileFallback, archive: archiveFallback, projects: projectsFallback };
     }
   } catch (e) {
     console.log("Supabase load error (using local):", e);
@@ -2648,7 +2693,7 @@ const [, setAuthTimestamp] = useState(0);
           </div>
 
           {/* Export */}
-          <div style={{ textAlign: "center" }}>
+          <div style={{ textAlign: "center", marginBottom: "20px" }}>
             <p style={{ ...sml, marginBottom: "8px" }}>Export blocks to your calendar</p>
             <p style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb", marginBottom: "14px" }}>
               Downloads an .ics file. Open it to add events to Google Calendar, Apple Calendar, or Outlook.<br />
@@ -2693,18 +2738,23 @@ const [, setAuthTimestamp] = useState(0);
             {calStatus === "empty"   && <p style={{ fontFamily: TNR, fontSize: "13px", color: "#888", marginTop: "10px" }}>No exportable blocks found.</p>}
           </div>
 
-          <div style={{ marginBottom: "44px", paddingTop: "28px", borderTop: "1px solid #f0f0f0" }}>
+          <div style={{ textAlign: "center", paddingTop: "36px", marginTop: "8px", borderTop: "1px solid #f0f0f0" }}>
             <p style={{ ...sml, marginBottom: "8px" }}>Archive this week</p>
-            <p style={{ fontFamily: TNR, fontSize: "13px", color: "#bbb", marginBottom: "14px", lineHeight: "1.7" }}>Save a snapshot of this week's grid, targets, and notes.</p>
-            <div style={{ display: "flex", gap: "20px", alignItems: "baseline", flexWrap: "wrap" }}>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb", marginBottom: "14px" }}>
+              Save a snapshot of this week's grid, targets, and notes.
+            </p>
+            <div style={{ display: "flex", gap: "20px", justifyContent: "center", alignItems: "baseline", flexWrap: "wrap" }}>
               <span onClick={() => saveWeek()} style={{ ...linkStyle, fontSize: "15px" }}>Save week</span>
-              <span onClick={() => setShowSaveWeekPicker(!showSaveWeekPicker)} style={{ ...linkStyle, fontSize: "13px", color: "#888" }}>Save under a different week…</span>
+              <span onClick={() => setShowSaveWeekPicker(!showSaveWeekPicker)} style={{ fontFamily: TNR, fontSize: "13px", color: "#888", textDecoration: "underline", textUnderlineOffset: "2px", cursor: "pointer" }}>Save under a different week…</span>
             </div>
             {showSaveWeekPicker && (
-              <div style={{ marginTop: "14px", display: "flex", gap: "12px", alignItems: "baseline", flexWrap: "wrap" }}>
-                <input type="date" style={{ ...inp, width: "auto" }} value={saveWeekDate} onChange={e => setSaveWeekDate(e.target.value)} />
-                <span onClick={() => saveWeekDate && saveWeek(saveWeekDate)} style={{ ...linkStyle, fontSize: "13px", opacity: saveWeekDate ? 1 : 0.4 }}>Save</span>
-                <p style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb", margin: 0, width: "100%" }}>
+              <div style={{ padding: "16px", border: "1px solid #e7e7e7", borderRadius: "4px", marginTop: "14px", textAlign: "left", maxWidth: "360px", marginLeft: "auto", marginRight: "auto" }}>
+                <input type="date" style={{ fontFamily: TNR, fontSize: "14px", padding: "6px 10px", border: "1px solid #ccc", borderRadius: "3px", marginBottom: "12px", width: "100%", boxSizing: "border-box" }} value={saveWeekDate} onChange={e => setSaveWeekDate(e.target.value)} />
+                <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
+                  <span onClick={() => saveWeekDate && saveWeek(saveWeekDate)} style={{ ...linkStyle, fontSize: "14px", opacity: saveWeekDate ? 1 : 0.4, cursor: saveWeekDate ? "pointer" : "default" }}>Save</span>
+                  <span onClick={() => { setShowSaveWeekPicker(false); setSaveWeekDate(""); }} style={{ fontFamily: TNR, fontSize: "14px", color: "#888", cursor: "pointer", textDecoration: "underline" }}>Cancel</span>
+                </div>
+                <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", margin: 0 }}>
                   Pick any date — the snapshot is filed under that week's Monday. Useful for backfilling a past week or filing a plan drafted ahead of time.
                 </p>
               </div>

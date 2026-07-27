@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Component } from "react";
 
 const TNR = "'Times New Roman', Times, serif";
 const LINK_BLUE = "#1a0dab";
@@ -1471,7 +1471,48 @@ function ProfileEditScreen({ profile, onSave, onCancel }) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function WeeklyPlanner() {
+// ── Error boundary ───────────────────────────────────────────────────────────
+// Catches render/runtime errors and shows them instead of a silent white screen.
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error, info) {
+    console.error("Planner crashed:", error, info);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ fontFamily: "'Times New Roman', Times, serif", padding: "40px", maxWidth: "640px", margin: "0 auto", color: "#1a1a1a" }}>
+          <p style={{ fontSize: "18px", marginBottom: "12px" }}>Something went wrong.</p>
+          <p style={{ fontSize: "14px", color: "#888", marginBottom: "20px", lineHeight: "1.7" }}>
+            The planner hit an error and stopped rendering rather than showing a blank page. Copy the message below and send it over.
+          </p>
+          <pre style={{
+            background: "#f5f5f5", padding: "16px", borderRadius: "4px", fontSize: "12px",
+            whiteSpace: "pre-wrap", wordBreak: "break-word", color: "#b01904",
+          }}>
+            {this.state.error.toString()}
+            {this.state.error.stack ? "\n\n" + this.state.error.stack : ""}
+          </pre>
+          <p
+            onClick={() => window.location.reload()}
+            style={{ fontSize: "14px", color: "#1a0dab", textDecoration: "underline", textUnderlineOffset: "2px", cursor: "pointer", marginTop: "20px" }}
+          >
+            Reload
+          </p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function WeeklyPlanner() {
   // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
@@ -1495,6 +1536,13 @@ const [, setAuthTimestamp] = useState(0);
   });
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
   const [schedule, setSchedule]           = useState(saved?.schedule || defaultSchedule());
+
+  // Self-heal: if schedule is ever nulled out (e.g. a bad/empty cloud read slipping
+  // through), restore an empty-but-valid schedule rather than staying undefined.
+  useEffect(() => {
+    if (!schedule || typeof schedule !== "object") setSchedule(defaultSchedule());
+  }, [schedule]);
+
   const [activeMode, setActiveMode]       = useState("making");
   const [restSubtype, setRestSubtype]     = useState("passive");
   const [checklist, setChecklist]         = useState(saved?.checklist || CHECKLIST.map(() => false));
@@ -1619,34 +1667,36 @@ const [, setAuthTimestamp] = useState(0);
         }
         
         // Only update state if data actually changed (prevents unnecessary re-renders)
-        if (JSON.stringify(cloudData.schedule) !== JSON.stringify(schedule)) {
+        // Guard every setter against null/undefined cloud values — a missing field
+        // must never overwrite good local state (this was crashing the app).
+        if (cloudData.schedule && JSON.stringify(cloudData.schedule) !== JSON.stringify(schedule)) {
           setSchedule(cloudData.schedule);
         }
-        if (JSON.stringify(cloudData.checklist) !== JSON.stringify(checklist)) {
+        if (cloudData.checklist && JSON.stringify(cloudData.checklist) !== JSON.stringify(checklist)) {
           setChecklist(cloudData.checklist);
         }
-        if (JSON.stringify(cloudData.successMetrics) !== JSON.stringify(successMetrics)) {
+        if (cloudData.successMetrics && JSON.stringify(cloudData.successMetrics) !== JSON.stringify(successMetrics)) {
           setSuccessMetrics(cloudData.successMetrics);
         }
-        if (JSON.stringify(cloudData.healthTargets) !== JSON.stringify(healthTargets)) {
+        if (cloudData.healthTargets && JSON.stringify(cloudData.healthTargets) !== JSON.stringify(healthTargets)) {
           setHealthTargets(cloudData.healthTargets);
         }
-        if (JSON.stringify(cloudData.restTargets) !== JSON.stringify(restTargets)) {
+        if (cloudData.restTargets && JSON.stringify(cloudData.restTargets) !== JSON.stringify(restTargets)) {
           setRestTargets(cloudData.restTargets);
         }
-        if (cloudData.socialDone !== socialDone) {
+        if (cloudData.socialDone !== undefined && cloudData.socialDone !== socialDone) {
           setSocialDone(cloudData.socialDone);
         }
-        if (cloudData.weekNote !== weekNote) {
+        if (cloudData.weekNote !== undefined && cloudData.weekNote !== weekNote) {
           setWeekNote(cloudData.weekNote);
         }
-        if (JSON.stringify(cloudData.projects) !== JSON.stringify(projects)) {
+        if (cloudData.projects && JSON.stringify(cloudData.projects) !== JSON.stringify(projects)) {
           setProjects(cloudData.projects);
         }
-        if (JSON.stringify(cloudData.archive) !== JSON.stringify(archive)) {
+        if (cloudData.archive && JSON.stringify(cloudData.archive) !== JSON.stringify(archive)) {
           setArchive(cloudData.archive);
         }
-        if (JSON.stringify(cloudData.dayEnergyLevels) !== JSON.stringify(dayEnergyLevels)) {
+        if (cloudData.dayEnergyLevels && JSON.stringify(cloudData.dayEnergyLevels) !== JSON.stringify(dayEnergyLevels)) {
           setDayEnergyLevels(cloudData.dayEnergyLevels);
         }
         if (cloudData.profile && JSON.stringify(cloudData.profile) !== JSON.stringify(profile)) {
@@ -1690,7 +1740,7 @@ const [, setAuthTimestamp] = useState(0);
   };
 
   const assign = (day, slot) => {
-    const current = schedule[day][slot];
+    const current = schedule[day]?.[slot];
     setHasUserInteracted(true);
     
     // If clicking an office block:
@@ -1698,7 +1748,7 @@ const [, setAuthTimestamp] = useState(0);
     //   - When any other mode is active: do nothing (protect from accidental overwrite)
     if (current === "office" && activeMode !== "office") return;
     
-    setSchedule(prev => ({ ...prev, [day]: { ...prev[day], [slot]: current === activeMode ? null : activeMode } }));
+    setSchedule(prev => ({ ...prev, [day]: { ...(prev[day] || {}), [slot]: current === activeMode ? null : activeMode } }));
   };
 
   const clearAll = () => {
@@ -1708,7 +1758,7 @@ const [, setAuthTimestamp] = useState(0);
 
   const countSlots = (mode) => {
     let n = 0;
-    DAYS.forEach(d => TIME_SLOTS.forEach(t => { if (schedule[d][t] === mode) n++; }));
+    DAYS.forEach(d => TIME_SLOTS.forEach(t => { if (schedule[d]?.[t] === mode) n++; }));
     return n;
   };
 
@@ -1717,7 +1767,7 @@ const [, setAuthTimestamp] = useState(0);
     DAYS.forEach(d => {
       let inB = false;
       TIME_SLOTS.forEach(t => {
-        if (schedule[d][t] === mode) { if (!inB) { n++; inB = true; } } else { inB = false; }
+        if (schedule[d]?.[t] === mode) { if (!inB) { n++; inB = true; } } else { inB = false; }
       });
     });
     return n;
@@ -1747,7 +1797,7 @@ const [, setAuthTimestamp] = useState(0);
   const getDayEnergy = (day) => {
     let total = 0;
     TIME_SLOTS.forEach(t => {
-      const v = schedule[day][t];
+      const v = schedule[day]?.[t];
       if (v && MODES[v]) total += MODES[v].energyCost;
     });
     return total;
@@ -1771,8 +1821,8 @@ const [, setAuthTimestamp] = useState(0);
   const getBufferSuggestions = (day) => {
     const suggestions = [];
     for (let i = 0; i < TIME_SLOTS.length - 1; i++) {
-      const from = schedule[day][TIME_SLOTS[i]];
-      const to   = schedule[day][TIME_SLOTS[i + 1]];
+      const from = schedule[day]?.[TIME_SLOTS[i]];
+      const to   = schedule[day]?.[TIME_SLOTS[i + 1]];
       if (from && to && from !== to) {
         const needsBuffer = BUFFER_TRIGGERS.some(([f, t]) => f === from && t === to);
         if (needsBuffer) {
@@ -1789,13 +1839,13 @@ const [, setAuthTimestamp] = useState(0);
     const eveningSlots = ["3–5pm","5–7pm","7–9pm"];
     let officeCount = 0, lateOfficeCount = 0;
     DAYS.forEach(d => TIME_SLOTS.forEach(t => {
-      if (schedule[d][t] === "office") { officeCount++; if (eveningSlots.includes(t)) lateOfficeCount++; }
+      if (schedule[d]?.[t] === "office") { officeCount++; if (eveningSlots.includes(t)) lateOfficeCount++; }
     }));
 
     const dailyRatios = DAYS.map(d => {
       let active = 0, rest = 0, office = 0;
       TIME_SLOTS.forEach(t => {
-        const v = schedule[d][t];
+        const v = schedule[d]?.[t];
         if (!v) return;
         if (v === "office") { office++; return; }
         if (v === "rest") { rest++; return; }
@@ -1814,7 +1864,7 @@ const [, setAuthTimestamp] = useState(0);
     let filled = 0, exposureBlocks = 0, makingBlocks = 0;
     let restBlocks = 0, socialBlocks = 0, supportBlocks = 0, officeBlocks = 0;
     DAYS.forEach(d => TIME_SLOTS.forEach(t => {
-      const v = schedule[d][t];
+      const v = schedule[d]?.[t];
       if (!v) return;
       if (v === "office") { officeBlocks++; return; }
       filled++;
@@ -1975,7 +2025,7 @@ const [, setAuthTimestamp] = useState(0);
     DAYS.forEach(day => {
       let cur = null, sh = null, eh = null;
       TIME_SLOTS.forEach(slot => {
-        const mode = schedule[day][slot];
+        const mode = schedule[day]?.[slot];
         const ok = mode && MODES[mode]?.exportable;
         const h = SLOT_START[slot];
         if (ok && mode === cur) { eh = h + 2; }
@@ -2547,7 +2597,7 @@ const [, setAuthTimestamp] = useState(0);
                   <tr key={slot}>
                     <td style={{ fontFamily: TNR, fontSize: "9px", color: "#ccc", padding: "1px 4px 1px 0", verticalAlign: "middle", width: "44px" }}>{slot}</td>
                     {DAYS.map(day => {
-                      const val = schedule[day][slot];
+                      const val = schedule[day]?.[slot];
                       const isOffice = val === "office";
                       const isWorkMode = val && WORK_MODES.includes(val);
                       const intensity = isWorkMode ? (EXEC_INTENSITY[val] || { opacity: 0.5 }) : null;
@@ -3189,5 +3239,13 @@ const [, setAuthTimestamp] = useState(0);
 
       <style>{`textarea::placeholder { color: #ccc; font-family: ${TNR}; } select { font-family: ${TNR}; } * { box-sizing: border-box; }`}</style>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <WeeklyPlanner />
+    </ErrorBoundary>
   );
 }

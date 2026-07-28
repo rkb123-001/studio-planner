@@ -24,9 +24,9 @@ const MODES = {
   growth:  { label: "Growth",        sub: "research, residencies, opportunities", exportable: true,  energyCost: 4, friction: "high",   sensory: "high"   },
   content: { label: "Content",       sub: "social, posts, photography",          exportable: true,  energyCost: 4, friction: "high",   sensory: "high"   },
   networking: { label: "Social *", sub: "studio visits, private views, peer contact", exportable: true, energyCost: 3, friction: "medium", sensory: "high" },
+  social:  { label: "Social",        sub: "friends, events, time out",           exportable: false, energyCost: 3, friction: "low",   sensory: "high"   },
   systems: { label: "Systems",       sub: "workflows, pricing, proposals",       exportable: true,  energyCost: 2, friction: "medium", sensory: "low"    },
   rest:    { label: "Rest",          sub: "passive / sensory reset / gentle",    exportable: false, energyCost: -2, friction: "low",   sensory: "low"    },
-  social:  { label: "Social",        sub: "friends, events, time out",           exportable: false, energyCost: 3, friction: "low",   sensory: "high"   },
   health:  { label: "Health",        sub: "gym, appointments, movement",         exportable: false, energyCost: 2, friction: "low",   sensory: "medium" },
   office:  { label: "Office Work",   sub: "morning / mid / late shift",          exportable: false, energyCost: 3, friction: "medium", sensory: "medium" },
 };
@@ -45,10 +45,10 @@ const MODE_COLORS = {
   comms:   "rgba(26, 13, 171, 0.75)",  // medium-high exec demand
   growth:  "rgba(26, 13, 171, 1.0)",   // high exec demand — full blue
   content: "rgba(26, 13, 171, 0.9)",   // high exec demand — slightly different blue tint
-  networking: "#FF1493", // hot pink — Social *
+  networking: "#C2185B", // dark hot pink — Social *, deliberately darker than Social below
+  social:  "#F72798",                   // hot magenta/pink — lighter than Social * above
   systems: "rgba(26, 13, 171, 0.5)",   // medium exec demand
   rest:    "#888888",                   // muted grey
-  social:  "#F72798",                   // hot magenta/pink
   health:  "#00a8ff",                   // cyan
   office:  "#aaaaaa",                   // muted grey
 };
@@ -1184,27 +1184,21 @@ function AuthScreen({ onSuccess }) {
             <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "16px", lineHeight: "1.6" }}>
               You can rename each category and describe what it involves in your practice.
             </p>
-            {[
-              { key: "making", defaultLabel: "Making", placeholder: "e.g. casting, wax work, fabrication" },
-              { key: "comms", defaultLabel: "Comms & Admin", placeholder: "e.g. emails, invoices, order tracking" },
-              { key: "growth", defaultLabel: "Growth", placeholder: "e.g. research, residencies, opportunities" },
-              { key: "content", defaultLabel: "Content", placeholder: "e.g. social, posts, photography" },
-              { key: "systems", defaultLabel: "Systems", placeholder: "e.g. workflows, pricing, organising" },
-            ].map(m => (
-              <div key={m.key} style={{ marginBottom: "16px", paddingBottom: "10px", borderBottom: "1px solid #f0f0f0" }}>
-                <p style={{ fontFamily: TNR, fontSize: "11px", color: "#aaa", marginBottom: "4px" }}>Name (default: {m.defaultLabel})</p>
+            {Object.entries(MODES).map(([key, m]) => (
+              <div key={key} style={{ marginBottom: "16px", paddingBottom: "10px", borderBottom: "1px solid #f0f0f0" }}>
+                <p style={{ fontFamily: TNR, fontSize: "11px", color: "#aaa", marginBottom: "4px" }}>Name (default: {m.label})</p>
                 <input 
-                  value={profile.modeLabels?.[m.key] ?? m.defaultLabel} 
-                  onChange={(e) => setProfile({ ...profile, modeLabels: { ...profile.modeLabels, [m.key]: e.target.value } })} 
+                  value={profile.modeLabels?.[key] ?? m.label} 
+                  onChange={(e) => setProfile({ ...profile, modeLabels: { ...profile.modeLabels, [key]: e.target.value } })} 
                   style={{ ...inputAuth, marginBottom: "6px" }} 
-                  placeholder={m.defaultLabel} 
+                  placeholder={m.label} 
                 />
                 <p style={{ fontFamily: TNR, fontSize: "11px", color: "#aaa", marginBottom: "4px" }}>What this involves for you</p>
                 <input 
-                  value={profile.modeDescriptions?.[m.key] || ""} 
-                  onChange={(e) => setProfile({ ...profile, modeDescriptions: { ...profile.modeDescriptions, [m.key]: e.target.value } })} 
+                  value={profile.modeDescriptions?.[key] || ""} 
+                  onChange={(e) => setProfile({ ...profile, modeDescriptions: { ...profile.modeDescriptions, [key]: e.target.value } })} 
                   style={inputAuth} 
-                  placeholder={m.placeholder} 
+                  placeholder={`e.g. ${m.sub}`} 
                 />
               </div>
             ))}
@@ -1242,23 +1236,17 @@ function AuthScreen({ onSuccess }) {
             <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "16px", lineHeight: "1.6" }}>
               How many blocks of each type do you want to do per week?
             </p>
-            {[
-              { key: "making", label: "Making" },
-              { key: "comms", label: "Comms & Admin" },
-              { key: "growth", label: "Growth" },
-              { key: "content", label: "Content" },
-              { key: "systems", label: "Systems" },
-            ].map(m => (
-              <div key={m.key} style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
-                <span style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", flex: 1 }}>{m.label}</span>
+            {Object.entries(MODES).map(([key, m]) => (
+              <div key={key} style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
+                <span style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", flex: 1 }}>{profile.modeLabels?.[key] || m.label}</span>
                 <div style={{ display: "flex", gap: "4px" }}>
                   {[0, 1, 2, 3, 4, 5].map(n => (
-                    <span key={n} onClick={() => setProfile({ ...profile, weeklyTargets: { ...profile.weeklyTargets, [m.key]: n } })}
+                    <span key={n} onClick={() => setProfile({ ...profile, weeklyTargets: { ...profile.weeklyTargets, [key]: n } })}
                       style={{
                         fontFamily: TNR, fontSize: "12px",
                         padding: "4px 10px",
-                        border: `1px solid ${profile.weeklyTargets?.[m.key] === n ? LINK_BLUE : "#ddd"}`,
-                        color: profile.weeklyTargets?.[m.key] === n ? LINK_BLUE : "#888",
+                        border: `1px solid ${profile.weeklyTargets?.[key] === n ? LINK_BLUE : "#ddd"}`,
+                        color: profile.weeklyTargets?.[key] === n ? LINK_BLUE : "#888",
                         cursor: "pointer",
                       }}>{n}</span>
                   ))}
@@ -1518,27 +1506,21 @@ function ProfileEditScreen({ profile, onSave, onCancel }) {
         <p style={{ fontFamily: TNR, fontSize: "11px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
           Rename categories and describe what each involves for you.
         </p>
-        {[
-          { key: "making", defaultLabel: "Making" },
-          { key: "comms", defaultLabel: "Comms & Admin" },
-          { key: "growth", defaultLabel: "Growth" },
-          { key: "content", defaultLabel: "Content" },
-          { key: "systems", defaultLabel: "Systems" },
-        ].map(m => (
-          <div key={m.key} style={{ marginBottom: "16px", paddingBottom: "10px", borderBottom: "1px solid #f0f0f0" }}>
-            <p style={{ fontFamily: TNR, fontSize: "11px", color: "#aaa", marginBottom: "4px" }}>Name (default: {m.defaultLabel})</p>
+        {Object.entries(MODES).map(([key, m]) => (
+          <div key={key} style={{ marginBottom: "16px", paddingBottom: "10px", borderBottom: "1px solid #f0f0f0" }}>
+            <p style={{ fontFamily: TNR, fontSize: "11px", color: "#aaa", marginBottom: "4px" }}>Name (default: {m.label})</p>
             <input 
-              value={editProfile.modeLabels?.[m.key] ?? m.defaultLabel} 
-              onChange={(e) => setEditProfile({ ...editProfile, modeLabels: { ...editProfile.modeLabels, [m.key]: e.target.value } })} 
+              value={editProfile.modeLabels?.[key] ?? m.label} 
+              onChange={(e) => setEditProfile({ ...editProfile, modeLabels: { ...editProfile.modeLabels, [key]: e.target.value } })} 
               style={{ ...inputAuth, marginBottom: "6px" }} 
-              placeholder={m.defaultLabel} 
+              placeholder={m.label} 
             />
             <p style={{ fontFamily: TNR, fontSize: "11px", color: "#aaa", marginBottom: "4px" }}>What this involves for you</p>
             <input 
-              value={editProfile.modeDescriptions?.[m.key] || ""} 
-              onChange={(e) => setEditProfile({ ...editProfile, modeDescriptions: { ...editProfile.modeDescriptions, [m.key]: e.target.value } })} 
+              value={editProfile.modeDescriptions?.[key] || ""} 
+              onChange={(e) => setEditProfile({ ...editProfile, modeDescriptions: { ...editProfile.modeDescriptions, [key]: e.target.value } })} 
               style={inputAuth} 
-              placeholder={`What does ${m.defaultLabel.toLowerCase()} involve for you?`} 
+              placeholder={`What does ${m.label.toLowerCase()} involve for you?`} 
             />
           </div>
         ))}
@@ -1548,23 +1530,17 @@ function ProfileEditScreen({ profile, onSave, onCancel }) {
         <p style={{ fontFamily: TNR, fontSize: "11px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
           How many blocks of each type per week?
         </p>
-        {[
-          { key: "making", label: "Making" },
-          { key: "comms", label: "Comms & Admin" },
-          { key: "growth", label: "Growth" },
-          { key: "content", label: "Content" },
-          { key: "systems", label: "Systems" },
-        ].map(m => (
-          <div key={m.key} style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
-            <span style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", flex: 1 }}>{m.label}</span>
+        {Object.entries(MODES).map(([key, m]) => (
+          <div key={key} style={{ marginBottom: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", flex: 1 }}>{editProfile.modeLabels?.[key] || m.label}</span>
             <div style={{ display: "flex", gap: "4px" }}>
               {[0, 1, 2, 3, 4, 5].map(n => (
-                <span key={n} onClick={() => setEditProfile({ ...editProfile, weeklyTargets: { ...editProfile.weeklyTargets, [m.key]: n } })}
+                <span key={n} onClick={() => setEditProfile({ ...editProfile, weeklyTargets: { ...editProfile.weeklyTargets, [key]: n } })}
                   style={{
                     fontFamily: TNR, fontSize: "12px",
                     padding: "4px 10px",
-                    border: `1px solid ${editProfile.weeklyTargets?.[m.key] === n ? LINK_BLUE : "#ddd"}`,
-                    color: editProfile.weeklyTargets?.[m.key] === n ? LINK_BLUE : "#888",
+                    border: `1px solid ${editProfile.weeklyTargets?.[key] === n ? LINK_BLUE : "#ddd"}`,
+                    color: editProfile.weeklyTargets?.[key] === n ? LINK_BLUE : "#888",
                     cursor: "pointer",
                   }}>{n}</span>
               ))}
@@ -1977,13 +1953,16 @@ const [, setAuthTimestamp] = useState(0);
 
   const today = getToday();
 
-  // Build weekly targets from profile
-  const WEEKLY_TARGETS = [
-    { mode: "making",  min: profile.weeklyTargets?.making  ?? 2, label: `${profile.weeklyTargets?.making  ?? 2} Making blocks` },
-    { mode: "comms",   min: profile.weeklyTargets?.comms   ?? 2, label: `${profile.weeklyTargets?.comms   ?? 2} Comms & Admin` },
-    { mode: "growth",  min: profile.weeklyTargets?.growth  ?? 1, label: `${profile.weeklyTargets?.growth  ?? 1} Growth` },
-    { mode: "systems", min: profile.weeklyTargets?.systems ?? 1, label: `${profile.weeklyTargets?.systems ?? 1} Systems` },
-  ];
+  // Build weekly targets from profile — dynamic across every mode, not just the
+  // original hardcoded four. Only modes with a target above 0 show up here, so
+  // rest/social/health/office/Social * stay out of the way unless the user
+  // deliberately sets a weekly minimum for one of them in Edit Profile.
+  const WEEKLY_TARGETS = Object.entries(MODES)
+    .map(([key, m]) => {
+      const min = profile.weeklyTargets?.[key] ?? DEFAULT_PROFILE.weeklyTargets[key] ?? 0;
+      return { mode: key, min, label: `${min} ${profile.modeLabels?.[key] || m.label}` };
+    })
+    .filter(t => t.min > 0);
 
   const progress = WEEKLY_TARGETS.map(t => ({ ...t, current: countBlocks(t.mode), met: countBlocks(t.mode) >= t.min }));
 

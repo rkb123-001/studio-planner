@@ -10,6 +10,7 @@ const EXEC_INTENSITY = {
   growth:  { intensity: 4, opacity: 1.0,  desc: "high executive demand" },   // #1a0dab at 100%
   content: { intensity: 4, opacity: 0.9,  desc: "high executive demand" },   // #1a0dab at 90%
   comms:   { intensity: 3, opacity: 0.75, desc: "medium-high executive demand" }, // #1a0dab at 75%
+  networking: { intensity: 3, opacity: 0.6, desc: "medium-high executive demand" }, // #1a0dab at 60%
   systems: { intensity: 2, opacity: 0.5,  desc: "medium executive demand" },  // #1a0dab at 50%
   making:  { intensity: 1, opacity: 0.25, desc: "low executive demand" },     // #1a0dab at 25%
 };
@@ -22,6 +23,7 @@ const MODES = {
   comms:   { label: "Comms & Admin", sub: "emails, invoices, order tracking",    exportable: true,  energyCost: 3, friction: "high",   sensory: "medium" },
   growth:  { label: "Growth",        sub: "research, residencies, opportunities", exportable: true,  energyCost: 4, friction: "high",   sensory: "high"   },
   content: { label: "Content",       sub: "social, posts, photography",          exportable: true,  energyCost: 4, friction: "high",   sensory: "high"   },
+  networking: { label: "Networking", sub: "studio visits, private views, peer contact", exportable: true, energyCost: 3, friction: "medium", sensory: "high" },
   systems: { label: "Systems",       sub: "workflows, pricing, proposals",       exportable: true,  energyCost: 2, friction: "medium", sensory: "low"    },
   rest:    { label: "Rest",          sub: "passive / sensory reset / gentle",    exportable: false, energyCost: -2, friction: "low",   sensory: "low"    },
   social:  { label: "Social",        sub: "friends, events, time out",           exportable: false, energyCost: 3, friction: "low",   sensory: "high"   },
@@ -43,6 +45,7 @@ const MODE_COLORS = {
   comms:   "rgba(26, 13, 171, 0.75)",  // medium-high exec demand
   growth:  "rgba(26, 13, 171, 1.0)",   // high exec demand — full blue
   content: "rgba(26, 13, 171, 0.9)",   // high exec demand — slightly different blue tint
+  networking: "rgba(26, 13, 171, 0.6)", // medium-high exec demand
   systems: "rgba(26, 13, 171, 0.5)",   // medium exec demand
   rest:    "#888888",                   // muted grey
   social:  "#F72798",                   // hot magenta/pink
@@ -53,7 +56,7 @@ const MODE_COLORS = {
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 // Work mode keys (excludes rest, social, health, office) — used in many places
-const WORK_MODES = ["making", "comms", "growth", "content", "systems"];
+const WORK_MODES = ["making", "comms", "growth", "content", "systems", "networking"];
 
 // 2-hour slots, 7am–9pm
 const TIME_SLOTS = [
@@ -208,6 +211,66 @@ const emptyProject = () => ({
   isProtectedFineArt: false,
 });
 
+// ── Art projects: fine-art production pipeline, London ecosystem ──────────────
+// A separate, dedicated tracker from the general Quarterly goals above — this one
+// models the actual lifecycle a fine art project moves through, from first idea to
+// post-show, with stages specific to operating within London's funding and
+// exhibition ecosystem.
+const ART_STAGES = [
+  { key: "research",         label: "Research & Development", desc: "Concept development, material tests, studio experimentation, references." },
+  { key: "funding",          label: "Funding & Applications",  desc: "Grant and bursary applications — see funding bodies below." },
+  { key: "budget",           label: "Budget & Logistics",      desc: "Costing materials and fabrication, insurance, transport and storage quotes." },
+  { key: "production",       label: "Production",              desc: "Making the work." },
+  { key: "review",           label: "Studio Visits & Peer Review", desc: "Studio visit prep, critique, curator or gallerist visits." },
+  { key: "pitching",         label: "Submission & Pitching",   desc: "Open calls, gallery approaches, curator pitches, applications to group or solo shows." },
+  { key: "exhibition_prep",  label: "Exhibition Prep",         desc: "Framing, install plan, invigilation rota, press release, private view logistics." },
+  { key: "press",            label: "Press & Documentation",   desc: "Photography, video, press outreach, social content." },
+  { key: "install",          label: "Install & Private View",  desc: "Installation, private view, opening." },
+  { key: "post_show",        label: "Post-show",               desc: "Sales, deinstall, storage, archiving documentation, reviews, follow-up." },
+];
+
+const ART_PROJECT_STATUSES = [
+  { key: "active",   label: "Active" },
+  { key: "paused",   label: "Paused" },
+  { key: "complete", label: "Complete" },
+  { key: "declined", label: "Declined / not taken forward" },
+];
+
+// Reference list for the funding stage — London-specific, editable free text field
+// so this isn't a hard constraint, just a prompt.
+const LONDON_FUNDING_BODIES = [
+  "Arts Council England — Project Grants",
+  "DYCP (Developing Your Creative Practice)",
+  "a-n Artists Bursaries",
+  "Elephant Trust",
+  "Henry Moore Foundation",
+  "Freelands Foundation",
+  "Cockayne Grants (London Community Foundation)",
+  "Jerwood Arts",
+  "Paul Hamlyn Foundation",
+  "Contemporary Art Society",
+  "Studio Voltaire",
+  "Gasworks",
+  "Self-funded",
+  "Gallery-backed",
+  "Other",
+];
+
+const emptyArtProject = () => ({
+  id: Date.now() + Math.random(),
+  title: "",
+  medium: "",
+  stage: "research",
+  status: "active",
+  fundingBody: "",
+  fundingAmount: "",
+  keyDateLabel: "",
+  keyDate: "",
+  budgetEstimate: "",
+  budgetActual: "",
+  notes: "",
+});
+
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 // Note: pill function was removed - using boxBtn instead
@@ -274,6 +337,7 @@ const DEFAULT_PROFILE = {
     growth: 4,
     content: 4,
     comms: 3,
+    networking: 3,
     systems: 2,
     making: 1,
   },
@@ -284,6 +348,7 @@ const DEFAULT_PROFILE = {
     comms: "Comms & Admin",
     growth: "Growth",
     content: "Content",
+    networking: "Networking",
     systems: "Systems",
   },
   // Mode descriptions — what each type of work involves for the user (editable defaults)
@@ -292,9 +357,12 @@ const DEFAULT_PROFILE = {
     comms: "emails, invoices, order tracking",
     growth: "research, residencies, opportunities",
     content: "social, posts, photography",
+    networking: "studio visits, private views, peer contact",
     systems: "workflows, pricing, organising",
   },
   // Weekly targets — minimum blocks of each type per week
+  // Networking is deliberately not here — it runs on a fortnightly cadence,
+  // tracked separately via lastNetworkingDate rather than a weekly count.
   weeklyTargets: {
     making: 2,
     comms: 2,
@@ -302,6 +370,10 @@ const DEFAULT_PROFILE = {
     content: 1,
     systems: 1,
   },
+  // Networking cadence — minimum days between networking contact (studio visits,
+  // private views, peer check-ins). Tracked via lastNetworkingDate below.
+  networkingCadenceDays: 14,
+  lastNetworkingDate: null,
   // Fine art / protected practice — customisable terminology (editable defaults)
   protectedPractice: {
     enabled: true,
@@ -531,9 +603,10 @@ const isEffectivelyEmpty = (d) => {
     !day || Object.values(day).every(slot => !slot)
   );
   const noProjects = !d.projects || d.projects.length === 0;
+  const noArtProjects = !d.artProjects || d.artProjects.length === 0;
   const noArchive = !d.archive || d.archive.length === 0;
   const noProfile = !d.profile || (!d.profile.name?.trim() && !d.profile.role?.trim());
-  return scheduleEmpty && noProjects && noArchive && noProfile;
+  return scheduleEmpty && noProjects && noArtProjects && noArchive && noProfile;
 };
 
 const saveToSupabase = async (d) => {
@@ -558,6 +631,7 @@ const saveToSupabase = async (d) => {
         const existingData = {
           schedule: existing[0].schedule,
           projects: existing[0].projects,
+          artProjects: existing[0].art_projects,
           archive: existing[0].archive,
           profile: existing[0].profile,
         };
@@ -586,6 +660,7 @@ const saveToSupabase = async (d) => {
         social_done: d.socialDone,
         week_note: d.weekNote,
         projects: d.projects,
+        art_projects: d.artProjects,
         archive: d.archive,
         day_energy_levels: d.dayEnergyLevels,
         profile: d.profile,
@@ -610,6 +685,7 @@ const saveToSupabase = async (d) => {
             social_done: d.socialDone,
             week_note: d.weekNote,
             projects: d.projects,
+            art_projects: d.artProjects,
             archive: d.archive,
             day_energy_levels: d.dayEnergyLevels,
             profile: d.profile,
@@ -647,10 +723,12 @@ const loadFromSupabase = async () => {
     let profileFallback = null;
     let archiveFallback = null;
     let projectsFallback = null;
+    let artProjectsFallback = null;
 
     const needsFallback = !data || !data[0] || !data[0].profile
       || !data[0].archive || data[0].archive.length === 0
-      || !data[0].projects || data[0].projects.length === 0;
+      || !data[0].projects || data[0].projects.length === 0
+      || !data[0].art_projects || data[0].art_projects.length === 0;
 
     if (needsFallback) {
       const allResp = await fetch(
@@ -695,12 +773,21 @@ const loadFromSupabase = async () => {
         });
         const mergedProjects = Object.values(projectsById);
         if (mergedProjects.length) projectsFallback = mergedProjects;
+
+        // Same merge treatment for art projects.
+        const artProjectsById = {};
+        allData.forEach(row => {
+          (row.art_projects || []).forEach(p => { if (p.id !== undefined) artProjectsById[p.id] = p; });
+        });
+        const mergedArtProjects = Object.values(artProjectsById);
+        if (mergedArtProjects.length) artProjectsFallback = mergedArtProjects;
       }
     }
 
     if (data && data[0]) {
       const archive = (data[0].archive && data[0].archive.length) ? data[0].archive : (archiveFallback || data[0].archive);
       const projects = (data[0].projects && data[0].projects.length) ? data[0].projects : (projectsFallback || data[0].projects);
+      const artProjects = (data[0].art_projects && data[0].art_projects.length) ? data[0].art_projects : (artProjectsFallback || data[0].art_projects);
       return {
         schedule: data[0].schedule,
         checklist: data[0].checklist,
@@ -710,14 +797,15 @@ const loadFromSupabase = async () => {
         socialDone: data[0].social_done,
         weekNote: data[0].week_note,
         projects,
+        artProjects,
         archive,
         dayEnergyLevels: data[0].day_energy_levels,
         profile: data[0].profile || profileFallback,
       };
-    } else if (profileFallback || archiveFallback || projectsFallback) {
+    } else if (profileFallback || archiveFallback || projectsFallback || artProjectsFallback) {
       // No row for this week yet — hand back whatever we could reconstruct so a
       // fresh week never starts blinder than it needs to.
-      return { profile: profileFallback, archive: archiveFallback, projects: projectsFallback };
+      return { profile: profileFallback, archive: archiveFallback, projects: projectsFallback, artProjects: artProjectsFallback };
     }
   } catch (e) {
     console.log("Supabase load error (using local):", e);
@@ -1180,6 +1268,13 @@ function AuthScreen({ onSuccess }) {
             </p>
             <input value={profile.socialGoal || ""} onChange={(e) => setProfile({ ...profile, socialGoal: e.target.value })} style={inputAuth} placeholder="e.g. 1 meaningful connection this week" />
 
+            {/* Networking cadence */}
+            <p style={{ ...sml, marginBottom: "8px", marginTop: "16px" }}>Networking cadence</p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
+              Minimum days between studio visits, private views, or peer contact.
+            </p>
+            <input type="number" min="1" value={profile.networkingCadenceDays ?? 14} onChange={(e) => setProfile({ ...profile, networkingCadenceDays: parseInt(e.target.value, 10) || 14 })} style={inputAuth} placeholder="14" />
+
             {/* Week evaluation */}
             <p style={{ ...sml, marginBottom: "12px", marginTop: "16px" }}>Week evaluation</p>
             <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
@@ -1477,6 +1572,10 @@ function ProfileEditScreen({ profile, onSave, onCancel }) {
         <p style={{ ...sml, marginBottom: "8px", marginTop: "16px" }}>Social goal</p>
         <input value={editProfile.socialGoal || ""} onChange={(e) => setEditProfile({ ...editProfile, socialGoal: e.target.value })} style={inputAuth} placeholder="e.g. 1 meaningful connection this week" />
 
+        {/* Networking cadence */}
+        <p style={{ ...sml, marginBottom: "8px", marginTop: "16px" }}>Networking cadence (days)</p>
+        <input type="number" min="1" value={editProfile.networkingCadenceDays ?? 14} onChange={(e) => setEditProfile({ ...editProfile, networkingCadenceDays: parseInt(e.target.value, 10) || 14 })} style={inputAuth} placeholder="14" />
+
         {/* Week evaluation */}
         <p style={{ ...sml, marginBottom: "12px", marginTop: "16px" }}>Week evaluation</p>
         <p style={{ fontFamily: TNR, fontSize: "11px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
@@ -1628,6 +1727,12 @@ const [, setAuthTimestamp] = useState(0);
   const [editingProject, setEditingProject] = useState(null);
   const [qFilter, setQFilter]             = useState("all");
 
+  // Art projects — dedicated fine-art production pipeline
+  const [artProjects, setArtProjects]     = useState(saved?.artProjects || []);
+  const [editingArtProject, setEditingArtProject] = useState(null);
+  const [artStatusFilter, setArtStatusFilter] = useState("active");
+  const [showArtGuide, setShowArtGuide]   = useState(false);
+
   // Calendar
   const [calStatus, setCalStatus]         = useState(null);
   const [isExporting, setIsExporting]     = useState(false);
@@ -1652,6 +1757,7 @@ const [, setAuthTimestamp] = useState(0);
           if (cloudData.socialDone !== undefined) setSocialDone(cloudData.socialDone);
           if (cloudData.weekNote !== undefined) setWeekNote(cloudData.weekNote);
           if (cloudData.projects) setProjects(cloudData.projects);
+          if (cloudData.artProjects) setArtProjects(cloudData.artProjects);
           if (cloudData.archive) setArchive(cloudData.archive);
           if (cloudData.dayEnergyLevels) setDayEnergyLevels(cloudData.dayEnergyLevels);
           if (cloudData.profile) {
@@ -1669,7 +1775,7 @@ const [, setAuthTimestamp] = useState(0);
   // CRITICAL: Only saves to cloud AFTER we have completed an initial load from cloud
   // AND the user has made at least one real interaction.
   useEffect(() => {
-    const data = { schedule, checklist, successMetrics, healthTargets, restTargets, socialDone, weekNote, projects, archive, dayEnergyLevels, profile };
+    const data = { schedule, checklist, successMetrics, healthTargets, restTargets, socialDone, weekNote, projects, artProjects, archive, dayEnergyLevels, profile };
     // Always safe to save locally (per-device)
     saveLocal(data);
     
@@ -1679,14 +1785,14 @@ const [, setAuthTimestamp] = useState(0);
     if (USE_SUPABASE && supabaseLoaded && hasUserInteracted) {
       saveToSupabase(data);
     }
-  }, [schedule, checklist, successMetrics, healthTargets, restTargets, socialDone, weekNote, projects, archive, dayEnergyLevels, profile, supabaseLoaded, hasUserInteracted]);
+  }, [schedule, checklist, successMetrics, healthTargets, restTargets, socialDone, weekNote, projects, artProjects, archive, dayEnergyLevels, profile, supabaseLoaded, hasUserInteracted]);
 
   // Track last save time so we don't fight with our own saves
   const [lastSaveTime, setLastSaveTime] = useState(0);
 
   useEffect(() => {
     setLastSaveTime(Date.now());
-  }, [schedule, checklist, successMetrics, healthTargets, restTargets, socialDone, weekNote, projects, archive, dayEnergyLevels, profile]);
+  }, [schedule, checklist, successMetrics, healthTargets, restTargets, socialDone, weekNote, projects, artProjects, archive, dayEnergyLevels, profile]);
 
   // Real-time sync: poll Supabase every 5s + refresh on tab focus
   useEffect(() => {
@@ -1702,9 +1808,11 @@ const [, setAuthTimestamp] = useState(0);
         // SKIP the sync. This prevents another device's bad save from wiping our good data.
         const cloudIsEmpty = (!cloudData.schedule || Object.values(cloudData.schedule).every(d => !d || Object.values(d).every(s => !s)))
           && (!cloudData.projects || cloudData.projects.length === 0)
+          && (!cloudData.artProjects || cloudData.artProjects.length === 0)
           && (!cloudData.archive || cloudData.archive.length === 0);
         const localIsRich = (schedule && Object.values(schedule).some(d => d && Object.values(d).some(s => s)))
           || (projects && projects.length > 0)
+          || (artProjects && artProjects.length > 0)
           || (archive && archive.length > 0);
         if (cloudIsEmpty && localIsRich) {
           console.warn("[syncFromCloud] BLOCKED sync: cloud data is empty but local data is rich. Refusing to overwrite local.");
@@ -1737,6 +1845,9 @@ const [, setAuthTimestamp] = useState(0);
         }
         if (cloudData.projects && JSON.stringify(cloudData.projects) !== JSON.stringify(projects)) {
           setProjects(cloudData.projects);
+        }
+        if (cloudData.artProjects && JSON.stringify(cloudData.artProjects) !== JSON.stringify(artProjects)) {
+          setArtProjects(cloudData.artProjects);
         }
         if (cloudData.archive && JSON.stringify(cloudData.archive) !== JSON.stringify(archive)) {
           setArchive(cloudData.archive);
@@ -2205,6 +2316,15 @@ const [, setAuthTimestamp] = useState(0);
   };
   const updateProject = (id, field, value) => { setHasUserInteracted(true); setProjects(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p)); };
   const deleteProject = (id) => { setHasUserInteracted(true); setProjects(prev => prev.filter(p => p.id !== id)); if (editingProject === id) setEditingProject(null); };
+
+  const addArtProject = () => {
+    setHasUserInteracted(true);
+    const p = emptyArtProject();
+    setArtProjects(prev => [...prev, p]);
+    setEditingArtProject(p.id);
+  };
+  const updateArtProject = (id, field, value) => { setHasUserInteracted(true); setArtProjects(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p)); };
+  const deleteArtProject = (id) => { setHasUserInteracted(true); setArtProjects(prev => prev.filter(p => p.id !== id)); if (editingArtProject === id) setEditingArtProject(null); };
   const stuckReset = () => { setStuckOpen(false); setStuckStep(0); setStuckEnergy(null); };
   const runway = stuckEnergy ? RUNWAY_MAP[stuckEnergy] : null;
 
@@ -2291,6 +2411,58 @@ const [, setAuthTimestamp] = useState(0);
                 </label>
               )}
               <span style={{ marginLeft: "auto", fontFamily: TNR, fontSize: "13px", color: "#888", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }} onClick={() => deleteProject(p.id)}>remove</span>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderArtProjectRow = (p) => {
+    const stageObj = ART_STAGES.find(s => s.key === p.stage) || ART_STAGES[0];
+    const statusObj = ART_PROJECT_STATUSES.find(s => s.key === p.status) || ART_PROJECT_STATUSES[0];
+    const isEditing = editingArtProject === p.id;
+    const statusColor = {
+      active: "#b01904", paused: "#e8c070", complete: "#0fa97f", declined: "#888",
+    }[p.status] || "#888";
+    return (
+      <div key={p.id} style={{ marginBottom: "2px" }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: "16px", padding: "10px 0", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}
+          onClick={() => setEditingArtProject(isEditing ? null : p.id)}>
+          <span style={{ fontFamily: TNR, fontSize: "12px", color: "#888", width: "90px", flexShrink: 0 }}>
+            {p.keyDate ? new Date(p.keyDate + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}
+          </span>
+          <span style={{ flex: 1, display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
+            <span style={{ fontFamily: TNR, fontSize: "15px", color: p.title ? "#b01904" : "#888",
+              textDecoration: p.title ? "underline" : "none", textUnderlineOffset: "2px", textDecorationColor: "#b01904",
+            }}>{p.title || "Untitled project"}</span>
+            {p.fundingBody && <span style={{ fontFamily: TNR, fontSize: "12px", color: "#888" }}>· {p.fundingBody}</span>}
+          </span>
+          <span style={{ fontFamily: TNR, fontSize: "12px", color: statusColor, flexShrink: 0 }}>{statusObj.label}</span>
+        </div>
+
+        {isEditing && (
+          <div style={{ padding: "16px 0 22px 106px", borderBottom: "1px solid #f0f0f0" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "14px" }}>
+              <div><p style={{ ...sml, marginBottom: "5px" }}>Title</p><input style={inp} value={p.title} onChange={e => updateArtProject(p.id, "title", e.target.value)} placeholder="Project title" /></div>
+              <div><p style={{ ...sml, marginBottom: "5px" }}>Medium</p><input style={inp} value={p.medium} onChange={e => updateArtProject(p.id, "medium", e.target.value)} placeholder="e.g. cast bronze, kinetic" /></div>
+              <div><p style={{ ...sml, marginBottom: "5px" }}>Stage</p><select style={{ ...inp, cursor: "pointer" }} value={p.stage} onChange={e => updateArtProject(p.id, "stage", e.target.value)}>{ART_STAGES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}</select></div>
+              <div><p style={{ ...sml, marginBottom: "5px" }}>Status</p><select style={{ ...inp, cursor: "pointer" }} value={p.status} onChange={e => updateArtProject(p.id, "status", e.target.value)}>{ART_PROJECT_STATUSES.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}</select></div>
+              <div>
+                <p style={{ ...sml, marginBottom: "5px" }}>Funding body</p>
+                <input style={inp} list="funding-bodies" value={p.fundingBody} onChange={e => updateArtProject(p.id, "fundingBody", e.target.value)} placeholder="Start typing or choose…" />
+                <datalist id="funding-bodies">{LONDON_FUNDING_BODIES.map(f => <option key={f} value={f} />)}</datalist>
+              </div>
+              <div><p style={{ ...sml, marginBottom: "5px" }}>Funding amount</p><input style={inp} value={p.fundingAmount} onChange={e => updateArtProject(p.id, "fundingAmount", e.target.value)} placeholder="e.g. £8,000 or TBC" /></div>
+              <div><p style={{ ...sml, marginBottom: "5px" }}>Key date label</p><input style={inp} value={p.keyDateLabel} onChange={e => updateArtProject(p.id, "keyDateLabel", e.target.value)} placeholder="e.g. application deadline, install date" /></div>
+              <div><p style={{ ...sml, marginBottom: "5px" }}>Key date</p><input type="date" style={inp} value={p.keyDate} onChange={e => updateArtProject(p.id, "keyDate", e.target.value)} /></div>
+              <div><p style={{ ...sml, marginBottom: "5px" }}>Budget — estimate</p><input style={inp} value={p.budgetEstimate} onChange={e => updateArtProject(p.id, "budgetEstimate", e.target.value)} placeholder="e.g. £2,500" /></div>
+              <div><p style={{ ...sml, marginBottom: "5px" }}>Budget — actual</p><input style={inp} value={p.budgetActual} onChange={e => updateArtProject(p.id, "budgetActual", e.target.value)} placeholder="e.g. £2,180" /></div>
+            </div>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "14px" }}>{stageObj.desc}</p>
+            <div style={{ marginBottom: "12px" }}><p style={{ ...sml, marginBottom: "5px" }}>Notes</p><textarea value={p.notes} onChange={e => updateArtProject(p.id, "notes", e.target.value)} placeholder="Context, contacts, risks..." style={{ ...inp, minHeight: "52px", resize: "vertical", lineHeight: "1.6" }} /></div>
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }} onClick={() => deleteArtProject(p.id)}>remove</span>
             </div>
           </div>
         )}
@@ -2417,7 +2589,7 @@ const [, setAuthTimestamp] = useState(0);
 
       {/* ── Tabs as boxed buttons ── */}
       <div style={{ textAlign: "center", marginBottom: "52px", display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
-        {[["today","Today"],["grid","Grid"],["targets","Targets"],["quarterly","Quarterly"],["plan","Plan"],["archive","Archive"]].map(([key, lbl]) => (
+        {[["today","Today"],["grid","Grid"],["targets","Targets"],["quarterly","Quarterly"],["art","Art Projects"],["plan","Plan"],["archive","Archive"]].map(([key, lbl]) => (
           <span key={key} onClick={() => setTab(key)} style={boxBtn(tab === key)}>{lbl}</span>
         ))}
       </div>
@@ -2904,6 +3076,41 @@ const [, setAuthTimestamp] = useState(0);
             {countSlots("social") > 3 && <p style={{ fontFamily: TNR, fontSize: "12px", color: "#c8a050", marginTop: "8px" }}>{countSlots("social")} social slots — protect some evenings.</p>}
           </div>
 
+          {/* Networking */}
+          <div style={{ marginBottom: "32px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
+              <span style={sml}>Networking</span>
+              <span style={{ fontFamily: TNR, fontSize: "12px", color: "#aaa" }}>min every {profile.networkingCadenceDays || 14} days</span>
+            </div>
+            {(() => {
+              const cadence = profile.networkingCadenceDays || 14;
+              const last = profile.lastNetworkingDate ? new Date(profile.lastNetworkingDate + "T00:00:00") : null;
+              const daysSince = last ? Math.floor((new Date().setHours(0,0,0,0) - last.getTime()) / 86400000) : null;
+              const overdue = daysSince !== null && daysSince > cadence;
+              const dueSoon = daysSince !== null && daysSince >= cadence - 3 && daysSince <= cadence;
+              const statusColor = overdue ? "#b01904" : dueSoon ? "#c8a050" : "#1a1a1a";
+              const statusText = last === null
+                ? "No networking logged yet."
+                : daysSince === 0
+                  ? "Marked today."
+                  : `Last: ${daysSince} day${daysSince === 1 ? "" : "s"} ago${overdue ? " — overdue" : dueSoon ? " — due soon" : ""}.`;
+              return (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "8px 0", borderBottom: "1px solid #f0f0f0", flexWrap: "wrap", gap: "10px" }}>
+                  <span style={{ fontFamily: TNR, fontSize: "14px", color: statusColor }}>
+                    {statusText}
+                  </span>
+                  <span onClick={() => { setHasUserInteracted(true); setProfile({ ...profile, lastNetworkingDate: new Date().toISOString().split("T")[0] }); }}
+                    style={{ fontFamily: TNR, fontSize: "13px", color: LINK_BLUE, textDecoration: "underline", textUnderlineOffset: "2px", cursor: "pointer" }}>
+                    Mark done today
+                  </span>
+                </div>
+              );
+            })()}
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb", marginTop: "8px" }}>
+              Studio visits, private views, peer check-ins, curator contact — anything that keeps you in the London ecosystem's loop.
+            </p>
+          </div>
+
           {/* Success metrics */}
           <div style={{ marginBottom: "32px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
@@ -3082,6 +3289,68 @@ const [, setAuthTimestamp] = useState(0);
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ════ ART PROJECTS ════ */}
+      {tab === "art" && (
+        <div style={{ maxWidth: "720px", margin: "0 auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "10px", flexWrap: "wrap", gap: "10px" }}>
+            <span style={sml}>Art projects</span>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+              <span onClick={() => setShowArtGuide(!showArtGuide)} style={{ ...boxBtn(showArtGuide), fontSize: "12px", padding: "4px 12px" }}>Stage guide</span>
+              <span onClick={addArtProject} style={{ ...linkStyle, fontSize: "13px", marginLeft: "4px" }}>+ Add project</span>
+            </div>
+          </div>
+          <p style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb", marginBottom: "24px" }}>
+            The production pipeline for fine art projects, from first idea to post-show — separate from the general goals in Quarterly.
+          </p>
+
+          {showArtGuide && (
+            <div style={{ marginBottom: "28px", padding: "16px 0", borderTop: "1px solid #f0f0f0", borderBottom: "1px solid #f0f0f0" }}>
+              <p style={{ ...sml, marginBottom: "12px" }}>Stages</p>
+              {ART_STAGES.map((s, i) => (
+                <p key={s.key} style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", lineHeight: "1.8", marginBottom: "4px" }}>
+                  <span style={{ color: "#888" }}>{i + 1}.</span> <strong>{s.label}</strong> — <span style={{ color: "#888" }}>{s.desc}</span>
+                </p>
+              ))}
+              <p style={{ ...sml, marginTop: "18px", marginBottom: "10px" }}>Funding — London reference points</p>
+              <p style={{ fontFamily: TNR, fontSize: "13px", color: "#888", lineHeight: "1.8" }}>
+                {LONDON_FUNDING_BODIES.filter(f => f !== "Self-funded" && f !== "Gallery-backed" && f !== "Other").join(" · ")}
+              </p>
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "28px" }}>
+            {["active", "all", ...ART_PROJECT_STATUSES.map(s => s.key).filter(k => k !== "active")].map(f => (
+              <span key={f} onClick={() => setArtStatusFilter(f)}
+                style={{
+                  fontFamily: TNR, fontSize: "13px", cursor: "pointer",
+                  color: artStatusFilter === f ? LINK_BLUE : "#888",
+                  textDecoration: artStatusFilter === f ? "underline" : "none",
+                  textUnderlineOffset: "2px",
+                }}>
+                {f === "all" ? "All" : (ART_PROJECT_STATUSES.find(s => s.key === f)?.label || f)}
+              </span>
+            ))}
+          </div>
+
+          {artProjects.length === 0 && (
+            <div style={{ textAlign: "center", fontFamily: TNR, fontSize: "17px", lineHeight: "2", color: "#bbb" }}>
+              <div>No art projects yet.</div><div>Add your first.</div>
+            </div>
+          )}
+
+          {ART_STAGES.map(stage => {
+            const stageProjects = artProjects.filter(p => p.stage === stage.key && (artStatusFilter === "all" || p.status === artStatusFilter));
+            if (stageProjects.length === 0) return null;
+            return (
+              <div key={stage.key} style={{ marginBottom: "32px" }}>
+                <p style={{ ...sml, marginBottom: "12px" }}>{stage.label}</p>
+                {stageProjects.map(p => renderArtProjectRow(p))}
+              </div>
+            );
+          })}
         </div>
       )}
 

@@ -9,8 +9,8 @@ const LINK_BLUE = "#1a0dab";
 const EXEC_INTENSITY = {
   growth:  { intensity: 4, opacity: 1.0,  desc: "high executive demand" },   // #1a0dab at 100%
   content: { intensity: 4, opacity: 0.9,  desc: "high executive demand" },   // #1a0dab at 90%
+  networking: { intensity: 4, opacity: 1.0, desc: "high executive demand" }, // Social * — colour stays hot pink, not blue; see MODE_COLORS
   comms:   { intensity: 3, opacity: 0.75, desc: "medium-high executive demand" }, // #1a0dab at 75%
-  networking: { intensity: 3, opacity: 0.6, desc: "medium-high executive demand" }, // #1a0dab at 60%
   systems: { intensity: 2, opacity: 0.5,  desc: "medium executive demand" },  // #1a0dab at 50%
   making:  { intensity: 1, opacity: 0.25, desc: "low executive demand" },     // #1a0dab at 25%
 };
@@ -23,7 +23,7 @@ const MODES = {
   comms:   { label: "Comms & Admin", sub: "emails, invoices, order tracking",    exportable: true,  energyCost: 3, friction: "high",   sensory: "medium" },
   growth:  { label: "Growth",        sub: "research, residencies, opportunities", exportable: true,  energyCost: 4, friction: "high",   sensory: "high"   },
   content: { label: "Content",       sub: "social, posts, photography",          exportable: true,  energyCost: 4, friction: "high",   sensory: "high"   },
-  networking: { label: "Networking", sub: "studio visits, private views, peer contact", exportable: true, energyCost: 3, friction: "medium", sensory: "high" },
+  networking: { label: "Social *", sub: "studio visits, private views, peer contact", exportable: true, energyCost: 3, friction: "medium", sensory: "high" },
   systems: { label: "Systems",       sub: "workflows, pricing, proposals",       exportable: true,  energyCost: 2, friction: "medium", sensory: "low"    },
   rest:    { label: "Rest",          sub: "passive / sensory reset / gentle",    exportable: false, energyCost: -2, friction: "low",   sensory: "low"    },
   social:  { label: "Social",        sub: "friends, events, time out",           exportable: false, energyCost: 3, friction: "low",   sensory: "high"   },
@@ -45,7 +45,7 @@ const MODE_COLORS = {
   comms:   "rgba(26, 13, 171, 0.75)",  // medium-high exec demand
   growth:  "rgba(26, 13, 171, 1.0)",   // high exec demand — full blue
   content: "rgba(26, 13, 171, 0.9)",   // high exec demand — slightly different blue tint
-  networking: "rgba(26, 13, 171, 0.6)", // medium-high exec demand
+  networking: "#FF1493", // hot pink — Social *
   systems: "rgba(26, 13, 171, 0.5)",   // medium exec demand
   rest:    "#888888",                   // muted grey
   social:  "#F72798",                   // hot magenta/pink
@@ -56,7 +56,7 @@ const MODE_COLORS = {
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 // Work mode keys (excludes rest, social, health, office) — used in many places
-const WORK_MODES = ["making", "comms", "growth", "content", "systems", "networking"];
+const WORK_MODES = ["making", "comms", "growth", "content", "systems"];
 
 // 2-hour slots, 7am–9pm
 const TIME_SLOTS = [
@@ -337,7 +337,6 @@ const DEFAULT_PROFILE = {
     growth: 4,
     content: 4,
     comms: 3,
-    networking: 3,
     systems: 2,
     making: 1,
   },
@@ -348,7 +347,7 @@ const DEFAULT_PROFILE = {
     comms: "Comms & Admin",
     growth: "Growth",
     content: "Content",
-    networking: "Networking",
+    networking: "Social *",
     systems: "Systems",
   },
   // Mode descriptions — what each type of work involves for the user (editable defaults)
@@ -360,6 +359,9 @@ const DEFAULT_PROFILE = {
     networking: "studio visits, private views, peer contact",
     systems: "workflows, pricing, organising",
   },
+  // Energy cost per mode — empty by default, meaning every mode uses the global
+  // default in MODES until the user overrides a specific one here.
+  modeEnergyCosts: {},
   // Weekly targets — minimum blocks of each type per week
   // Networking is deliberately not here — it runs on a fortnightly cadence,
   // tracked separately via lastNetworkingDate rather than a weekly count.
@@ -1133,6 +1135,21 @@ function AuthScreen({ onSuccess }) {
               </div>
             ))}
 
+            <p style={{ ...sml, marginBottom: "12px", marginTop: "24px" }}>Energy cost for each task type</p>
+            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "16px", lineHeight: "1.6" }}>
+              How much does each type of block cost or restore? Positive numbers cost energy, negative numbers restore it (Rest is negative by default). This feeds your daily energy total.
+            </p>
+            {Object.entries(MODES).map(([key, m]) => (
+              <div key={key} style={{ marginBottom: "10px", display: "flex", alignItems: "center", gap: "12px" }}>
+                <span style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", flex: 1 }}>
+                  {profile.modeLabels?.[key] || m.label}
+                </span>
+                <input type="number" value={profile.modeEnergyCosts?.[key] ?? m.energyCost}
+                  onChange={(e) => setProfile({ ...profile, modeEnergyCosts: { ...profile.modeEnergyCosts, [key]: parseInt(e.target.value, 10) || 0 } })}
+                  style={{ ...inputAuth, width: "70px", textAlign: "center", marginBottom: 0 }} />
+              </div>
+            ))}
+
             <p style={{ ...sml, marginBottom: "12px", marginTop: "24px" }}>Rest needed per active hour</p>
             <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "16px", lineHeight: "1.6" }}>
               How many hours of rest do you need per hour of active work? This shapes your daily energy budget — a lower ratio (you recover quickly) raises your capacity, a higher ratio lowers it. The default is 1:1 (balanced). Pick what fits you.
@@ -1269,7 +1286,7 @@ function AuthScreen({ onSuccess }) {
             <input value={profile.socialGoal || ""} onChange={(e) => setProfile({ ...profile, socialGoal: e.target.value })} style={inputAuth} placeholder="e.g. 1 meaningful connection this week" />
 
             {/* Networking cadence */}
-            <p style={{ ...sml, marginBottom: "8px", marginTop: "16px" }}>Networking cadence</p>
+            <p style={{ ...sml, marginBottom: "8px", marginTop: "16px" }}>Social * cadence</p>
             <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
               Minimum days between studio visits, private views, or peer contact.
             </p>
@@ -1452,6 +1469,21 @@ function ProfileEditScreen({ profile, onSave, onCancel }) {
           </div>
         ))}
 
+        <p style={{ ...sml, marginBottom: "12px", marginTop: "24px" }}>Energy cost for each task type</p>
+        <p style={{ fontFamily: TNR, fontSize: "11px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
+          Positive costs energy, negative restores it. Feeds your daily energy total.
+        </p>
+        {Object.entries(MODES).map(([key, m]) => (
+          <div key={key} style={{ marginBottom: "10px", display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", flex: 1 }}>
+              {editProfile.modeLabels?.[key] || m.label}
+            </span>
+            <input type="number" value={editProfile.modeEnergyCosts?.[key] ?? m.energyCost}
+              onChange={(e) => setEditProfile({ ...editProfile, modeEnergyCosts: { ...editProfile.modeEnergyCosts, [key]: parseInt(e.target.value, 10) || 0 } })}
+              style={{ ...inputAuth, width: "70px", textAlign: "center", marginBottom: 0 }} />
+          </div>
+        ))}
+
         <p style={{ ...sml, marginBottom: "12px", marginTop: "24px" }}>Rest needed per active hour</p>
         <p style={{ fontFamily: TNR, fontSize: "11px", color: "#888", marginBottom: "12px", lineHeight: "1.6" }}>
           Hours of rest per active hour. Shapes your daily energy budget — lower ratio raises it, higher lowers it.
@@ -1573,7 +1605,7 @@ function ProfileEditScreen({ profile, onSave, onCancel }) {
         <input value={editProfile.socialGoal || ""} onChange={(e) => setEditProfile({ ...editProfile, socialGoal: e.target.value })} style={inputAuth} placeholder="e.g. 1 meaningful connection this week" />
 
         {/* Networking cadence */}
-        <p style={{ ...sml, marginBottom: "8px", marginTop: "16px" }}>Networking cadence (days)</p>
+        <p style={{ ...sml, marginBottom: "8px", marginTop: "16px" }}>Social * cadence (days)</p>
         <input type="number" min="1" value={editProfile.networkingCadenceDays ?? 14} onChange={(e) => setEditProfile({ ...editProfile, networkingCadenceDays: parseInt(e.target.value, 10) || 14 })} style={inputAuth} placeholder="14" />
 
         {/* Week evaluation */}
@@ -1895,6 +1927,15 @@ const [, setAuthTimestamp] = useState(0);
     return MODES[key]?.label || key;
   };
 
+  // Energy cost per mode — user-editable per profile.modeEnergyCosts, falling back
+  // to the global defaults in MODES. Rest is negative (recovery) by default.
+  const getModeEnergyCost = (key) => {
+    if (profile.modeEnergyCosts && profile.modeEnergyCosts[key] !== undefined) {
+      return profile.modeEnergyCosts[key];
+    }
+    return MODES[key]?.energyCost ?? 0;
+  };
+
   const assign = (day, slot) => {
     const current = schedule[day]?.[slot];
     setHasUserInteracted(true);
@@ -1954,7 +1995,7 @@ const [, setAuthTimestamp] = useState(0);
     let total = 0;
     TIME_SLOTS.forEach(t => {
       const v = schedule[day]?.[t];
-      if (v && MODES[v]) total += MODES[v].energyCost;
+      if (v && MODES[v]) total += getModeEnergyCost(v);
     });
     return total;
   };
@@ -2649,7 +2690,7 @@ const [, setAuthTimestamp] = useState(0);
                           : MODE_COLORS[mode]
                       }}>{m.label}</span>
                       <span style={{ fontFamily: TNR, fontSize: "12px", color: "#888" }}>
-                        {m.energyCost > 0 ? `+${m.energyCost}` : m.energyCost}
+                        {getModeEnergyCost(mode) > 0 ? `+${getModeEnergyCost(mode)}` : getModeEnergyCost(mode)}
                       </span>
                     </div>
                   );
@@ -2850,6 +2891,7 @@ const [, setAuthTimestamp] = useState(0);
           <div style={{ display: "flex", gap: "20px", flexWrap: "wrap", justifyContent: "center", marginBottom: "36px" }}>
             {Object.entries(MODES).map(([key, m]) => {
               const isWorkMode = WORK_MODES.includes(key);
+              const hasExecDemand = !!EXEC_INTENSITY[key];
               const intensity = isWorkMode ? (EXEC_INTENSITY[key] || { opacity: 0.5, desc: "" }) : null;
               const color = isWorkMode 
                 ? `rgba(26, 13, 171, ${intensity.opacity})`
@@ -2858,7 +2900,7 @@ const [, setAuthTimestamp] = useState(0);
               return (
                 <span key={key} style={{ fontFamily: TNR, fontSize: "13px", color }}>
                   <span style={{ fontSize: "11px" }}>{label.slice(0, 3).toLowerCase()}</span>  {label}
-                  {isWorkMode && <span style={{ fontFamily: TNR, fontSize: "10px", color: "#888" }}> ({intensity.desc})</span>}
+                  {hasExecDemand && <span style={{ fontFamily: TNR, fontSize: "10px", color: "#888" }}> ({EXEC_INTENSITY[key].desc})</span>}
                 </span>
               );
             })}
@@ -3079,7 +3121,7 @@ const [, setAuthTimestamp] = useState(0);
           {/* Networking */}
           <div style={{ marginBottom: "32px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
-              <span style={sml}>Networking</span>
+              <span style={sml}>Social *</span>
               <span style={{ fontFamily: TNR, fontSize: "12px", color: "#aaa" }}>min every {profile.networkingCadenceDays || 14} days</span>
             </div>
             {(() => {
@@ -3090,7 +3132,7 @@ const [, setAuthTimestamp] = useState(0);
               const dueSoon = daysSince !== null && daysSince >= cadence - 3 && daysSince <= cadence;
               const statusColor = overdue ? "#b01904" : dueSoon ? "#c8a050" : "#1a1a1a";
               const statusText = last === null
-                ? "No networking logged yet."
+                ? "No Social * logged yet."
                 : daysSince === 0
                   ? "Marked today."
                   : `Last: ${daysSince} day${daysSince === 1 ? "" : "s"} ago${overdue ? " — overdue" : dueSoon ? " — due soon" : ""}.`;
@@ -3186,6 +3228,36 @@ const [, setAuthTimestamp] = useState(0);
 
           {qView === "roadmap" && (
             <div>
+              {/* Art Projects — live-linked from the Art Projects tab, not duplicated data */}
+              {artProjects.length > 0 && (qFilter === "all") && (
+                <div style={{ marginBottom: "36px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
+                    <p style={{ ...sml, color: "#b01904", margin: 0 }}>Art Projects</p>
+                    <span onClick={() => setTab("art")} style={{ fontFamily: TNR, fontSize: "12px", color: "#888", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}>Open Art Projects →</span>
+                  </div>
+                  {artProjects.map(p => {
+                    const stageObj = ART_STAGES.find(s => s.key === p.stage) || ART_STAGES[0];
+                    const statusColor = { active: "#b01904", paused: "#e8c070", complete: "#0fa97f", declined: "#888" }[p.status] || "#888";
+                    const statusLabel = ART_PROJECT_STATUSES.find(s => s.key === p.status)?.label || p.status;
+                    return (
+                      <div key={p.id} onClick={() => { setTab("art"); setEditingArtProject(p.id); }}
+                        style={{ display: "flex", alignItems: "baseline", gap: "16px", padding: "10px 0", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}>
+                        <span style={{ fontFamily: TNR, fontSize: "12px", color: "#888", width: "52px", flexShrink: 0 }}>
+                          {p.keyDate ? new Date(p.keyDate + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}
+                        </span>
+                        <span style={{ flex: 1, display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
+                          <span style={{ fontFamily: TNR, fontSize: "11px", color: "#b01904" }}>[fine art]</span>
+                          <span style={{ fontFamily: TNR, fontSize: "15px", color: p.title ? "#b01904" : "#888", textDecoration: p.title ? "underline" : "none", textUnderlineOffset: "2px", textDecorationColor: "#b01904" }}>
+                            {p.title || "Untitled project"}
+                          </span>
+                          <span style={{ fontFamily: TNR, fontSize: "12px", color: "#888" }}>→ {stageObj.label}</span>
+                        </span>
+                        <span style={{ fontFamily: TNR, fontSize: "12px", color: statusColor, flexShrink: 0 }}>{statusLabel}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               {/* Fine art section — always shown first if any */}
               {projects.filter(p => p.isFineArt && (qFilter === "all" || qFilter === p.category)).length > 0 && (
                 <div style={{ marginBottom: "36px" }}>

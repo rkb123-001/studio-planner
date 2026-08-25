@@ -1,70 +1,87 @@
-# Getting Started with Create React App
+# Studio Planner
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A weekly planner that budgets executive function instead of hours.
 
-## Available Scripts
+Studio Planner is the scheduling tool for a working jewellery and fine art practice. It starts from the observation that a studio week is not limited by available time but by available executive function: the capacity to start a task, to switch between unlike tasks, and to tolerate the sensory and administrative load each one carries. The planner makes that supply legible and asks the week to balance rather than to maximise.
 
-In the project directory, you can run:
+Built and used daily in RKB Studio.
 
-### `npm start`
+---
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+## What it does
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+**Energy budget.** You report your energy on opening the planner. That sets a daily budget in abstract units: High 18, Medium 15, Low 10. The figure is then adjusted by a personal rest ratio, so someone who needs more recovery gets a smaller nominal budget rather than a running deficit.
 
-### `npm test`
+**Work modes with costs.** Every block placed on the grid belongs to a mode, and each mode carries an executive-demand cost that is subtracted from the day's budget:
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+| Mode | Cost | Covers |
+|---|---|---|
+| Systems | 2 | workflows, pricing, proposals |
+| Making | 3 | casting, wax work, fabrication |
+| Comms & Admin | 3 | emails, invoices, order tracking |
+| Social * | 3 | studio visits, private views, peer contact |
+| Growth | 4 | research, residencies, opportunities |
+| Content | 4 | social, posts, photography |
+| Rest | −2 | restores budget rather than spending it |
 
-### `npm run build`
+Non-exportable modes (Social, Health, Office Work, Rest) sit alongside these so the week reflects a whole life, not only billable studio time. Costs are editable per user.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+**Runway actions.** Rather than showing an empty grid to someone who is depleted, each energy state maps to at most three concrete opening moves. High energy sends you straight to deep work. Low energy offers a runway task and then permission to stop.
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+**Transition buffers.** High-demand to high-demand switches are flagged and given a pad. Comms into making, office into content, social into studio work: the cost of the context switch is treated as a real cost rather than a free one.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+**Projects on horizons.** Work is held as Now, Next, or Later, each with a progress percentage, a confidence rating, and a due month. Later is a legitimate resting place, not a backlog of failure.
 
-### `npm run eject`
+**Weekly success metrics.** The week is judged on whether you stayed within capacity, avoided overload, completed at least one meaningful task, and progressed a fine art project. Volume is deliberately not a metric.
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+**Calendar sync.** A Google Calendar sync module reconciles planned blocks with the real calendar.
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+---
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+## Why it is built this way
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+Most planners model a week as a container of hours and treat the person filling it as a constant. That model fails for anyone whose available capacity varies, and it fails particularly badly across a practice that mixes physical making, client administration, and public-facing work, because those three draw on different and non-interchangeable reserves.
 
-## Learn More
+Studio Planner replaces the container model with an account. Capacity is finite and self-reported. Activities have unequal costs regardless of duration. Rest is income rather than absence of work. Overspend is surfaced on the day it happens rather than discovered weeks later as burnout.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+Three design decisions follow from that:
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+1. **Cost is attached to mode, not to time.** Two hours of invoicing and two hours of wax carving occupy the same grid space and cost different amounts. Duration alone was never the constraint.
+2. **The transition is a line item.** Switching cost is modelled explicitly because it is the cost most often paid and least often planned for.
+3. **The success condition is homeostatic.** A week that balances is a good week. This removes the incentive to overfill the grid, which is the failure mode the tool exists to prevent.
 
-### Code Splitting
+The accompanying diagram, `studio-planner-system.html`, renders the whole model as a single Vester-style window picture: which variables feed which, and where the feedback closes.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+---
 
-### Analyzing the Bundle Size
+## Stack
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+- React 19
+- Create React App (`react-scripts` 5)
+- `localStorage` as the primary store, key `studio-planner-v1`
+- Supabase for cross-device sync
 
-### Making a Progressive Web App
+## Running locally
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+```bash
+npm install
+npm start
+```
 
-### Advanced Configuration
+Runs on `http://localhost:3000`. The planner works fully offline against `localStorage`; Supabase sync is optional and degrades gracefully when unconfigured.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+```bash
+npm run build
+```
 
-### Deployment
+Produces a production build in `build/`.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+---
 
-### `npm run build` fails to minify
+## Status
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Actively used and actively changing. `src/App.js` is a single large component by deliberate choice at this stage: the model is still moving, and keeping it in one file has kept the cost of changing it low. Splitting it is the next structural task, not an oversight.
+
+---
+
+Studio Planner is one of several systems built to run RKB Studio, alongside a costing ledger and a capacity grid. They share a premise: that the infrastructure a practice runs on is itself a site of design, and worth making as carefully as the objects it produces.

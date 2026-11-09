@@ -1,4 +1,5 @@
 import { useState, useEffect, Component } from "react";
+import { ProjectRoadmap, normaliseRoadmap, roadmapProgress } from "./ProjectRoadmap";
 
 const TNR = "'Times New Roman', Times, serif";
 const LINK_BLUE = "#1a0dab";
@@ -2344,6 +2345,7 @@ const [, setAuthTimestamp] = useState(0);
     setEditingArtProject(p.id);
   };
   const updateArtProject = (id, field, value) => { setHasUserInteracted(true); setArtProjects(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p)); };
+  const updateRoadmap = (id, fn) => { setHasUserInteracted(true); setArtProjects(prev => prev.map(p => p.id === id ? { ...p, roadmap: fn(normaliseRoadmap(p.roadmap)) } : p)); };
   const deleteArtProject = (id) => { setHasUserInteracted(true); setArtProjects(prev => prev.filter(p => p.id !== id)); if (editingArtProject === id) setEditingArtProject(null); };
   const stuckReset = () => { setStuckOpen(false); setStuckStep(0); setStuckEnergy(null); };
   const runway = stuckEnergy ? RUNWAY_MAP[stuckEnergy] : null;
@@ -2442,6 +2444,7 @@ const [, setAuthTimestamp] = useState(0);
     const stageObj = ART_STAGES.find(s => s.key === p.stage) || ART_STAGES[0];
     const statusObj = ART_PROJECT_STATUSES.find(s => s.key === p.status) || ART_PROJECT_STATUSES[0];
     const isEditing = editingArtProject === p.id;
+    const rp = roadmapProgress(p.roadmap);
     const statusColor = {
       active: "#b01904", paused: "#e8c070", complete: "#0fa97f", declined: "#888",
     }[p.status] || "#888";
@@ -2457,6 +2460,7 @@ const [, setAuthTimestamp] = useState(0);
               textDecoration: p.title ? "underline" : "none", textUnderlineOffset: "2px", textDecorationColor: "#b01904",
             }}>{p.title || "Untitled project"}</span>
             {p.fundingBody && <span style={{ fontFamily: TNR, fontSize: "12px", color: "#888" }}>· {p.fundingBody}</span>}
+            {rp.started && rp.done > 0 && <span style={{ fontFamily: TNR, fontSize: "12px", color: "#888" }}>· Roadmap {rp.done}/{rp.total}</span>}
           </span>
           <span style={{ fontFamily: TNR, fontSize: "12px", color: statusColor, flexShrink: 0 }}>{statusObj.label}</span>
         </div>
@@ -2481,6 +2485,7 @@ const [, setAuthTimestamp] = useState(0);
             </div>
             <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", marginBottom: "14px" }}>{stageObj.desc}</p>
             <div style={{ marginBottom: "12px" }}><p style={{ ...sml, marginBottom: "5px" }}>Notes</p><textarea value={p.notes} onChange={e => updateArtProject(p.id, "notes", e.target.value)} placeholder="Context, contacts, risks..." style={{ ...inp, minHeight: "52px", resize: "vertical", lineHeight: "1.6" }} /></div>
+            <ProjectRoadmap roadmap={p.roadmap} artStageLabel={stageObj.label} onUpdate={(fn) => updateRoadmap(p.id, fn)} />
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
               <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }} onClick={() => deleteArtProject(p.id)}>remove</span>
             </div>

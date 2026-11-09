@@ -1,5 +1,7 @@
 import { useState, useEffect, Component } from "react";
 import { ProjectRoadmap, normaliseRoadmap, roadmapProgress } from "./ProjectRoadmap";
+import { StudyPath } from "./StudyPath";
+import { normaliseStudyPath, goalsFromSteps } from "./pathEngine";
 
 const TNR = "'Times New Roman', Times, serif";
 const LINK_BLUE = "#1a0dab";
@@ -1741,6 +1743,7 @@ const [, setAuthTimestamp] = useState(0);
   const [editingArtProject, setEditingArtProject] = useState(null);
   const [artStatusFilter, setArtStatusFilter] = useState("active");
   const [showArtGuide, setShowArtGuide]   = useState(false);
+  const [pathNotice, setPathNotice]       = useState("");
 
   // Calendar
   const [calStatus, setCalStatus]         = useState(null);
@@ -2346,6 +2349,23 @@ const [, setAuthTimestamp] = useState(0);
   };
   const updateArtProject = (id, field, value) => { setHasUserInteracted(true); setArtProjects(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p)); };
   const updateRoadmap = (id, fn) => { setHasUserInteracted(true); setArtProjects(prev => prev.map(p => p.id === id ? { ...p, roadmap: fn(normaliseRoadmap(p.roadmap)) } : p)); };
+  // Study / career path — stored on the profile so it syncs with the existing cloud save
+  const studyPath = normaliseStudyPath(profile.studyPath);
+  const updateStudyPath = (fn) => {
+    setHasUserInteracted(true);
+    setProfile(prev => {
+      const next = { ...prev, studyPath: normaliseStudyPath(fn(normaliseStudyPath(prev.studyPath))) };
+      saveProfile(next);
+      return next;
+    });
+  };
+  const planStudyPath = (steps) => {
+    const goals = goalsFromSteps(steps).map(g => ({ ...emptyProject(), ...g, id: Date.now() + Math.random() }));
+    setHasUserInteracted(true);
+    setProjects(prev => [...prev.filter(p => !p.fromPath), ...goals]);
+    updateStudyPath(p => ({ ...p, plan: { at: new Date().toISOString(), steps } }));
+    setPathNotice(`Added ${goals.length} goals to Quarterly, replacing any earlier ones from this path.`);
+  };
   const deleteArtProject = (id) => { setHasUserInteracted(true); setArtProjects(prev => prev.filter(p => p.id !== id)); if (editingArtProject === id) setEditingArtProject(null); };
   const stuckReset = () => { setStuckOpen(false); setStuckStep(0); setStuckEnergy(null); };
   const runway = stuckEnergy ? RUNWAY_MAP[stuckEnergy] : null;
@@ -2614,7 +2634,7 @@ const [, setAuthTimestamp] = useState(0);
 
       {/* ── Tabs as boxed buttons ── */}
       <div style={{ textAlign: "center", marginBottom: "52px", display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
-        {[["today","Today"],["grid","Grid"],["targets","Targets"],["quarterly","Quarterly"],["art","Art Projects"],["plan","Plan"],["archive","Archive"]].map(([key, lbl]) => (
+        {[["today","Today"],["grid","Grid"],["targets","Targets"],["quarterly","Quarterly"],["art","Art Projects"],["path","Path"],["plan","Plan"],["archive","Archive"]].map(([key, lbl]) => (
           <span key={key} onClick={() => setTab(key)} style={boxBtn(tab === key)}>{lbl}</span>
         ))}
       </div>
@@ -3408,6 +3428,11 @@ const [, setAuthTimestamp] = useState(0);
             );
           })}
         </div>
+      )}
+
+      {/* ════ PATH ════ */}
+      {tab === "path" && (
+        <StudyPath path={studyPath} onUpdate={updateStudyPath} onPlan={planStudyPath} planNotice={pathNotice} onOpenQuarterly={() => setTab("quarterly")} />
       )}
 
       {/* ════ PLAN ════ */}

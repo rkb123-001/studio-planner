@@ -1,0 +1,619 @@
+{
+ "checkedOn": "2026-11-09",
+ "stages": [
+  {
+   "key": "raise",
+   "label": "Raise your pay",
+   "tag": "pay",
+   "sub": "Now to 2027"
+  },
+  {
+   "key": "tech",
+   "label": "Tech credential",
+   "tag": "pay",
+   "sub": "2027, optional"
+  },
+  {
+   "key": "art",
+   "label": "Art MA",
+   "tag": "art",
+   "sub": "Apply 2027 to 2028"
+  },
+  {
+   "key": "phd",
+   "label": "PhD",
+   "tag": "art",
+   "sub": "2030 onwards"
+  }
+ ],
+ "options": [
+  {
+   "id": "hv_promo",
+   "stage": "raise",
+   "label": "Hello Vet promotion",
+   "kind": "job",
+   "mode": "alongside",
+   "blurb": "Fastest raise from a team that knows you. They may help fund study later.",
+   "startRule": {
+    "type": "now"
+   },
+   "months": 3,
+   "income": "keeps",
+   "stepTitle": "Secure the role",
+   "nextAction": "Send Emily the impact summary before you fly.",
+   "keyDates": [
+    {
+     "label": "Send impact summary",
+     "on": "2026-12-07",
+     "note": "Before you fly, 7 Dec",
+     "expected": false
+    }
+   ],
+   "facts": [
+    {
+     "text": "Systems & Research Associate proposal with a phased pay structure is with Emily, and the product/tech secondment is evaluated during your December break.",
+     "source": "Your notes",
+     "url": null,
+     "checked": "2026-11-09"
+    }
+   ]
+  },
+  {
+   "id": "new_role",
+   "stage": "raise",
+   "label": "New tech or product role",
+   "kind": "job",
+   "mode": "alongside",
+   "blurb": "Bigger jump in pay, but a new probation period and less room for study days.",
+   "startRule": {
+    "type": "now"
+   },
+   "months": 6,
+   "income": "keeps",
+   "stepTitle": "Land a new tech or product role",
+   "nextAction": "Pick three target employers and send the first outreach.",
+   "keyDates": [],
+   "facts": [
+    {
+     "text": "Assumption, not researched: a role change restarts probation and may limit flexibility for study.",
+     "source": "My assumption",
+     "url": null,
+     "checked": "2026-11-09"
+    }
+   ]
+  },
+  {
+   "id": "freelance",
+   "stage": "raise",
+   "label": "Freelance tech work",
+   "kind": "job",
+   "mode": "alongside",
+   "blurb": "Flexible hours around study, but income is uneven and nothing is employer-funded.",
+   "startRule": {
+    "type": "now"
+   },
+   "months": 6,
+   "income": "varies",
+   "stepTitle": "Build freelance tech income",
+   "nextAction": "List two services and the day rate you would charge.",
+   "keyDates": [],
+   "facts": [
+    {
+     "text": "Assumption, not researched: freelance income varies and has no employer study funding.",
+     "source": "My assumption",
+     "url": null,
+     "checked": "2026-11-09"
+    }
+   ]
+  },
+  {
+   "id": "none",
+   "stage": "tech",
+   "label": "None",
+   "kind": "none",
+   "blurb": "Skip the tech credential and go straight to the art MA.",
+   "facts": []
+  },
+  {
+   "id": "oxford",
+   "stage": "tech",
+   "label": "Oxford short modules",
+   "kind": "study",
+   "mode": "alongside",
+   "institution": "Oxford",
+   "blurb": "Oxford on your CV at about £3,280 a module (2026/27). The master's loan stays free.",
+   "startRule": {
+    "type": "fixed",
+    "ym": "2027-03"
+   },
+   "months": 7,
+   "outOfWorkMonths": 0,
+   "income": "keeps",
+   "feeTotal": 6560,
+   "feeEstimate": true,
+   "feeNote": "Two modules at £3,280 (2026/27 rate, set to rise with inflation for later modules).",
+   "loan": null,
+   "stepTitle": "Oxford modules",
+   "stepNote": "Software Testing, then a second module",
+   "nextAction": "Work through the Java MOOC before 1 March 2027.",
+   "keyDates": [
+    {
+     "label": "Software Testing course",
+     "on": "2027-03-01",
+     "note": "1 Mar 2027, in Oxford",
+     "expected": false
+    }
+   ],
+   "facts": [
+    {
+     "text": "£3,280 per module in 2026/27 (Oct 2026 to Sep 2027). It rises annually with inflation, so a second module in 2027/28 will cost a little more.",
+     "source": "Oxford CS fees 2026/27",
+     "url": "https://www.cs.ox.ac.uk/pro/study/Fees_2026-27.pdf",
+     "checked": "2026-11-09"
+    },
+    {
+     "text": "Software Testing runs once a year at the Department; the listed date is 1 March 2027. No formal prerequisites, but programming in an object-oriented language is essential (taught in Java).",
+     "source": "Oxford CS: Software Testing",
+     "url": "https://www.cs.ox.ac.uk/pmp/subjects/STE.html",
+     "checked": "2026-11-09"
+    },
+    {
+     "text": "Short modules are not a master's degree, so they do not touch your one-time master's loan.",
+     "source": "Postgraduate Master's Loan rules (gov.uk)",
+     "url": "https://www.gov.uk/masters-loan/eligibility",
+     "checked": "2026-11-09"
+    }
+   ]
+  },
+  {
+   "id": "birkbeck",
+   "stage": "tech",
+   "label": "Birkbeck MSc (evenings)",
+   "kind": "study",
+   "mode": "part-time",
+   "institution": "Birkbeck",
+   "blurb": "Strongest pay credential and open to non-computing graduates, but it uses your one master's loan.",
+   "startRule": {
+    "type": "fixed",
+    "ym": "2027-10"
+   },
+   "months": 22,
+   "outOfWorkMonths": 0,
+   "income": "keeps",
+   "feeTotal": 12360,
+   "feeEstimate": false,
+   "feeNote": "£6,180 a year part-time for two years (home, 2027-28 entry).",
+   "loan": "masters",
+   "stepTitle": "Birkbeck MSc (evenings)",
+   "stepNote": "Two years of evening classes, October to July",
+   "nextAction": "Book the online aptitude test and check the application dates.",
+   "keyDates": [
+    {
+     "label": "Apply and take the aptitude test",
+     "on": "2027-06-30",
+     "note": "By summer 2027, expected",
+     "expected": true
+    }
+   ],
+   "facts": [
+    {
+     "text": "MSc Computer Science: part-time two years, evening classes two to three times a week, October to July. Latest listed entry is October 2027.",
+     "source": "Birkbeck course page",
+     "url": "https://www.bbk.ac.uk/courses/postgraduate/computer-science",
+     "checked": "2026-11-09"
+    },
+    {
+     "text": "Part-time home fee £6,180 a year for 2027-28 (full-time £12,360). Fees may rise with inflation.",
+     "source": "Birkbeck course page",
+     "url": "https://www.bbk.ac.uk/courses/postgraduate/computer-science",
+     "checked": "2026-11-09"
+    },
+    {
+     "text": "Conversion route is open: at least a 2:2 in any subject other than single-honours computer science, plus an online aptitude test (once per academic year).",
+     "source": "Birkbeck course page",
+     "url": "https://www.bbk.ac.uk/courses/postgraduate/computer-science",
+     "checked": "2026-11-09"
+    },
+    {
+     "text": "No fixed closing date is listed; Birkbeck advises applying early.",
+     "source": "Birkbeck course page",
+     "url": "https://www.bbk.ac.uk/courses/postgraduate/computer-science",
+     "checked": "2026-11-09"
+    }
+   ]
+  },
+  {
+   "id": "rca_cap",
+   "stage": "art",
+   "label": "RCA one-year MA",
+   "kind": "study",
+   "mode": "full-time",
+   "institution": "RCA",
+   "blurb": "Biggest name and network. One year full-time.",
+   "startRule": {
+    "type": "entry",
+    "month": 9
+   },
+   "months": 11,
+   "outOfWorkMonths": 12,
+   "income": "pauses",
+   "feeTotal": 17850,
+   "feeEstimate": true,
+   "feeNote": "£17,850 home fee for September 2027 entry; assumed unchanged for later entry.",
+   "loan": "masters",
+   "stepTitle": "RCA one-year MA",
+   "alsoApply": "RA Schools",
+   "nextAction": "Draft the 300-word personal statement and the portfolio description.",
+   "deadline": {
+    "label": "RCA deadline",
+    "known": {
+     "2027": "2027-01-08"
+    },
+    "expected": "01-08"
+   },
+   "facts": [
+    {
+     "text": "Contemporary Art Practice MA: 180 credits, 1 year / 45 weeks, full-time. The page says the first MA intake is September 2027.",
+     "source": "RCA programme page",
+     "url": "https://www.rca.ac.uk/study/programme-finder/contemporary-art-practice-ma/",
+     "checked": "2026-11-09"
+    },
+    {
+     "text": "Home fee £17,850 for September 2027 entry (MFA second year £14,650). £1,000 deposit, offset against fees.",
+     "source": "RCA programme page",
+     "url": "https://www.rca.ac.uk/study/programme-finder/contemporary-art-practice-ma/",
+     "checked": "2026-11-09"
+    },
+    {
+     "text": "Next application deadline shown as 8 Jan 2027. The page has inconsistent dates, so confirm with the RCA before relying on it.",
+     "source": "RCA programme page",
+     "url": "https://www.rca.ac.uk/study/programme-finder/contemporary-art-practice-ma/",
+     "checked": "2026-11-09"
+    },
+    {
+     "text": "Portfolio: curated recent practice, written description of how it relates to contemporary art, 300-word personal statement, video of up to two minutes.",
+     "source": "RCA programme page",
+     "url": "https://www.rca.ac.uk/study/programme-finder/contemporary-art-practice-ma/",
+     "checked": "2026-11-09"
+    }
+   ]
+  },
+  {
+   "id": "ruskin",
+   "stage": "art",
+   "label": "Ruskin MFA, Oxford",
+   "kind": "study",
+   "mode": "full-time",
+   "institution": "Ruskin",
+   "blurb": "Nine intense months with Oxford behind it. Fees not found yet, so the cost is unknown.",
+   "startRule": {
+    "type": "entry",
+    "month": 10
+   },
+   "months": 9,
+   "outOfWorkMonths": 9,
+   "income": "pauses",
+   "feeTotal": null,
+   "feeEstimate": false,
+   "feeNote": "Fee not found on the Oxford pages I could read. Check the Ruskin MFA funding page.",
+   "loan": "masters",
+   "loanCheck": true,
+   "stepTitle": "Ruskin MFA, Oxford",
+   "alsoApply": "RA Schools",
+   "nextAction": "Read the Ruskin MFA fees and funding page and note the real cost.",
+   "deadline": {
+    "label": "Ruskin deadline",
+    "known": {
+     "2027": "2027-01-05"
+    },
+    "expected": "01-05"
+   },
+   "facts": [
+    {
+     "text": "Full-time, expected length 9 months over three eight-week terms; start 10 October 2027.",
+     "source": "Oxford course page",
+     "url": "https://www.ox.ac.uk/admissions/graduate/courses/mfa-fine-art",
+     "checked": "2026-11-09"
+    },
+    {
+     "text": "Final application deadline for 2027-28 entry: 12:00 UK time on Tuesday 5 January 2027.",
+     "source": "Oxford course page",
+     "url": "https://www.ox.ac.uk/admissions/graduate/courses/mfa-fine-art",
+     "checked": "2026-11-09"
+    },
+    {
+     "text": "Fees and living costs were not listed on the page. Whether a nine-month course qualifies for the master's loan needs checking (the loan rules cover 1 to 2 academic years full-time).",
+     "source": "Oxford course page, gov.uk",
+     "url": "https://www.gov.uk/masters-loan/eligibility",
+     "checked": "2026-11-09"
+    }
+   ]
+  },
+  {
+   "id": "slade",
+   "stage": "art",
+   "label": "Slade MA, UCL",
+   "kind": "study",
+   "mode": "full-time",
+   "institution": "Slade",
+   "blurb": "Strong painting and sculpture name, two years full-time and the priciest tuition here.",
+   "startRule": {
+    "type": "entry",
+    "month": 9
+   },
+   "months": 24,
+   "outOfWorkMonths": 24,
+   "income": "pauses",
+   "feeTotal": 33600,
+   "feeEstimate": true,
+   "feeNote": "£16,800 UK fee for 2027/28 entry; two years, so I doubled it (assumes the same fee in year two).",
+   "loan": "masters",
+   "loanCheck": true,
+   "stepTitle": "Slade MA, UCL",
+   "alsoApply": "RA Schools",
+   "nextAction": "Check the Slade application dates and portfolio brief.",
+   "deadline": {
+    "label": "Slade deadline",
+    "known": {},
+    "expected": "01-15"
+   },
+   "facts": [
+    {
+     "text": "Fine Art MA: two calendar years, full-time only, starting September 2027.",
+     "source": "UCL course page",
+     "url": "https://www.ucl.ac.uk/prospective-students/graduate/taught-degrees/fine-art-ma",
+     "checked": "2026-11-09"
+    },
+    {
+     "text": "UK fee £16,800 for 2027/28 entry (international £40,800). The page does not give a deadline, only that late applications are not considered.",
+     "source": "UCL course page",
+     "url": "https://www.ucl.ac.uk/prospective-students/graduate/taught-degrees/fine-art-ma",
+     "checked": "2026-11-09"
+    },
+    {
+     "text": "Needs a portfolio, a personal statement and one reference; shortlisted candidates are interviewed.",
+     "source": "UCL course page",
+     "url": "https://www.ucl.ac.uk/prospective-students/graduate/taught-degrees/fine-art-ma",
+     "checked": "2026-11-09"
+    }
+   ]
+  },
+  {
+   "id": "ide",
+   "stage": "art",
+   "label": "RCA/Imperial IDE MA/MSc",
+   "kind": "study",
+   "mode": "full-time",
+   "institution": "RCA/Imperial IDE",
+   "blurb": "Art and engineering together, strongest for pay and tech, but two years out of work.",
+   "startRule": {
+    "type": "entry",
+    "month": 10
+   },
+   "months": 21,
+   "outOfWorkMonths": 24,
+   "income": "pauses",
+   "feeTotal": 40700,
+   "feeEstimate": true,
+   "feeNote": "£20,350 for year one (September 2027 entry); year two is TBC, so I assumed the same.",
+   "loan": "masters",
+   "stepTitle": "RCA/Imperial IDE MA/MSc",
+   "alsoApply": null,
+   "nextAction": "Check the two-part IDE application and portfolio brief.",
+   "deadline": {
+    "label": "IDE deadline",
+    "known": {
+     "2027": "2027-01-08"
+    },
+    "expected": "01-08"
+   },
+   "facts": [
+    {
+     "text": "Two years full-time, 360 credits. Entry October 2027 per Imperial, September 2027 per the RCA page.",
+     "source": "RCA and Imperial pages",
+     "url": "https://www.rca.ac.uk/study/programme-finder/innovation-design-engineering-ma-msc/",
+     "checked": "2026-11-09"
+    },
+    {
+     "text": "Home fee £20,350 for year one (September 2027 entry); year two TBC.",
+     "source": "RCA programme page",
+     "url": "https://www.rca.ac.uk/study/programme-finder/innovation-design-engineering-ma-msc/",
+     "checked": "2026-11-09"
+    },
+    {
+     "text": "Postgraduate Master's Loan of up to £13,206 (2026/27 amount) for eligible home students, split £6,603 in each year.",
+     "source": "RCA programme page",
+     "url": "https://www.rca.ac.uk/study/programme-finder/innovation-design-engineering-ma-msc/",
+     "checked": "2026-11-09"
+    },
+    {
+     "text": "Entry: 2:1 or equivalent in any subject, plus creative and technical aptitude; two-part application.",
+     "source": "Imperial course page",
+     "url": "https://www.imperial.ac.uk/study/courses/postgraduate-taught/2027/innovation-design-engineering/",
+     "checked": "2026-11-09"
+    }
+   ]
+  },
+  {
+   "id": "none",
+   "stage": "art",
+   "label": "Skip to PhD",
+   "kind": "none",
+   "blurb": "Go straight to a PhD with no art master's first.",
+   "facts": []
+  },
+  {
+   "id": "rca_phd",
+   "stage": "phd",
+   "label": "RCA PhD",
+   "kind": "study",
+   "mode": "full-time",
+   "institution": "RCA",
+   "blurb": "Funded places pay a stipend of around £23.8k a year in London.",
+   "startRule": {
+    "type": "afterArt",
+    "month": 9
+   },
+   "months": 36,
+   "outOfWorkMonths": 36,
+   "income": "stipend",
+   "feeTotal": null,
+   "feeEstimate": false,
+   "feeNote": "RCA PhD fee not found; funded studentships normally cover it.",
+   "loan": "doctoral",
+   "stepTitle": "Funded RCA PhD",
+   "nextAction": "List the RCA doctoral studentships that fit and note their deadlines.",
+   "fundingDeadline": {
+    "label": "Funding deadline",
+    "expected": "01-15"
+   },
+   "facts": [
+    {
+     "text": "UKRI minimum doctoral stipend from 1 October 2026: £21,805, or £23,805 with London weighting. Part-time students get a pro-rata amount.",
+     "source": "UKRI",
+     "url": "https://www.ukri.org/apply-for-funding/studentships-and-doctoral-training/get-a-studentship-to-fund-your-doctorate/",
+     "checked": "2026-11-09"
+    },
+    {
+     "text": "A Doctoral Loan of £31,122 is available for 2026/27 PhD starters who normally live in England, but it will not cover the tuition fee in most years.",
+     "source": "RCA funding page",
+     "url": "https://www.rca.ac.uk/study/fees-funding/financial-help-/funding-research-students",
+     "checked": "2026-11-09"
+    },
+    {
+     "text": "The RCA lists Doctoral Landscape studentships (Net Zero Futures, Creative & Caring Communities) and says there will be no further LAHP application rounds.",
+     "source": "RCA funding page",
+     "url": "https://www.rca.ac.uk/study/fees-funding/financial-help-/funding-research-students",
+     "checked": "2026-11-09"
+    },
+    {
+     "text": "Stipend tax status is not stated on the UKRI page, so check before assuming it is tax-free.",
+     "source": "UKRI",
+     "url": "https://www.ukri.org/apply-for-funding/studentships-and-doctoral-training/get-a-studentship-to-fund-your-doctorate/",
+     "checked": "2026-11-09"
+    }
+   ]
+  },
+  {
+   "id": "slade_phd",
+   "stage": "phd",
+   "label": "Slade PhD",
+   "kind": "study",
+   "mode": "full-time",
+   "institution": "Slade",
+   "blurb": "UCL's research route, with funding mostly through UKRI doctoral partnerships.",
+   "startRule": {
+    "type": "afterArt",
+    "month": 9
+   },
+   "months": 36,
+   "outOfWorkMonths": 36,
+   "income": "stipend",
+   "feeTotal": null,
+   "feeEstimate": false,
+   "feeNote": "Not yet researched.",
+   "loan": "doctoral",
+   "stepTitle": "Slade PhD",
+   "nextAction": "Read the Slade MPhil/PhD page for fees, funding and deadlines.",
+   "fundingDeadline": {
+    "label": "Funding deadline",
+    "expected": "01-15"
+   },
+   "facts": [
+    {
+     "text": "Not yet researched beyond the UKRI stipend minimums: £21,805, or £23,805 with London weighting, from 1 October 2026.",
+     "source": "UKRI",
+     "url": "https://www.ukri.org/apply-for-funding/studentships-and-doctoral-training/get-a-studentship-to-fund-your-doctorate/",
+     "checked": "2026-11-09"
+    }
+   ]
+  },
+  {
+   "id": "oxford_dphil",
+   "stage": "phd",
+   "label": "Oxford DPhil",
+   "kind": "study",
+   "mode": "full-time",
+   "institution": "Ruskin",
+   "blurb": "Oxford's research route in Fine Art, competitive and funded mostly by scholarships.",
+   "startRule": {
+    "type": "afterArt",
+    "month": 10
+   },
+   "months": 36,
+   "outOfWorkMonths": 36,
+   "income": "stipend",
+   "feeTotal": null,
+   "feeEstimate": false,
+   "feeNote": "Not yet researched.",
+   "loan": "doctoral",
+   "stepTitle": "Oxford DPhil",
+   "nextAction": "Read the Ruskin DPhil page for fees, funding and deadlines.",
+   "fundingDeadline": {
+    "label": "Funding deadline",
+    "expected": "01-15"
+   },
+   "facts": [
+    {
+     "text": "Not yet researched beyond the UKRI stipend minimums: £21,805, or £23,805 with London weighting, from 1 October 2026.",
+     "source": "UKRI",
+     "url": "https://www.ukri.org/apply-for-funding/studentships-and-doctoral-training/get-a-studentship-to-fund-your-doctorate/",
+     "checked": "2026-11-09"
+    }
+   ]
+  },
+  {
+   "id": "none",
+   "stage": "phd",
+   "label": "Not yet",
+   "kind": "none",
+   "blurb": "Leave the PhD open and decide after the MA.",
+   "facts": []
+  }
+ ],
+ "rules": [
+  {
+   "text": "The Postgraduate Master's Loan is £13,206 for courses starting on or after 1 August 2026, paid to you for fees and living costs, divided equally across the years of a multi-year course.",
+   "source": "gov.uk",
+   "url": "https://www.gov.uk/masters-loan/what-youll-get",
+   "checked": "2026-11-09"
+  },
+  {
+   "text": "You cannot get the master's loan if you already have a master's, or have previously received a loan or grant for a master's. So only the first master's you take can use it.",
+   "source": "gov.uk",
+   "url": "https://www.gov.uk/masters-loan/eligibility",
+   "checked": "2026-11-09"
+  },
+  {
+   "text": "Loan eligibility depends on residency (generally UK or Irish national or settled status, living in England, three years' residence) and age under 60. Check your own position on gov.uk before relying on it.",
+   "source": "gov.uk",
+   "url": "https://www.gov.uk/masters-loan/eligibility",
+   "checked": "2026-11-09"
+  },
+  {
+   "text": "A separate Doctoral Loan of £31,122 exists for 2026/27 PhD starters, so it does not compete with the master's loan.",
+   "source": "RCA funding page",
+   "url": "https://www.rca.ac.uk/study/fees-funding/financial-help-/funding-research-students",
+   "checked": "2026-11-09"
+  },
+  {
+   "text": "UKRI minimum doctoral stipend from 1 October 2026 is £23,805 with London weighting.",
+   "source": "UKRI",
+   "url": "https://www.ukri.org/apply-for-funding/studentships-and-doctoral-training/get-a-studentship-to-fund-your-doctorate/",
+   "checked": "2026-11-09"
+  }
+ ],
+ "suggestedPicks": {
+  "raise": "hv_promo",
+  "tech": "oxford",
+  "art": "rca_cap",
+  "phd": "rca_phd"
+ },
+ "assumptions": {
+  "artEntryYear": 2028,
+  "loanEligible": true,
+  "mastersLoan": 13206,
+  "doctoralLoan": 31122,
+  "phdStipend": 23805
+ }
+}

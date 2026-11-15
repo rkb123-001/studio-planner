@@ -49,20 +49,22 @@ test("places art projects, goals and steps, and splits done / overdue / later / 
   expect(art.rows.length).toBeGreaterThan(1);
 });
 
-test("renders, shows the marker and edits dates", () => {
-  const updates = [];
+test("renders, shows the marker and opens the project on click", () => {
+  const opened = [];
   render(
     <ProjectTimeline today={TODAY}
-      artProjects={[{ id: 1, title: "Twin cities", stage: "production", status: "active", startDate: "2026-11-02", endDate: "2027-02-10" }]}
-      projects={[]} steps={[]}
-      artStatuses={[{ key: "active", label: "Active" }, { key: "complete", label: "Complete" }]} goalStatuses={[]}
-      onUpdateArt={(id, f, v) => updates.push([id, f, v])} onUpdateGoal={() => {}} onOpenArt={() => {}} onOpenGoal={() => {}} onOpenPath={() => {}} />
+      artProjects={[{ id: 1, title: "Twin cities", stage: "production", status: "active", startDate: "2026-11-02", endDate: "2027-02-10", keyDateLabel: "install" }]}
+      projects={[{ id: 2, title: "VAT return", category: "Finance / systems", quarter: "q4", dueMonth: "December", status: "on-track" }]}
+      steps={[{ id: "s1", title: "Oxford MSc", track: "pay", from: "2027-03", to: "2027-09" }]}
+      onOpenArt={(id) => opened.push(["art", id])} onOpenGoal={(id) => opened.push(["goal", id])} onOpenPath={() => opened.push(["path"])} />
   );
   expect(screen.getByText("We are here")).toBeTruthy();
   expect(screen.getByText("Done so far")).toBeTruthy();
+  expect(screen.getByText("install")).toBeTruthy();
   fireEvent.click(screen.getByText(/Twin cities/));
-  fireEvent.change(screen.getByLabelText("End date"), { target: { value: "2027-03-01" } });
-  expect(updates).toEqual([[1, "endDate", "2027-03-01"]]);
+  fireEvent.click(screen.getByText(/VAT return/));
+  fireEvent.click(screen.getByText(/Oxford MSc/));
+  expect(opened).toEqual([["art", 1], ["goal", 2], ["path"]]);
   fireEvent.click(screen.getByText("12 months"));
   expect(screen.getByText("Nov")).toBeTruthy();
 });

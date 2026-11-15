@@ -12,7 +12,7 @@ const LINK_BLUE = "#1a0dab";
 const INK = "#1a1a1a";
 const MUTED = "#888";
 const LINE = "#e6e6e6";
-const NOW_BG = "#fff8d6";
+const NOW_BG = "#f1f0fc";
 
 const btn = (active) => ({
   display: "inline-block", padding: "5px 14px", border: `1px solid ${active ? LINK_BLUE : INK}`, background: "#fff",
@@ -21,67 +21,50 @@ const btn = (active) => ({
 const small = { fontFamily: TNR, fontSize: "12px", color: MUTED };
 const input = { fontFamily: TNR, fontSize: "14px", padding: "5px 8px", border: "1px solid #ccc", background: "#fff", width: "100%", boxSizing: "border-box" };
 
-function Pill({ item, color, selected, onSelect }) {
+function Pill({ item, color, onSelect }) {
   const done = item.zone === "done";
   const style = {
-    display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "8px",
-    padding: item.span > 1 ? "7px 12px" : "6px 12px", borderRadius: item.span > 1 ? "10px" : "999px",
-    fontFamily: TNR, fontSize: "13px", lineHeight: 1.25, color: INK, cursor: "pointer", textAlign: "left",
-    background: done ? "transparent" : item.ghost ? "transparent" : color,
-    border: done ? `1.5px solid ${color}` : item.ghost ? `1.5px dashed ${color}` : "1.5px solid transparent",
-    outline: selected ? `2px solid ${INK}` : "none", outlineOffset: "1px",
-    width: "100%", boxSizing: "border-box", minWidth: 0,
+    display: "block", padding: "4px 9px", borderRadius: item.span > 1 ? "8px" : "999px",
+    fontFamily: TNR, fontSize: "11px", lineHeight: 1.25, color: INK, cursor: "pointer", textAlign: "left",
+    background: done || item.ghost ? "#fff" : color + "1f",
+    border: item.ghost ? `1px dashed ${color}` : `1px solid ${color}`,
+    width: "100%", boxSizing: "border-box", minWidth: 0, appearance: "none",
   };
-  if (item.overdue) { style.border = "1.5px solid #b01904"; style.background = "#fff"; }
+  if (item.overdue) { style.border = "1px solid #b01904"; style.background = "#fff"; }
   if (item.paused) style.opacity = 0.7;
-  const label = (done ? "✓ " : "") + item.title + (item.clippedStart ? "" : "");
+  const tag = item.overdue ? "overdue" : item.who;
+  const nowrap = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
   return (
-    <button type="button" onClick={() => onSelect(item)} title={[item.title, item.note].filter(Boolean).join(" — ")}
-      aria-pressed={selected} style={{ ...style, appearance: "none" }}>
-      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: item.span > 1 ? "normal" : "nowrap", fontWeight: done ? 400 : 600 }}>
-        {item.clippedStart ? "← " : ""}{label}{item.clippedEnd ? " →" : ""}
+    <button type="button" onClick={() => onSelect(item)} title={[item.title, tag, item.note].filter(Boolean).join(" · ")} style={style}>
+      <span style={{ display: "flex", justifyContent: "space-between", gap: "6px", alignItems: "baseline" }}>
+        <span style={{ ...nowrap, fontWeight: done ? 400 : 600 }}>{item.clippedStart ? "← " : ""}{done ? "✓ " : ""}{item.title}{item.clippedEnd ? " →" : ""}</span>
+        {tag && <span style={{ fontSize: "9.5px", whiteSpace: "nowrap", color: item.overdue ? "#b01904" : MUTED }}>{tag}</span>}
       </span>
-      {(item.overdue || item.who) && (
-        <span style={{ fontSize: "11px", opacity: 0.8, whiteSpace: "nowrap", color: item.overdue ? "#b01904" : INK }}>
-          {item.overdue ? "overdue" : item.who}
-        </span>
-      )}
+      {item.note && <span style={{ display: "block", ...nowrap, fontSize: "10px", color: MUTED }}>{item.note}</span>}
     </button>
   );
 }
 
 export default function ProjectTimeline({
-  artProjects, projects, steps, artStatuses, goalStatuses,
-  onUpdateArt, onUpdateGoal, onOpenArt, onOpenGoal, onOpenPath, today,
+  artProjects, projects, steps, onOpenArt, onOpenGoal, onOpenPath, today,
 }) {
   const now = today || new Date();
   const [months, setMonths] = useState(6);
   const [startYM, setStartYM] = useState(ymOf(now));
-  const [sel, setSel] = useState(null); // item id
   const model = useMemo(
     () => buildTimeline({ artProjects, projects, steps }, { startYM, months }, now),
     [artProjects, projects, steps, startYM, months] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
-  const allItems = useMemo(() => {
-    const out = [...model.unscheduled, ...model.later];
-    model.lanes.forEach((l) => { l.done.forEach((i) => out.push(i)); l.rows.forEach((r) => r.forEach((i) => out.push(i))); });
-    return out;
-  }, [model]);
-  const selected = sel ? allItems.find((i) => i.id === sel) : null;
-  const art = selected && selected.kind === "art" ? artProjects.find((p) => p.id === selected.refId) : null;
-  const goal = selected && selected.kind === "goal" ? projects.find((p) => p.id === selected.refId) : null;
-
   const cols = `150px minmax(130px,1.1fr) repeat(${months}, minmax(0,1fr))`;
-  const select = (item) => setSel((cur) => (cur === item.id ? null : item.id));
+  const open = (item) => {
+    if (item.kind === "art") onOpenArt(item.refId);
+    else if (item.kind === "goal") onOpenGoal(item.refId);
+    else onOpenPath();
+  };
   const shift = (n) => setStartYM((s) => addMonthsYM(s, n));
   const atToday = startYM === ymOf(now);
   const hasAnything = model.lanes.length || model.unscheduled.length || model.later.length;
-
-  const setField = (field, value) => {
-    if (art) onUpdateArt(art.id, field, value);
-    if (goal) onUpdateGoal(goal.id, field, value);
-  };
 
   return (
     <div>
@@ -92,7 +75,7 @@ export default function ProjectTimeline({
         <span style={{ width: "12px" }} />
         <span onClick={() => setMonths(6)} style={btn(months === 6)} role="button">6 months</span>
         <span onClick={() => setMonths(12)} style={btn(months === 12)} role="button">12 months</span>
-        <span style={{ ...small, marginLeft: "auto" }}>Click any project to set its dates. Dashed means no dates set yet, so its place is a guess.</span>
+        <span style={{ ...small, marginLeft: "auto" }}>Click a project to open it. Dashed means no dates set yet, so its place is a guess. Set dates in the project itself.</span>
       </div>
 
       {!hasAnything && (
@@ -110,11 +93,11 @@ export default function ProjectTimeline({
               <div style={{ border: `2px dashed ${LINE}`, borderRadius: "12px" }} />
               {model.months.map((m) => (
                 <div key={m.ym} style={{
-                  position: "relative", borderRadius: "12px", background: m.index === model.nowIndex ? NOW_BG : "#fafafa",
-                  boxShadow: m.index === model.nowIndex ? "inset 0 0 0 2px #fde25e" : "none",
+                  position: "relative", borderRadius: "12px", background: m.index === model.nowIndex ? NOW_BG : "#fff", border: m.index === model.nowIndex ? "none" : `1px solid ${LINE}`,
+                  boxShadow: m.index === model.nowIndex ? `inset 0 0 0 1.5px ${LINK_BLUE}` : "none",
                 }}>
                   {m.index === model.nowIndex && (
-                    <span style={{ position: "absolute", top: "-26px", left: "50%", transform: "translateX(-50%)", background: INK, color: "#fff", fontFamily: TNR, fontSize: "12px", fontWeight: 700, padding: "3px 10px", borderRadius: "999px", whiteSpace: "nowrap" }}>We are here</span>
+                    <span style={{ position: "absolute", top: "-26px", left: "50%", transform: "translateX(-50%)", background: LINK_BLUE, color: "#fff", fontFamily: TNR, fontSize: "12px", fontWeight: 700, padding: "3px 10px", borderRadius: "999px", whiteSpace: "nowrap" }}>We are here</span>
                   )}
                 </div>
               ))}
@@ -123,10 +106,10 @@ export default function ProjectTimeline({
             {/* header */}
             <div style={{ position: "relative", display: "grid", gridTemplateColumns: cols, columnGap: "6px", padding: "14px 0 10px" }}>
               <div />
-              <div style={{ padding: "0 12px" }}><b style={{ fontFamily: TNR, fontSize: "15px" }}>Done so far</b></div>
+              <div style={{ padding: "0 12px" }}><b style={{ fontFamily: TNR, fontSize: "13px" }}>Done so far</b></div>
               {model.months.map((m) => (
                 <div key={m.ym} style={{ padding: "0 12px" }}>
-                  <b style={{ fontFamily: TNR, fontSize: "15px" }}>{m.label.split(" ")[0]}</b>
+                  <b style={{ fontFamily: TNR, fontSize: "13px" }}>{m.label.split(" ")[0]}</b>
                   <div style={small}>{m.label.split(" ")[1]}</div>
                 </div>
               ))}
@@ -136,28 +119,28 @@ export default function ProjectTimeline({
             {model.lanes.map((L) => {
               const rowCount = Math.max(1, L.rows.length);
               return (
-                <div key={L.key} style={{ position: "relative", display: "grid", gridTemplateColumns: cols, columnGap: "6px", rowGap: "6px", borderTop: `1px solid ${LINE}`, padding: "10px 0", alignItems: "start" }}>
-                  <div style={{ gridColumn: 1, gridRow: `1 / span ${rowCount}`, display: "flex", alignItems: "center", gap: "8px", fontFamily: TNR, fontSize: "14px", fontWeight: 700, padding: "6px 4px" }}>
-                    <span style={{ width: "12px", height: "12px", borderRadius: "50%", background: L.color, flex: "none" }} />
+                <div key={L.key} style={{ position: "relative", display: "grid", gridTemplateColumns: cols, columnGap: "6px", rowGap: "4px", borderTop: `1px solid ${LINE}`, padding: "8px 0", alignItems: "start" }}>
+                  <div style={{ gridColumn: 1, gridRow: `1 / span ${rowCount}`, display: "flex", alignItems: "center", gap: "8px", fontFamily: TNR, fontSize: "12px", fontWeight: 700, padding: "4px 4px" }}>
+                    <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: L.color, flex: "none" }} />
                     {L.label}
                   </div>
                   <div style={{ gridColumn: 2, gridRow: `1 / span ${rowCount}`, padding: "0 8px" }}>
                     {L.done.length > 3 ? (
                       <details>
-                        <summary style={{ cursor: "pointer", fontFamily: TNR, fontSize: "13px", border: `1.5px solid ${L.color}`, borderRadius: "999px", padding: "6px 12px" }}>✓ Finished ({L.done.length})</summary>
+                        <summary style={{ cursor: "pointer", fontFamily: TNR, fontSize: "11px", border: `1px solid ${L.color}`, borderRadius: "999px", padding: "4px 9px" }}>✓ Finished ({L.done.length})</summary>
                         <div style={{ display: "flex", flexDirection: "column", gap: "5px", marginTop: "6px" }}>
-                          {L.done.map((i) => <Pill key={i.id} item={i} color={L.color} selected={sel === i.id} onSelect={select} />)}
+                          {L.done.map((i) => <Pill key={i.id} item={i} color={L.color} onSelect={open} />)}
                         </div>
                       </details>
                     ) : (
                       <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-                        {L.done.map((i) => <Pill key={i.id} item={i} color={L.color} selected={sel === i.id} onSelect={select} />)}
+                        {L.done.map((i) => <Pill key={i.id} item={i} color={L.color} onSelect={open} />)}
                       </div>
                     )}
                   </div>
                   {L.rows.map((row, r) => row.map((i) => (
                     <div key={i.id} style={{ gridColumn: `${3 + i.col} / span ${i.span}`, gridRow: r + 1, minWidth: 0, padding: "0 6px" }}>
-                      <Pill item={i} color={L.color} selected={sel === i.id} onSelect={(it) => (it.kind === "step" ? onOpenPath() : select(it))} />
+                      <Pill item={i} color={L.color} onSelect={open} />
                     </div>
                   )))}
                 </div>
@@ -167,37 +150,6 @@ export default function ProjectTimeline({
         </div>
       ) : null}
 
-      {/* edit panel */}
-      {selected && (art || goal) && (
-        <div style={{ marginTop: "20px", padding: "16px 18px", border: `1px solid ${INK}`, maxWidth: "720px" }}>
-          <p style={{ fontFamily: TNR, fontSize: "17px", margin: "0 0 4px" }}>{selected.title}</p>
-          <p style={{ ...small, margin: "0 0 12px" }}>
-            {selected.from ? `Showing ${labelYM(selected.from)}${selected.to && selected.to !== selected.from ? ` to ${labelYM(selected.to)}` : ""}` : "No dates yet"}
-            {selected.ghost ? ", a guess until you set dates" : ""}
-          </p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px" }}>
-            <label style={small}>Start
-              <input type="date" aria-label="Start date" style={input} value={(art || goal).startDate || ""} onChange={(e) => setField("startDate", e.target.value)} />
-            </label>
-            <label style={small}>{art ? "End" : "Due"}
-              <input type="date" aria-label="End date" style={input} value={(art || goal).endDate || ""} onChange={(e) => setField("endDate", e.target.value)} />
-            </label>
-            <label style={small}>Status
-              <select aria-label="Status" style={input} value={(art || goal).status} onChange={(e) => setField("status", e.target.value)}>
-                {(art ? artStatuses : goalStatuses).map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-              </select>
-            </label>
-          </div>
-          <div style={{ marginTop: "12px", display: "flex", gap: "16px" }}>
-            <span style={{ fontFamily: TNR, fontSize: "14px", color: LINK_BLUE, textDecoration: "underline", cursor: "pointer" }}
-              onClick={() => (art ? onOpenArt(art.id) : onOpenGoal(goal.id))}>
-              Open in {art ? "Art Projects" : "Quarterly"} →
-            </span>
-            <span style={{ fontFamily: TNR, fontSize: "14px", color: MUTED, textDecoration: "underline", cursor: "pointer" }} onClick={() => setSel(null)}>Close</span>
-          </div>
-        </div>
-      )}
-
       {(model.unscheduled.length > 0 || model.later.length > 0) && (
         <div style={{ marginTop: "22px", maxWidth: "720px" }}>
           {model.unscheduled.length > 0 && (
@@ -205,7 +157,7 @@ export default function ProjectTimeline({
               <p style={{ ...small, margin: "0 0 6px" }}>Needs a date ({model.unscheduled.length})</p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                 {model.unscheduled.map((i) => (
-                  <span key={i.id} onClick={() => select(i)} style={{ ...btn(sel === i.id), fontSize: "12px", padding: "3px 10px" }} role="button">{i.title}</span>
+                  <span key={i.id} onClick={() => open(i)} style={{ ...btn(false), fontSize: "12px", padding: "3px 10px" }} role="button">{i.title}</span>
                 ))}
               </div>
             </div>
@@ -215,7 +167,7 @@ export default function ProjectTimeline({
               <p style={{ ...small, margin: "0 0 6px" }}>After this window ({model.later.length})</p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                 {model.later.map((i) => (
-                  <span key={i.id} onClick={() => (i.kind === "step" ? onOpenPath() : select(i))} style={{ ...btn(sel === i.id), fontSize: "12px", padding: "3px 10px" }} role="button">
+                  <span key={i.id} onClick={() => open(i)} style={{ ...btn(false), fontSize: "12px", padding: "3px 10px" }} role="button">
                     {i.title} · {labelYM(i.from)}
                   </span>
                 ))}

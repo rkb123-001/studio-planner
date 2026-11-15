@@ -2433,6 +2433,8 @@ const [, setAuthTimestamp] = useState(0);
               <div><p style={{ ...sml, marginBottom: "5px" }}>Progress — {p.progress}%</p><input type="range" min="0" max="100" value={p.progress} onChange={e => updateProject(p.id, "progress", Number(e.target.value))} style={{ width: "100%", accentColor: statusColor }} /></div>
               <div><p style={{ ...sml, marginBottom: "5px" }}>Confidence</p><select style={{ ...inp, cursor: "pointer" }} value={p.confidence} onChange={e => updateProject(p.id, "confidence", e.target.value)}>{CONFIDENCE.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}</select></div>
               <div><p style={{ ...sml, marginBottom: "5px" }}>Due month</p><input style={inp} value={p.dueMonth} onChange={e => updateProject(p.id, "dueMonth", e.target.value)} placeholder="e.g. June" /></div>
+              <div><p style={{ ...sml, marginBottom: "5px" }}>Start date (Timeline)</p><input type="date" style={inp} value={p.startDate || ""} onChange={e => updateProject(p.id, "startDate", e.target.value)} /></div>
+              <div><p style={{ ...sml, marginBottom: "5px" }}>End date (Timeline)</p><input type="date" style={inp} value={p.endDate || ""} onChange={e => updateProject(p.id, "endDate", e.target.value)} /></div>
               <div><p style={{ ...sml, marginBottom: "5px" }}>Next milestone</p><input style={inp} value={p.nextMilestone} onChange={e => updateProject(p.id, "nextMilestone", e.target.value)} placeholder="Next concrete step" /></div>
             </div>
             {/* Next physical action — plain, no card */}
@@ -2501,6 +2503,8 @@ const [, setAuthTimestamp] = useState(0);
               <div><p style={{ ...sml, marginBottom: "5px" }}>Funding amount</p><input style={inp} value={p.fundingAmount} onChange={e => updateArtProject(p.id, "fundingAmount", e.target.value)} placeholder="e.g. £8,000 or TBC" /></div>
               <div><p style={{ ...sml, marginBottom: "5px" }}>Key date label</p><input style={inp} value={p.keyDateLabel} onChange={e => updateArtProject(p.id, "keyDateLabel", e.target.value)} placeholder="e.g. application deadline, install date" /></div>
               <div><p style={{ ...sml, marginBottom: "5px" }}>Key date</p><input type="date" style={inp} value={p.keyDate} onChange={e => updateArtProject(p.id, "keyDate", e.target.value)} /></div>
+              <div><p style={{ ...sml, marginBottom: "5px" }}>Start date (Timeline)</p><input type="date" style={inp} value={p.startDate || ""} onChange={e => updateArtProject(p.id, "startDate", e.target.value)} /></div>
+              <div><p style={{ ...sml, marginBottom: "5px" }}>End date (Timeline)</p><input type="date" style={inp} value={p.endDate || ""} onChange={e => updateArtProject(p.id, "endDate", e.target.value)} /></div>
               <div><p style={{ ...sml, marginBottom: "5px" }}>Budget — estimate</p><input style={inp} value={p.budgetEstimate} onChange={e => updateArtProject(p.id, "budgetEstimate", e.target.value)} placeholder="e.g. £2,500" /></div>
               <div><p style={{ ...sml, marginBottom: "5px" }}>Budget — actual</p><input style={inp} value={p.budgetActual} onChange={e => updateArtProject(p.id, "budgetActual", e.target.value)} placeholder="e.g. £2,180" /></div>
             </div>
@@ -3442,10 +3446,6 @@ const [, setAuthTimestamp] = useState(0);
           artProjects={artProjects}
           projects={projects}
           steps={(studyPath.plan && studyPath.plan.steps) || []}
-          artStatuses={ART_PROJECT_STATUSES}
-          goalStatuses={Q_STATUSES}
-          onUpdateArt={updateArtProject}
-          onUpdateGoal={updateProject}
           onOpenArt={(id) => { setTab("art"); setEditingArtProject(id); }}
           onOpenGoal={(id) => { setTab("quarterly"); setQView("roadmap"); setEditingProject(id); }}
           onOpenPath={() => setTab("path")}

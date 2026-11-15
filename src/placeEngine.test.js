@@ -82,3 +82,26 @@ test("inbox: capture, place from inbox removes it", () => {
   expect(added[0].title).toBe("Email gallery");
   expect(removed).toEqual(["x1"]);
 });
+
+test("list view groups everything and ticks tasks off", () => {
+  const updates = [];
+  render(<ProjectTimeline today={TODAY}
+    artProjects={[{ id: 1, title: "Twin cities", stage: "production", status: "active", startDate: "2026-11-02", endDate: "2027-02-10" }]}
+    projects={[
+      { id: 2, title: "VAT return", category: "Finance / systems", quarter: "q4", dueMonth: "December", status: "on-track" },
+      { id: 3, title: "Late thing", category: "Finance / systems", quarter: "q3", dueMonth: "August", status: "behind" },
+      { id: 4, title: "Done thing", category: "Finance / systems", quarter: "q4", dueMonth: "November", status: "done" },
+    ]}
+    steps={[]} categories={CATS} inbox={[{ id: "i1", title: "Book dentist" }]}
+    onOpenArt={() => {}} onOpenGoal={() => {}} onOpenPath={() => {}} onAddGoal={() => {}}
+    onUpdateGoal={(id, f, v) => updates.push([id, f, v])} onUpdateArt={() => {}} onInboxAdd={() => {}} onInboxRemove={() => {}} />);
+  fireEvent.click(screen.getByText("List"));
+  expect(screen.getByText(/Overdue \(1\)/)).toBeTruthy();
+  expect(screen.getByText(/This month \(1\)/)).toBeTruthy();
+  expect(screen.getByText("Book dentist")).toBeTruthy();
+  expect(screen.queryByText("Done thing")).toBeNull();
+  fireEvent.click(screen.getByText("Show done"));
+  expect(screen.getByText("Done thing")).toBeTruthy();
+  fireEvent.click(screen.getByLabelText("Done: VAT return"));
+  expect(updates).toEqual([[2, "status", "done"]]);
+});

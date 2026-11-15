@@ -61,6 +61,7 @@ export function buildTimeline(data, view, today = new Date()) {
 
   const lanesMap = new Map();
   const unscheduled = [];
+  const all = [];
   const later = [];
   const lane = (key, label, color) => {
     if (!lanesMap.has(key)) lanesMap.set(key, { key, label, color, items: [] });
@@ -68,6 +69,7 @@ export function buildTimeline(data, view, today = new Date()) {
   };
 
   const place = (laneObj, item) => {
+    all.push({ ...item, lane: laneObj.label, color: laneObj.color, from: item.fromYM || "", to: item.toYM || item.fromYM || "" });
     // item has fromYM / toYM or none
     if (!item.fromYM) { unscheduled.push({ ...item, lane: laneObj.label }); return; }
     const a = ymIndex(item.fromYM), b = Math.max(a, ymIndex(item.toYM || item.fromYM));
@@ -149,5 +151,32 @@ export function buildTimeline(data, view, today = new Date()) {
     })
     .filter((L) => L.done.length || L.rows.length);
 
-  return { months, lanes, unscheduled, later, nowIndex };
+  return { months, lanes, unscheduled, later, nowIndex, all };
+}
+
+export const LIST_GROUPS = [
+  { key: "overdue", label: "Overdue" },
+  { key: "now", label: "This month" },
+  { key: "soon", label: "Next three months" },
+  { key: "later", label: "Later" },
+  { key: "undated", label: "Needs a date" },
+  { key: "done", label: "Done" },
+];
+
+/** Everything in one list, grouped by when it is due. `all` comes from buildTimeline. */
+export function groupList(all, nowYM) {
+  const now = ymIndex(nowYM);
+  const groups = Object.fromEntries(LIST_GROUPS.map((g) => [g.key, []]));
+  all.forEach((it) => {
+    let g;
+    if (it.done) g = "done";
+    else if (!it.from) g = "undated";
+    else {
+      const a = ymIndex(it.from), b = ymIndex(it.to || it.from);
+      g = b < now ? "overdue" : a <= now ? "now" : a - now <= 3 ? "soon" : "later";
+    }
+    groups[g].push(it);
+  });
+  Object.values(groups).forEach((arr) => arr.sort((x, y) => (x.to || "9999").localeCompare(y.to || "9999") || x.title.localeCompare(y.title)));
+  return groups;
 }

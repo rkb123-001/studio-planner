@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { PlaceWizard, ImportBox } from "./PlaceThis";
-import { buildTimeline, ymOf, addMonthsYM, labelYM } from "./timelineEngine";
+import { buildTimeline, groupList, LIST_GROUPS, ymOf, addMonthsYM, labelYM } from "./timelineEngine";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ProjectTimeline — a visual calendar of where every project is at.
@@ -47,13 +47,16 @@ function Pill({ item, color, onSelect }) {
 }
 
 export default function ProjectTimeline({
-  artProjects, projects, steps, onOpenArt, onOpenGoal, onOpenPath, onAddGoal, categories, inbox = [], onInboxAdd, onInboxRemove, today,
+  artProjects, projects, steps, onOpenArt, onOpenGoal, onOpenPath, onAddGoal, onUpdateArt, onUpdateGoal, categories, inbox = [], onInboxAdd, onInboxRemove, today,
 }) {
   const now = today || new Date();
   const [months, setMonths] = useState(6);
   const [panel, setPanel] = useState(null); // "place" | "import" | null
   const [placing, setPlacing] = useState(null); // inbox item being placed
   const [draft, setDraft] = useState("");
+  const [view, setView] = useState("timeline"); // "timeline" | "list"
+  const [showDone, setShowDone] = useState(false);
+  const [laneFilter, setLaneFilter] = useState("");
   const [startYM, setStartYM] = useState(ymOf(now));
   const model = useMemo(
     () => buildTimeline({ artProjects, projects, steps }, { startYM, months }, now),
@@ -73,6 +76,9 @@ export default function ProjectTimeline({
   return (
     <div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", marginBottom: "18px" }}>
+        <span onClick={() => setView("timeline")} style={btn(view === "timeline")} role="button">Timeline</span>
+        <span onClick={() => setView("list")} style={btn(view === "list")} role="button">List</span>
+        <span style={{ width: "12px" }} />
         <span onClick={() => shift(-3)} style={btn(false)} role="button" aria-label="Earlier">←</span>
         <span onClick={() => setStartYM(ymOf(now))} style={btn(atToday)} role="button">This month</span>
         <span onClick={() => shift(3)} style={btn(false)} role="button" aria-label="Later">→</span>
@@ -105,13 +111,62 @@ export default function ProjectTimeline({
         onAdd={(g) => { onAddGoal(g); if (placing && onInboxRemove) onInboxRemove(placing.id); }} onClose={() => { setPanel(null); setPlacing(null); }} />}
       {panel === "import" && <ImportBox categories={categories} today={now} onAdd={onAddGoal} onInbox={onInboxAdd} onClose={() => setPanel(null)} />}
 
-      {!hasAnything && (
+      {view === "timeline" && !hasAnything && (
         <p style={{ fontFamily: TNR, fontSize: "15px", color: MUTED }}>
           Nothing to show yet. Add an Art project with a key date, or a Quarterly goal with a due month, and it will appear here.
         </p>
       )}
 
-      {hasAnything ? (
+      {view === "list" && (() => {
+        const groups = groupList(laneFilter ? model.all.filter((i) => i.lane === laneFilter) : model.all, ymOf(now));
+        const lanesAvail = [...new Set(model.all.map((i) => i.lane))];
+        const toggle = (it) => {
+          if (it.kind === "goal") onUpdateGoal(it.refId, "status", it.done ? "not-started" : "done");
+          else if (it.kind === "art") onUpdateArt(it.refId, "status", it.done ? "active" : "complete");
+        };
+        const when = (it) => (it.from ? `${labelYM(it.from)}${it.to && it.to !== it.from ? ` to ${labelYM(it.to)}` : ""}` : "");
+        const Row = ({ it }) => (
+          <div style={{ display: "flex", alignItems: "baseline", gap: "10px", padding: "7px 0", borderBottom: "1px solid #f0f0f0", fontFamily: TNR, fontSize: "14px", opacity: it.done ? 0.55 : 1 }}>
+            {it.kind === "step" ? <span style={{ width: "13px" }} /> : <input type="checkbox" aria-label={`Done: ${it.title}`} checked={!!it.done} onChange={() => toggle(it)} />}
+            <span style={{ width: "9px", height: "9px", borderRadius: "50%", background: it.color.fill, border: `1px solid ${it.color.edge}`, boxSizing: "border-box", flex: "none", alignSelf: "center" }} />
+            <span onClick={() => open(it)} style={{ flex: 1, cursor: "pointer", textDecoration: it.done ? "line-through" : "none" }}>{it.title}{it.who ? <span style={{ ...small, marginLeft: "8px" }}>{it.who}</span> : null}</span>
+            <span style={{ ...small, whiteSpace: "nowrap" }}>{it.lane}</span>
+            <span style={{ ...small, width: "130px", textAlign: "right", whiteSpace: "nowrap" }}>{when(it)}</span>
+          </div>
+        );
+        return (
+          <div style={{ maxWidth: "820px", marginBottom: "20px" }}>
+            <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "10px", flexWrap: "wrap" }}>
+              <select aria-label="Filter by lane" value={laneFilter} onChange={(e) => setLaneFilter(e.target.value)} style={{ fontFamily: TNR, fontSize: "13px", padding: "4px 8px", border: "1px solid #ccc" }}>
+                <option value="">All lanes</option>
+                {lanesAvail.map((l) => <option key={l} value={l}>{l}</option>)}
+              </select>
+              <span onClick={() => setShowDone((v) => !v)} style={btn(showDone)} role="button">{showDone ? "Hide done" : "Show done"}</span>
+              <span style={small}>{model.all.filter((i) => !i.done).length} open{inbox.length ? `, ${inbox.length} in inbox` : ""}</span>
+            </div>
+            {inbox.length > 0 && !laneFilter && (
+              <div style={{ marginBottom: "16px" }}>
+                <p style={{ ...small, textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>Inbox, not placed yet ({inbox.length})</p>
+                {inbox.map((t) => (
+                  <div key={t.id} style={{ display: "flex", alignItems: "baseline", gap: "10px", padding: "7px 0", borderBottom: "1px solid #f0f0f0", fontFamily: TNR, fontSize: "14px" }}>
+                    <input type="checkbox" aria-label={`Done: ${t.title}`} checked={false} onChange={() => onInboxRemove(t.id)} />
+                    <span style={{ flex: 1 }}>{t.title}{t.source ? <span style={{ ...small, marginLeft: "8px" }}>{t.source}</span> : null}</span>
+                    <span role="button" onClick={() => { setPlacing(t); setPanel("place"); }} style={{ ...btn(false), padding: "2px 10px", fontSize: "12px" }}>Place</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {LIST_GROUPS.filter((g) => groups[g.key].length && (g.key !== "done" || showDone)).map((g) => (
+              <div key={g.key} style={{ marginBottom: "16px" }}>
+                <p style={{ ...small, textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px", color: g.key === "overdue" ? "#b01904" : MUTED }}>{g.label} ({groups[g.key].length})</p>
+                {groups[g.key].map((it) => <Row key={it.id} it={it} />)}
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
+      {view === "timeline" && hasAnything ? (
         <div style={{ overflowX: "auto", paddingTop: "26px" }}>
           <div style={{ position: "relative", minWidth: months === 12 ? "1250px" : "860px" }}>
             {/* bands */}
@@ -177,7 +232,7 @@ export default function ProjectTimeline({
         </div>
       ) : null}
 
-      {(model.unscheduled.length > 0 || model.later.length > 0) && (
+      {view === "timeline" && (model.unscheduled.length > 0 || model.later.length > 0) && (
         <div style={{ marginTop: "22px", maxWidth: "720px" }}>
           {model.unscheduled.length > 0 && (
             <div style={{ marginBottom: "14px" }}>

@@ -3468,6 +3468,8 @@ const [, setAuthTimestamp] = useState(0);
           onOpenGoal={(id) => { setTab("quarterly"); setQView("roadmap"); setEditingProject(id); }}
           onOpenPath={() => setTab("path")}
           onAddGoal={addGoalFromTimeline}
+          onUpdateArt={updateArtProject}
+          onUpdateGoal={updateProject}
           categories={Q_CATEGORIES}
           inbox={inbox}
           onInboxAdd={addInboxTask}

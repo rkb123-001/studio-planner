@@ -1,6 +1,7 @@
 import { useState, useEffect, Component } from "react";
 import { ProjectRoadmap, normaliseRoadmap, roadmapProgress } from "./ProjectRoadmap";
 import { StudyPath } from "./StudyPath";
+import ProjectTimeline from "./ProjectTimeline";
 import { normaliseStudyPath, goalsFromSteps } from "./pathEngine";
 
 const TNR = "'Times New Roman', Times, serif";
@@ -2634,7 +2635,7 @@ const [, setAuthTimestamp] = useState(0);
 
       {/* ── Tabs as boxed buttons ── */}
       <div style={{ textAlign: "center", marginBottom: "52px", display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
-        {[["today","Today"],["grid","Grid"],["targets","Targets"],["quarterly","Quarterly"],["art","Art Projects"],["path","Path"],["plan","Plan"],["archive","Archive"]].map(([key, lbl]) => (
+        {[["today","Today"],["grid","Grid"],["targets","Targets"],["quarterly","Quarterly"],["art","Art Projects"],["path","Path"],["timeline","Timeline"],["plan","Plan"],["archive","Archive"]].map(([key, lbl]) => (
           <span key={key} onClick={() => setTab(key)} style={boxBtn(tab === key)}>{lbl}</span>
         ))}
       </div>
@@ -3433,6 +3434,22 @@ const [, setAuthTimestamp] = useState(0);
       {/* ════ PATH ════ */}
       {tab === "path" && (
         <StudyPath path={studyPath} onUpdate={updateStudyPath} onPlan={planStudyPath} planNotice={pathNotice} onOpenQuarterly={() => setTab("quarterly")} />
+      )}
+
+      {/* ════ TIMELINE ════ */}
+      {tab === "timeline" && (
+        <ProjectTimeline
+          artProjects={artProjects}
+          projects={projects}
+          steps={(studyPath.plan && studyPath.plan.steps) || []}
+          artStatuses={ART_PROJECT_STATUSES}
+          goalStatuses={Q_STATUSES}
+          onUpdateArt={updateArtProject}
+          onUpdateGoal={updateProject}
+          onOpenArt={(id) => { setTab("art"); setEditingArtProject(id); }}
+          onOpenGoal={(id) => { setTab("quarterly"); setQView("roadmap"); setEditingProject(id); }}
+          onOpenPath={() => setTab("path")}
+        />
       )}
 
       {/* ════ PLAN ════ */}

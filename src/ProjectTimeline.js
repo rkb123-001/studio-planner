@@ -97,7 +97,7 @@ export default function ProjectTimeline({
           <input aria-label="Add to inbox" value={draft} onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && draft.trim()) { onInboxAdd(draft); setDraft(""); } }}
             placeholder="Add a task and press Enter" style={{ fontFamily: TNR, fontSize: "14px", padding: "6px 8px", border: "1px solid #ccc", width: "100%", boxSizing: "border-box" }} />
-          {inbox.map((t) => (
+          {view === "timeline" && inbox.map((t) => (
             <div key={t.id} style={{ display: "flex", alignItems: "baseline", gap: "10px", padding: "6px 0", borderBottom: "1px solid #f0f0f0", fontFamily: TNR, fontSize: "14px" }}>
               <span style={{ flex: 1 }}>{t.title}{t.source ? <span style={{ ...small, marginLeft: "8px" }}>{t.source}</span> : null}</span>
               <span role="button" onClick={() => { setPlacing(t); setPanel("place"); }} style={{ ...btn(false), padding: "2px 10px", fontSize: "12px" }}>Place</span>

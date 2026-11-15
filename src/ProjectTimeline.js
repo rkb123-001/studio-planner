@@ -22,11 +22,12 @@ const small = { fontFamily: TNR, fontSize: "12px", color: MUTED };
 
 function Pill({ item, color, onSelect }) {
   const done = item.zone === "done";
+  const plain = done || item.ghost || item.overdue;
   const style = {
     display: "block", padding: "4px 9px", borderRadius: item.span > 1 ? "8px" : "999px",
-    fontFamily: TNR, fontSize: "11px", lineHeight: 1.25, color: INK, cursor: "pointer", textAlign: "left",
-    background: done || item.ghost ? "#fff" : color + "1f",
-    border: item.ghost ? `1px dashed ${color}` : `1px solid ${color}`,
+    fontFamily: TNR, fontSize: "11px", lineHeight: 1.25, color: plain ? INK : color.text, cursor: "pointer", textAlign: "left",
+    background: done || item.ghost ? "#fff" : color.fill,
+    border: item.ghost ? `1px dashed ${color.edge}` : `1px solid ${color.edge}`,
     width: "100%", boxSizing: "border-box", minWidth: 0, appearance: "none",
   };
   if (item.overdue) { style.border = "1px solid #b01904"; style.background = "#fff"; }
@@ -37,9 +38,9 @@ function Pill({ item, color, onSelect }) {
     <button type="button" onClick={() => onSelect(item)} title={[item.title, tag, item.note].filter(Boolean).join(" · ")} style={style}>
       <span style={{ display: "flex", justifyContent: "space-between", gap: "6px", alignItems: "baseline" }}>
         <span style={{ ...nowrap, fontWeight: done ? 400 : 600 }}>{item.clippedStart ? "← " : ""}{done ? "✓ " : ""}{item.title}{item.clippedEnd ? " →" : ""}</span>
-        {tag && <span style={{ fontSize: "9.5px", whiteSpace: "nowrap", color: item.overdue ? "#b01904" : MUTED }}>{tag}</span>}
+        {tag && <span style={{ fontSize: "9.5px", whiteSpace: "nowrap", color: item.overdue ? "#b01904" : plain ? MUTED : color.text, opacity: 0.85 }}>{tag}</span>}
       </span>
-      {item.note && <span style={{ display: "block", ...nowrap, fontSize: "10px", color: MUTED }}>{item.note}</span>}
+      {item.note && <span style={{ display: "block", ...nowrap, fontSize: "10px", color: plain ? MUTED : color.text, opacity: 0.85 }}>{item.note}</span>}
     </button>
   );
 }
@@ -120,13 +121,13 @@ export default function ProjectTimeline({
               return (
                 <div key={L.key} style={{ position: "relative", display: "grid", gridTemplateColumns: cols, columnGap: "6px", rowGap: "4px", borderTop: `1px solid ${LINE}`, padding: "8px 0", alignItems: "start" }}>
                   <div style={{ gridColumn: 1, gridRow: `1 / span ${rowCount}`, display: "flex", alignItems: "center", gap: "8px", fontFamily: TNR, fontSize: "12px", fontWeight: 700, padding: "4px 4px" }}>
-                    <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: L.color, flex: "none" }} />
+                    <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: L.color.fill, border: `1px solid ${L.color.edge}`, boxSizing: "border-box", flex: "none" }} />
                     {L.label}
                   </div>
                   <div style={{ gridColumn: 2, gridRow: `1 / span ${rowCount}`, padding: "0 8px" }}>
                     {L.done.length > 3 ? (
                       <details>
-                        <summary style={{ cursor: "pointer", fontFamily: TNR, fontSize: "11px", border: `1px solid ${L.color}`, borderRadius: "999px", padding: "4px 9px" }}>✓ Finished ({L.done.length})</summary>
+                        <summary style={{ cursor: "pointer", fontFamily: TNR, fontSize: "11px", border: `1px solid ${L.color.edge}`, borderRadius: "999px", padding: "4px 9px" }}>✓ Finished ({L.done.length})</summary>
                         <div style={{ display: "flex", flexDirection: "column", gap: "5px", marginTop: "6px" }}>
                           {L.done.map((i) => <Pill key={i.id} item={i} color={L.color} onSelect={open} />)}
                         </div>

@@ -24,8 +24,22 @@ export function parseDueMonth(text, defaultYear) {
   return `${yr ? yr[1] : defaultYear}-${String(mi + 1).padStart(2, "0")}`;
 }
 
-// Quiet edge colours that sit well on white next to the planner's black and link blue.
-const GOAL_COLOURS = ["#8a6d2f", "#a24a4a", "#4f7a5a", "#555555", "#2f6f8a", "#8a5a2f", "#6b5a8a"];
+// Lane colours are the same ones the planner grid uses (MODE_COLORS in App.js):
+// link blue at the grid's exec-demand opacities, hot pinks, cyan and greys.
+const BLUE = "#1a0dab";
+const c = (fill, text = "#fff", edge = fill) => ({ fill, text, edge });
+const ART_COLOUR = c("rgba(26, 13, 171, 1.0)");                       // growth
+const PATH_COLOUR = c("#888888");                                      // rest
+const CATEGORY_COLOURS = {
+  "Studio production": c("rgba(26, 13, 171, 0.25)", "#1a1a1a", BLUE),  // making
+  "Client / commissions": c("rgba(26, 13, 171, 0.75)"),               // comms
+  "Finance / systems": c("rgba(26, 13, 171, 0.5)"),                    // systems
+  "Health / regulation": c("#00a8ff", "#1a1a1a"),                      // health
+  "Practice development": c("#aaaaaa", "#1a1a1a"),                     // office
+  "Opportunities / applications": c("#C2185B"),                        // Social *
+  "Personal / life admin": c("#F72798"),                               // social
+};
+const FALLBACK_COLOUR = c("#aaaaaa", "#1a1a1a");
 
 const QUARTER_FIRST = { q1: 1, q2: 4, q3: 7, q4: 10 };
 
@@ -69,7 +83,7 @@ export function buildTimeline(data, view, today = new Date()) {
   // Art projects
   (data.artProjects || []).forEach((p) => {
     if (p.status === "declined") return;
-    const l = lane("art", "Art projects", "#1a0dab");
+    const l = lane("art", "Art projects", ART_COLOUR);
     const fromYM = toYM(p.startDate) || toYM(p.keyDate);
     const toYMv = toYM(p.endDate) || toYM(p.keyDate) || fromYM;
     place(l, {
@@ -85,7 +99,7 @@ export function buildTimeline(data, view, today = new Date()) {
   (data.projects || []).forEach((p) => {
     if (p.fromPath) return;
     if (!p.title) return;
-    const l = lane(`goal:${p.category}`, p.category || "Goals", "");
+    const l = lane(`goal:${p.category}`, p.category || "Goals", CATEGORY_COLOURS[p.category] || FALLBACK_COLOUR);
     const due = parseDueMonth(p.dueMonth, year);
     const qFirst = QUARTER_FIRST[p.quarter];
     const qStart = qFirst ? `${year}-${String(qFirst).padStart(2, "0")}` : "";
@@ -105,7 +119,7 @@ export function buildTimeline(data, view, today = new Date()) {
 
   // Study path steps
   (data.steps || []).forEach((s) => {
-    const l = lane("path", "Study path", s.track === "art" ? "#7a4a85" : "#3f7a6e");
+    const l = lane("path", "Study path", PATH_COLOUR);
     place(l, {
       id: `step:${s.id}`, kind: "step", refId: s.id, title: s.title, who: s.kind === "apply" ? "apply" : "",
       note: s.when || "", fromYM: toYM(s.from), toYM: toYM(s.to), done: false,
@@ -119,11 +133,7 @@ export function buildTimeline(data, view, today = new Date()) {
       const ai = order.indexOf(a.key), bi = order.indexOf(b.key);
       return (ai < 0 ? 9 : ai) - (bi < 0 ? 9 : bi) || a.label.localeCompare(b.label);
     })
-    .map((L, idx, all) => {
-      if (!L.color) {
-        const goalIdx = all.slice(0, idx).filter((x) => x.key.startsWith("goal:")).length;
-        L = { ...L, color: GOAL_COLOURS[goalIdx % GOAL_COLOURS.length] };
-      }
+    .map((L) => {
       const grid = L.items.filter((i) => i.zone === "grid").sort((a, b) => a.col - b.col || b.span - a.span);
       const rows = [];
       grid.forEach((it) => {

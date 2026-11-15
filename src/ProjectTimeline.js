@@ -19,7 +19,6 @@ const btn = (active) => ({
   color: active ? LINK_BLUE : INK, fontFamily: TNR, fontSize: "13px", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap",
 });
 const small = { fontFamily: TNR, fontSize: "12px", color: MUTED };
-const input = { fontFamily: TNR, fontSize: "14px", padding: "5px 8px", border: "1px solid #ccc", background: "#fff", width: "100%", boxSizing: "border-box" };
 
 function Pill({ item, color, onSelect }) {
   const done = item.zone === "done";

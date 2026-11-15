@@ -68,3 +68,23 @@ test("renders, shows the marker and opens the project on click", () => {
   fireEvent.click(screen.getByText("12 months"));
   expect(screen.getByText("Nov")).toBeTruthy();
 });
+
+test("due month parsing avoids false matches and rolls a past month into next year", () => {
+  expect(parseDueMonth("maybe soon", 2026)).toBe("");
+  expect(parseDueMonth("dismay", 2026)).toBe("");
+  expect(parseDueMonth("by 5 Mar", 2026)).toBe("2026-03");
+  const t = buildTimeline({ artProjects: [], steps: [], projects: [{ id: 1, title: "Tax", category: "Finance / systems", quarter: "q4", dueMonth: "January", status: "on-track" }] }, view, TODAY);
+  const it = t.lanes[0].rows.flat()[0];
+  expect(it.to).toBe("2027-01");
+  expect(it.overdue).toBeFalsy();
+});
+
+test("messy real-world data does not crash the engine or the page", () => {
+  const artProjects = [{ id: 1 }, { id: 2, title: "x", keyDate: "not a date", startDate: "2027-13-99" }, { id: 3, title: "Backwards", startDate: "2027-05-01", endDate: "2027-01-01" }, null === 1 ? 0 : { id: 4, title: "No status", stage: undefined }];
+  const projects = [{ id: 1 }, { id: 2, title: "No category", quarter: "q9", dueMonth: 5 }, { id: 3, title: "Odd", category: "Whatever", quarter: "q1", dueMonth: "ongoing", status: "weird" }];
+  const t = buildTimeline({ artProjects, projects, steps: [{ id: "s", title: "Step", from: "bad", to: "" }] }, view, TODAY);
+  expect(Array.isArray(t.lanes)).toBe(true);
+  render(<ProjectTimeline today={TODAY} artProjects={artProjects} projects={projects} steps={[]} onOpenArt={() => {}} onOpenGoal={() => {}} onOpenPath={() => {}} />);
+  expect(screen.getByText("Done so far")).toBeTruthy();
+  fireEvent.click(screen.getByText("List"));
+});

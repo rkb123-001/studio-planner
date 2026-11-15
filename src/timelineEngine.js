@@ -18,7 +18,7 @@ const toYM = (s) => (isISO(s) ? s.slice(0, 7) : isYM(s) ? s : "");
 export function parseDueMonth(text, defaultYear) {
   if (!text) return "";
   const t = String(text).toLowerCase();
-  const mi = MONTH_NAMES.findIndex((m) => t.includes(m) || new RegExp(`\\b${m.slice(0, 3)}\\b`).test(t));
+  const mi = MONTH_NAMES.findIndex((m) => new RegExp(`\\b${m}\\b`).test(t) || new RegExp(`\\b${m.slice(0, 3)}\\b`).test(t));
   if (mi < 0) return "";
   const yr = t.match(/\b(20\d{2})\b/);
   return `${yr ? yr[1] : defaultYear}-${String(mi + 1).padStart(2, "0")}`;
@@ -102,9 +102,11 @@ export function buildTimeline(data, view, today = new Date()) {
     if (p.fromPath) return;
     if (!p.title) return;
     const l = lane(`goal:${p.category}`, p.category || "Goals", CATEGORY_COLOURS[p.category] || FALLBACK_COLOUR);
-    const due = parseDueMonth(p.dueMonth, year);
+    let due = parseDueMonth(p.dueMonth, year);
     const qFirst = QUARTER_FIRST[p.quarter];
     const qStart = qFirst ? `${year}-${String(qFirst).padStart(2, "0")}` : "";
+    // "January" on a Q4 goal with no year means next January, not the one that has already passed.
+    if (due && qStart && !/\b20\d{2}\b/.test(String(p.dueMonth)) && ymIndex(due) < ymIndex(qStart)) due = addMonthsYM(due, 12);
     const qEnd = qStart ? addMonthsYM(qStart, 2) : "";
     const toV = toYM(p.endDate) || due || qEnd;
     let fromV = toYM(p.startDate) || (due && qStart && ymIndex(qStart) <= ymIndex(due) ? qStart : "") || qStart || due;

@@ -23,9 +23,9 @@ function Choices({ options, value, onPick }) {
   );
 }
 
-export function PlaceWizard({ categories, today, onAdd, onClose }) {
+export function PlaceWizard({ categories, today, onAdd, onClose, initialTitle = "" }) {
   const [step, setStep] = useState(0);
-  const [a, setA] = useState({ ...EMPTY, category: categories[0] });
+  const [a, setA] = useState({ ...EMPTY, title: initialTitle, category: categories[0] });
   const set = (k, v) => setA((cur) => ({ ...cur, [k]: v }));
   const next = () => setStep((s) => s + 1);
   const back = () => setStep((s) => Math.max(0, s - 1));
@@ -96,13 +96,14 @@ export function PlaceWizard({ categories, today, onAdd, onClose }) {
   );
 }
 
-export function ImportBox({ categories, today, onAdd, onClose }) {
+export function ImportBox({ categories, today, onAdd, onClose, onInbox }) {
   const [text, setText] = useState("");
   const [items, setItems] = useState(null);
   const [error, setError] = useState("");
   const read = () => { const r = parseProposals(text, categories); setError(r.error); setItems(r.items.length ? r.items : null); };
   const update = (key, patch) => setItems((cur) => cur.map((it) => (it.key === key ? { ...it, ...patch, answers: { ...it.answers, ...(patch.answers || {}) } } : it)));
   const chosen = items ? items.filter((i) => i.include) : [];
+  const toInbox = () => { chosen.forEach((i) => onInbox(i.answers.title, i.source)); onClose(); };
   const addAll = () => { chosen.forEach((i) => onAdd(placeFromAnswers(i.answers, today).goal)); onClose(); };
 
   return (
@@ -139,6 +140,7 @@ export function ImportBox({ categories, today, onAdd, onClose }) {
         })}
         <div style={{ marginTop: "14px", display: "flex", gap: "12px", alignItems: "center" }}>
           <span role="button" onClick={chosen.length ? addAll : undefined} style={{ ...btn(true), opacity: chosen.length ? 1 : 0.4 }}>Add {chosen.length} to timeline</span>
+          {onInbox && <span role="button" onClick={chosen.length ? toInbox : undefined} style={{ ...btn(false), opacity: chosen.length ? 1 : 0.4 }}>Add to inbox instead</span>}
           <span role="button" onClick={() => setItems(null)} style={btn(false)}>Back</span>
           <span onClick={onClose} style={{ fontFamily: TNR, fontSize: "13px", color: MUTED, textDecoration: "underline", cursor: "pointer", marginLeft: "auto" }}>Cancel</span>
         </div>

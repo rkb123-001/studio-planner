@@ -47,11 +47,13 @@ function Pill({ item, color, onSelect }) {
 }
 
 export default function ProjectTimeline({
-  artProjects, projects, steps, onOpenArt, onOpenGoal, onOpenPath, onAddGoal, categories, today,
+  artProjects, projects, steps, onOpenArt, onOpenGoal, onOpenPath, onAddGoal, categories, inbox = [], onInboxAdd, onInboxRemove, today,
 }) {
   const now = today || new Date();
   const [months, setMonths] = useState(6);
   const [panel, setPanel] = useState(null); // "place" | "import" | null
+  const [placing, setPlacing] = useState(null); // inbox item being placed
+  const [draft, setDraft] = useState("");
   const [startYM, setStartYM] = useState(ymOf(now));
   const model = useMemo(
     () => buildTimeline({ artProjects, projects, steps }, { startYM, months }, now),
@@ -78,13 +80,30 @@ export default function ProjectTimeline({
         <span onClick={() => setMonths(6)} style={btn(months === 6)} role="button">6 months</span>
         <span onClick={() => setMonths(12)} style={btn(months === 12)} role="button">12 months</span>
         <span style={{ width: "12px" }} />
-        {onAddGoal && <span onClick={() => setPanel(panel === "place" ? null : "place")} style={btn(panel === "place")} role="button">+ Place something</span>}
+        {onAddGoal && <span onClick={() => { setPlacing(null); setPanel(panel === "place" ? null : "place"); }} style={btn(panel === "place")} role="button">+ Place something</span>}
         {onAddGoal && <span onClick={() => setPanel(panel === "import" ? null : "import")} style={btn(panel === "import")} role="button">Import suggestions</span>}
         <span style={{ ...small, marginLeft: "auto" }}>Click a project to open it. Dashed means no dates set yet, so its place is a guess. Set dates in the project itself.</span>
       </div>
 
-      {panel === "place" && <PlaceWizard categories={categories} today={now} onAdd={onAddGoal} onClose={() => setPanel(null)} />}
-      {panel === "import" && <ImportBox categories={categories} today={now} onAdd={onAddGoal} onClose={() => setPanel(null)} />}
+      {onInboxAdd && (
+        <div style={{ maxWidth: "720px", marginBottom: "18px" }}>
+          <p style={{ ...small, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Inbox{inbox.length ? ` (${inbox.length})` : ""}: capture now, place later</p>
+          <input aria-label="Add to inbox" value={draft} onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && draft.trim()) { onInboxAdd(draft); setDraft(""); } }}
+            placeholder="Add a task and press Enter" style={{ fontFamily: TNR, fontSize: "14px", padding: "6px 8px", border: "1px solid #ccc", width: "100%", boxSizing: "border-box" }} />
+          {inbox.map((t) => (
+            <div key={t.id} style={{ display: "flex", alignItems: "baseline", gap: "10px", padding: "6px 0", borderBottom: "1px solid #f0f0f0", fontFamily: TNR, fontSize: "14px" }}>
+              <span style={{ flex: 1 }}>{t.title}{t.source ? <span style={{ ...small, marginLeft: "8px" }}>{t.source}</span> : null}</span>
+              <span role="button" onClick={() => { setPlacing(t); setPanel("place"); }} style={{ ...btn(false), padding: "2px 10px", fontSize: "12px" }}>Place</span>
+              <span role="button" aria-label={`Remove ${t.title}`} onClick={() => onInboxRemove(t.id)} style={{ cursor: "pointer", color: MUTED, fontSize: "16px" }}>×</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {panel === "place" && <PlaceWizard key={placing ? placing.id : "new"} categories={categories} today={now} initialTitle={placing ? placing.title : ""}
+        onAdd={(g) => { onAddGoal(g); if (placing && onInboxRemove) onInboxRemove(placing.id); }} onClose={() => { setPanel(null); setPlacing(null); }} />}
+      {panel === "import" && <ImportBox categories={categories} today={now} onAdd={onAddGoal} onInbox={onInboxAdd} onClose={() => setPanel(null)} />}
 
       {!hasAnything && (
         <p style={{ fontFamily: TNR, fontSize: "15px", color: MUTED }}>

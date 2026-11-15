@@ -60,3 +60,25 @@ test("import box previews and adds the checked items", () => {
   fireEvent.click(screen.getByText("Add 1 to timeline"));
   expect(added.map((g) => g.title)).toEqual(["A"]);
 });
+
+test("inbox: capture, place from inbox removes it", () => {
+  const added = [], inboxAdds = [], removed = [];
+  const inbox = [{ id: "x1", title: "Email gallery", source: "Gmail" }];
+  render(<ProjectTimeline today={TODAY} artProjects={[]} projects={[]} steps={[]} categories={CATS} inbox={inbox}
+    onOpenArt={() => {}} onOpenGoal={() => {}} onOpenPath={() => {}} onAddGoal={(g) => added.push(g)}
+    onInboxAdd={(t) => inboxAdds.push(t)} onInboxRemove={(id) => removed.push(id)} />);
+  fireEvent.change(screen.getByLabelText("Add to inbox"), { target: { value: "Book dentist" } });
+  fireEvent.keyDown(screen.getByLabelText("Add to inbox"), { key: "Enter" });
+  expect(inboxAdds).toEqual(["Book dentist"]);
+  fireEvent.click(screen.getByText("Place"));
+  expect(screen.getByLabelText("Task title").value).toBe("Email gallery");
+  fireEvent.click(screen.getByText("Next"));
+  fireEvent.click(screen.getByText("No date"));
+  fireEvent.click(screen.getByText("It's annoying"));
+  fireEvent.click(screen.getByText("Neutral"));
+  fireEvent.click(screen.getByText("A day or so"));
+  fireEvent.click(screen.getByText("See where it lands"));
+  fireEvent.click(screen.getByText("Add to timeline"));
+  expect(added[0].title).toBe("Email gallery");
+  expect(removed).toEqual(["x1"]);
+});

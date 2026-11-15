@@ -2361,6 +2361,23 @@ const [, setAuthTimestamp] = useState(0);
       return next;
     });
   };
+  // Task inbox: quick-captured tasks waiting to be placed on the Timeline. Stored on the profile so it syncs.
+  const inbox = Array.isArray(profile.inbox) ? profile.inbox : [];
+  const updateInbox = (fn) => {
+    setHasUserInteracted(true);
+    setProfile(prev => {
+      const cur = Array.isArray(prev.inbox) ? prev.inbox : [];
+      const next = { ...prev, inbox: fn(cur).slice(0, 200) };
+      saveProfile(next);
+      return next;
+    });
+  };
+  const addInboxTask = (title, source = "") => {
+    const t = String(title || "").trim().slice(0, 140);
+    if (t) updateInbox(list => [...list, { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, title: t, source: String(source).slice(0, 200), at: new Date().toISOString() }]);
+  };
+  const removeInboxTask = (id) => updateInbox(list => list.filter(x => x.id !== id));
+
   const planStudyPath = (steps) => {
     const goals = goalsFromSteps(steps).map(g => ({ ...emptyProject(), ...g, id: Date.now() + Math.random() }));
     setHasUserInteracted(true);
@@ -3452,6 +3469,9 @@ const [, setAuthTimestamp] = useState(0);
           onOpenPath={() => setTab("path")}
           onAddGoal={addGoalFromTimeline}
           categories={Q_CATEGORIES}
+          inbox={inbox}
+          onInboxAdd={addInboxTask}
+          onInboxRemove={removeInboxTask}
         />
       )}
 

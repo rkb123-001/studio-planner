@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { PlaceWizard, ImportBox } from "./PlaceThis";
 import { buildTimeline, ymOf, addMonthsYM, labelYM } from "./timelineEngine";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -46,10 +47,11 @@ function Pill({ item, color, onSelect }) {
 }
 
 export default function ProjectTimeline({
-  artProjects, projects, steps, onOpenArt, onOpenGoal, onOpenPath, today,
+  artProjects, projects, steps, onOpenArt, onOpenGoal, onOpenPath, onAddGoal, categories, today,
 }) {
   const now = today || new Date();
   const [months, setMonths] = useState(6);
+  const [panel, setPanel] = useState(null); // "place" | "import" | null
   const [startYM, setStartYM] = useState(ymOf(now));
   const model = useMemo(
     () => buildTimeline({ artProjects, projects, steps }, { startYM, months }, now),
@@ -75,8 +77,14 @@ export default function ProjectTimeline({
         <span style={{ width: "12px" }} />
         <span onClick={() => setMonths(6)} style={btn(months === 6)} role="button">6 months</span>
         <span onClick={() => setMonths(12)} style={btn(months === 12)} role="button">12 months</span>
+        <span style={{ width: "12px" }} />
+        {onAddGoal && <span onClick={() => setPanel(panel === "place" ? null : "place")} style={btn(panel === "place")} role="button">+ Place something</span>}
+        {onAddGoal && <span onClick={() => setPanel(panel === "import" ? null : "import")} style={btn(panel === "import")} role="button">Import suggestions</span>}
         <span style={{ ...small, marginLeft: "auto" }}>Click a project to open it. Dashed means no dates set yet, so its place is a guess. Set dates in the project itself.</span>
       </div>
+
+      {panel === "place" && <PlaceWizard categories={categories} today={now} onAdd={onAddGoal} onClose={() => setPanel(null)} />}
+      {panel === "import" && <ImportBox categories={categories} today={now} onAdd={onAddGoal} onClose={() => setPanel(null)} />}
 
       {!hasAnything && (
         <p style={{ fontFamily: TNR, fontSize: "15px", color: MUTED }}>

@@ -109,10 +109,10 @@ export function buildTimeline(data, view, today = new Date()) {
     if (fromV && toV && ymIndex(fromV) > ymIndex(toV)) fromV = toV;
     place(l, {
       id: `goal:${p.id}`, kind: "goal", refId: p.id, title: p.title,
-      who: p.status === "at-risk" ? "at risk" : p.status === "behind" ? "behind" : "",
+      who: [p.importance === 2 ? "!" : "", p.waiting ? "waiting" : "", p.status === "at-risk" ? "at risk" : p.status === "behind" ? "behind" : "", p.enthusiasm === "dread" ? "dreaded" : ""].filter(Boolean).join(" · "),
       note: p.nextMilestone || p.nextAction || "",
       fromYM: fromV, toYM: toV,
-      done: p.status === "done", ghost: !p.startDate && !p.endDate && !due,
+      done: p.status === "done", ghost: (!p.startDate && !p.endDate && !due) || !!p.waiting,
       status: p.status,
     });
   });

@@ -2340,6 +2340,7 @@ const [, setAuthTimestamp] = useState(0);
     setEditingProject(p.id);
   };
   const updateProject = (id, field, value) => { setHasUserInteracted(true); setProjects(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p)); };
+  const addGoalFromTimeline = (partial) => { setHasUserInteracted(true); setProjects(prev => [...prev, { ...emptyProject(), ...partial, id: Date.now() + Math.random() }]); };
   const deleteProject = (id) => { setHasUserInteracted(true); setProjects(prev => prev.filter(p => p.id !== id)); if (editingProject === id) setEditingProject(null); };
 
   const addArtProject = () => {
@@ -3449,6 +3450,8 @@ const [, setAuthTimestamp] = useState(0);
           onOpenArt={(id) => { setTab("art"); setEditingArtProject(id); }}
           onOpenGoal={(id) => { setTab("quarterly"); setQView("roadmap"); setEditingProject(id); }}
           onOpenPath={() => setTab("path")}
+          onAddGoal={addGoalFromTimeline}
+          categories={Q_CATEGORIES}
         />
       )}
 

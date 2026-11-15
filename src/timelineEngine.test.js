@@ -61,9 +61,9 @@ test("renders, shows the marker and opens the project on click", () => {
   expect(screen.getByText("We are here")).toBeTruthy();
   expect(screen.getByText("Done so far")).toBeTruthy();
   expect(screen.getByText("install")).toBeTruthy();
-  fireEvent.click(screen.getByText(/Twin cities/));
-  fireEvent.click(screen.getByText(/VAT return/));
-  fireEvent.click(screen.getByText(/Oxford MSc/));
+  fireEvent.click(screen.getByRole("button", { name: /Twin cities/ }));
+  fireEvent.click(screen.getByRole("button", { name: /VAT return/ }));
+  fireEvent.click(screen.getByRole("button", { name: /Oxford MSc/ }));
   expect(opened).toEqual([["art", 1], ["goal", 2], ["path"]]);
   fireEvent.click(screen.getByText("12 months"));
   expect(screen.getByText("Nov")).toBeTruthy();

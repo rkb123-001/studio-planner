@@ -62,6 +62,7 @@ export function buildTimeline(data, view, today = new Date()) {
   const lanesMap = new Map();
   const unscheduled = [];
   const all = [];
+  const milestones = [];
   const later = [];
   const lane = (key, label, color) => {
     if (!lanesMap.has(key)) lanesMap.set(key, { key, label, color, items: [] });
@@ -92,6 +93,7 @@ export function buildTimeline(data, view, today = new Date()) {
       id: `art:${p.id}`, kind: "art", refId: p.id, title: p.title || "Untitled project",
       who: p.stage ? p.stage.replace(/_/g, " ") : "", note: p.keyDateLabel || "",
       fromYM: fromYM && toYMv && ymIndex(fromYM) > ymIndex(toYMv) ? toYMv : fromYM, toYM: toYMv,
+      dueISO: isISO(p.endDate) ? p.endDate : isISO(p.keyDate) ? p.keyDate : "",
       done: p.status === "complete", ghost: p.status === "paused" || (!p.startDate && !p.endDate),
       paused: p.status === "paused",
     });
@@ -116,6 +118,7 @@ export function buildTimeline(data, view, today = new Date()) {
       who: [p.importance === 2 ? "!" : "", p.waiting ? "waiting" : "", p.status === "at-risk" ? "at risk" : p.status === "behind" ? "behind" : "", p.enthusiasm === "dread" ? "dreaded" : ""].filter(Boolean).join(" · "),
       note: p.nextMilestone || p.nextAction || "",
       fromYM: fromV, toYM: toV,
+      dueISO: isISO(p.endDate) && p.dueExact !== false ? p.endDate : "",
       done: p.status === "done", ghost: (!p.startDate && !p.endDate && !due) || !!p.waiting,
       status: p.status,
     });
@@ -123,6 +126,7 @@ export function buildTimeline(data, view, today = new Date()) {
 
   // Study path steps
   (data.steps || []).forEach((s) => {
+    (s.side || []).forEach((d) => { if (d && isISO(d.on)) milestones.push({ title: d.title, dueISO: d.on, lane: "Study path", color: PATH_COLOUR, expected: !!d.expected }); });
     const l = lane("path", "Study path", PATH_COLOUR);
     place(l, {
       id: `step:${s.id}`, kind: "step", refId: s.id, title: s.title, who: s.kind === "apply" ? "apply" : "",
@@ -153,7 +157,7 @@ export function buildTimeline(data, view, today = new Date()) {
     })
     .filter((L) => L.done.length || L.rows.length);
 
-  return { months, lanes, unscheduled, later, nowIndex, all };
+  return { months, lanes, unscheduled, later, nowIndex, all, milestones };
 }
 
 export const LIST_GROUPS = [
@@ -181,4 +185,26 @@ export function groupList(all, nowYM) {
   });
   Object.values(groups).forEach((arr) => arr.sort((x, y) => (x.to || "9999").localeCompare(y.to || "9999") || x.title.localeCompare(y.title)));
   return groups;
+}
+
+const isoOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const mondayOf = (d) => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+
+/**
+ * What is due this week and the next three, plus anything overdue and what is in progress this month.
+ * Only items with an exact date appear in the week rows; month-level items appear under "in progress".
+ */
+export function comingUp(all, milestones, today = new Date(), weeks = 4) {
+  const exact = [...all.filter((i) => i.dueISO && !i.done), ...milestones.map((m) => ({ ...m, title: m.title }))];
+  const mon = mondayOf(today);
+  const rows = Array.from({ length: weeks }, (_, k) => {
+    const a = new Date(mon); a.setDate(a.getDate() + k * 7);
+    const b = new Date(a); b.setDate(b.getDate() + 6);
+    const [ai, bi] = [isoOf(a), isoOf(b)];
+    return { label: k === 0 ? "This week" : `W+${k}`, from: ai, to: bi, items: exact.filter((i) => i.dueISO >= ai && i.dueISO <= bi).sort((x, y) => x.dueISO.localeCompare(y.dueISO)) };
+  });
+  const overdue = exact.filter((i) => i.dueISO < isoOf(mon)).sort((x, y) => x.dueISO.localeCompare(y.dueISO));
+  const nowYM = ymOf(today);
+  const inProgress = all.filter((i) => !i.done && i.from && ymIndex(i.from) <= ymIndex(nowYM) && ymIndex(i.to || i.from) >= ymIndex(nowYM) && !i.ghost);
+  return { rows, overdue, inProgress };
 }

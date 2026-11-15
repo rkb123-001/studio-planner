@@ -76,7 +76,7 @@ export function placeFromAnswers(a, today = new Date()) {
       title: String(a.title || "").trim(), category: a.category,
       status: "not-started", horizon: monthsAway <= 0 ? "now" : monthsAway <= 3 ? "next" : "later",
       quarter: `q${Math.ceil(sm / 3)}`, dueMonth: longYM(endYM),
-      startDate: `${startYM}-01`, endDate: endISO,
+      startDate: `${startYM}-01`, endDate: endISO, dueExact: dated,
       nextMilestone: dateKind === "hard" && dated ? `Deadline ${fmtDate(a.date)}` : "",
       nextAction: waiting ? `Chase ${waiting}` : "Decide the first physical step.",
       notes: `Placed by the question series: ${reasons.join("; ")}.`,

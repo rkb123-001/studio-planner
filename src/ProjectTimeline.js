@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { PlaceWizard, ImportBox } from "./PlaceThis";
-import { buildTimeline, groupList, LIST_GROUPS, ymOf, addMonthsYM, labelYM } from "./timelineEngine";
+import { buildTimeline, groupList, comingUp, LIST_GROUPS, ymOf, addMonthsYM, labelYM } from "./timelineEngine";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ProjectTimeline — a visual calendar of where every project is at.
@@ -47,7 +47,7 @@ function Pill({ item, color, onSelect }) {
 }
 
 export default function ProjectTimeline({
-  artProjects, projects, steps, onOpenArt, onOpenGoal, onOpenPath, onAddGoal, onUpdateArt, onUpdateGoal, categories, view: viewProp, onView, goalsPanel, inbox = [], onInboxAdd, onInboxRemove, today,
+  artProjects, projects, steps, onOpenArt, onOpenGoal, onOpenPath, onAddGoal, onUpdateArt, onUpdateGoal, categories, view: viewProp, onView, goalsPanel, artPanel, pathPanel, inbox = [], onInboxAdd, onInboxRemove, today,
 }) {
   const now = today || new Date();
   const [months, setMonths] = useState(6);
@@ -56,6 +56,8 @@ export default function ProjectTimeline({
   const [draft, setDraft] = useState("");
   const [viewLocal, setViewLocal] = useState("timeline"); // "timeline" | "list" | "goals"
   const view = viewProp || viewLocal;
+  const panels = { goals: goalsPanel, art: artPanel, path: pathPanel };
+  const isPanel = ["goals", "art", "path"].includes(view);
   const setView = onView || setViewLocal;
   const [showDone, setShowDone] = useState(false);
   const [laneFilter, setLaneFilter] = useState("");
@@ -81,7 +83,9 @@ export default function ProjectTimeline({
         <span onClick={() => setView("timeline")} style={btn(view === "timeline")} role="button">Timeline</span>
         <span onClick={() => setView("list")} style={btn(view === "list")} role="button">List</span>
         {goalsPanel && <span onClick={() => setView("goals")} style={btn(view === "goals")} role="button">Goals</span>}
-        {view !== "goals" && <>
+        {artPanel && <span onClick={() => setView("art")} style={btn(view === "art")} role="button">Art</span>}
+        {pathPanel && <span onClick={() => setView("path")} style={btn(view === "path")} role="button">Path</span>}
+        {!isPanel && <>
         <span style={{ width: "12px" }} />
         <span onClick={() => shift(-3)} style={btn(false)} role="button" aria-label="Earlier">←</span>
         <span onClick={() => setStartYM(ymOf(now))} style={btn(atToday)} role="button">This month</span>
@@ -96,9 +100,32 @@ export default function ProjectTimeline({
         </>}
       </div>
 
-      {view === "goals" && goalsPanel}
+      {isPanel && panels[view]}
 
-      {view !== "goals" && onInboxAdd && (
+      {!isPanel && (() => {
+        const cu = comingUp(model.all, model.milestones, now);
+        const fmt = (iso) => new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+        const anything = cu.overdue.length || cu.rows.some((r) => r.items.length) || cu.inProgress.length;
+        if (!anything) return null;
+        const line = { fontFamily: TNR, fontSize: "12px", color: INK, margin: "2px 0" };
+        return (
+          <details open style={{ maxWidth: "720px", marginBottom: "18px" }}>
+            <summary style={{ ...small, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "6px" }}>Where you are: coming up</summary>
+            {cu.overdue.length > 0 && <p style={{ ...line, color: "#b01904" }}>Overdue: {cu.overdue.slice(0, 6).map((i) => `${i.title} (${fmt(i.dueISO)})`).join(", ")}</p>}
+            {cu.rows.map((r) => (
+              <div key={r.label} style={{ display: "flex", gap: "12px", alignItems: "baseline" }}>
+                <span style={{ ...small, width: "58px", flex: "none" }}>{r.label}</span>
+                <span style={line}>
+                  {r.items.length ? r.items.map((i, n) => <span key={i.title + i.dueISO + n}>{n ? ", " : ""}{i.title} <span style={small}>{fmt(i.dueISO)}</span></span>) : <span style={small}>nothing with a date</span>}
+                </span>
+              </div>
+            ))}
+            {cu.inProgress.length > 0 && <p style={{ ...line, marginTop: "6px" }}><span style={small}>In progress this month: </span>{cu.inProgress.slice(0, 6).map((i) => i.title).join(", ")}{cu.inProgress.length > 6 ? ` and ${cu.inProgress.length - 6} more` : ""}</p>}
+          </details>
+        );
+      })()}
+
+      {!isPanel && onInboxAdd && (
         <div style={{ maxWidth: "720px", marginBottom: "18px" }}>
           <p style={{ ...small, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Inbox{inbox.length ? ` (${inbox.length})` : ""}: capture now, place later</p>
           <input aria-label="Add to inbox" value={draft} onChange={(e) => setDraft(e.target.value)}
@@ -114,9 +141,9 @@ export default function ProjectTimeline({
         </div>
       )}
 
-      {view !== "goals" && panel === "place" && <PlaceWizard key={placing ? placing.id : "new"} categories={categories} today={now} initialTitle={placing ? placing.title : ""}
+      {!isPanel && panel === "place" && <PlaceWizard key={placing ? placing.id : "new"} categories={categories} today={now} initialTitle={placing ? placing.title : ""}
         onAdd={(g) => { onAddGoal(g); if (placing && onInboxRemove) onInboxRemove(placing.id); }} onClose={() => { setPanel(null); setPlacing(null); }} />}
-      {view !== "goals" && panel === "import" && <ImportBox categories={categories} today={now} onAdd={onAddGoal} onInbox={onInboxAdd} onClose={() => setPanel(null)} />}
+      {!isPanel && panel === "import" && <ImportBox categories={categories} today={now} onAdd={onAddGoal} onInbox={onInboxAdd} onClose={() => setPanel(null)} />}
 
       {view === "timeline" && !hasAnything && (
         <p style={{ fontFamily: TNR, fontSize: "15px", color: MUTED }}>

@@ -1707,7 +1707,7 @@ const [, setAuthTimestamp] = useState(0);
   const [restTargets, setRestTargets]     = useState(saved?.restTargets || DAYS.map(() => false));
   const [socialDone, setSocialDone]       = useState(saved?.socialDone ?? false);
   const [weekNote, setWeekNote]           = useState(saved?.weekNote || "");
-  const [tab, setTab]                     = useState("today");
+  const [tab, setTab]                     = useState("week");
   const [dayEnergyLevels, setDayEnergyLevels] = useState(saved?.dayEnergyLevels || DAYS.reduce((a, d) => ({ ...a, [d]: "medium" }), {}));
 
   // Check session on mount
@@ -1737,6 +1737,7 @@ const [, setAuthTimestamp] = useState(0);
   const [projects, setProjects]           = useState(saved?.projects || []);
   const [qView, setQView]                 = useState("roadmap");
   const [tlView, setTlView]                 = useState("timeline");
+  const [rView, setRView]                   = useState("targets");
   const [editingProject, setEditingProject] = useState(null);
   const [qFilter, setQFilter]             = useState("all");
 
@@ -2595,14 +2596,14 @@ const [, setAuthTimestamp] = useState(0);
               <div style={{ marginBottom: "36px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
                   <p style={{ ...sml, color: "#b01904", margin: 0 }}>Art Projects</p>
-                  <span onClick={() => setTab("art")} style={{ fontFamily: TNR, fontSize: "12px", color: "#888", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}>Open Art Projects →</span>
+                  <span onClick={() => { setTab("timeline"); setTlView("art"); }} style={{ fontFamily: TNR, fontSize: "12px", color: "#888", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}>Open Art Projects →</span>
                 </div>
                 {artProjects.map(p => {
                   const stageObj = ART_STAGES.find(s => s.key === p.stage) || ART_STAGES[0];
                   const statusColor = { active: "#b01904", paused: "#e8c070", complete: "#0fa97f", declined: "#888" }[p.status] || "#888";
                   const statusLabel = ART_PROJECT_STATUSES.find(s => s.key === p.status)?.label || p.status;
                   return (
-                    <div key={p.id} onClick={() => { setTab("art"); setEditingArtProject(p.id); }}
+                    <div key={p.id} onClick={() => { setTab("timeline"); setTlView("art"); setEditingArtProject(p.id); }}
                       style={{ display: "flex", alignItems: "baseline", gap: "16px", padding: "10px 0", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}>
                       <span style={{ fontFamily: TNR, fontSize: "12px", color: "#888", width: "52px", flexShrink: 0 }}>
                         {p.keyDate ? new Date(p.keyDate + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}
@@ -2726,6 +2727,72 @@ const [, setAuthTimestamp] = useState(0);
       </div>
   );
 
+  // Art Projects and Path are now views inside the Timeline tab
+  const artPanel = (
+      <div style={{ maxWidth: "720px", margin: "0 auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "10px", flexWrap: "wrap", gap: "10px" }}>
+          <span style={sml}>Art projects</span>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+            <span onClick={() => setShowArtGuide(!showArtGuide)} style={{ ...boxBtn(showArtGuide), fontSize: "12px", padding: "4px 12px" }}>Stage guide</span>
+            <span onClick={addArtProject} style={{ ...linkStyle, fontSize: "13px", marginLeft: "4px" }}>+ Add project</span>
+          </div>
+        </div>
+        <p style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb", marginBottom: "24px" }}>
+          The production pipeline for fine art projects, from first idea to post-show — separate from the general goals in Quarterly.
+        </p>
+
+        {showArtGuide && (
+          <div style={{ marginBottom: "28px", padding: "16px 0", borderTop: "1px solid #f0f0f0", borderBottom: "1px solid #f0f0f0" }}>
+            <p style={{ ...sml, marginBottom: "12px" }}>Stages</p>
+            {ART_STAGES.map((s, i) => (
+              <p key={s.key} style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", lineHeight: "1.8", marginBottom: "4px" }}>
+                <span style={{ color: "#888" }}>{i + 1}.</span> <strong>{s.label}</strong> — <span style={{ color: "#888" }}>{s.desc}</span>
+              </p>
+            ))}
+            <p style={{ ...sml, marginTop: "18px", marginBottom: "10px" }}>Funding — London reference points</p>
+            <p style={{ fontFamily: TNR, fontSize: "13px", color: "#888", lineHeight: "1.8" }}>
+              {LONDON_FUNDING_BODIES.filter(f => f !== "Self-funded" && f !== "Gallery-backed" && f !== "Other").join(" · ")}
+            </p>
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "28px" }}>
+          {["active", "all", ...ART_PROJECT_STATUSES.map(s => s.key).filter(k => k !== "active")].map(f => (
+            <span key={f} onClick={() => setArtStatusFilter(f)}
+              style={{
+                fontFamily: TNR, fontSize: "13px", cursor: "pointer",
+                color: artStatusFilter === f ? LINK_BLUE : "#888",
+                textDecoration: artStatusFilter === f ? "underline" : "none",
+                textUnderlineOffset: "2px",
+              }}>
+              {f === "all" ? "All" : (ART_PROJECT_STATUSES.find(s => s.key === f)?.label || f)}
+            </span>
+          ))}
+        </div>
+
+        {artProjects.length === 0 && (
+          <div style={{ textAlign: "center", fontFamily: TNR, fontSize: "17px", lineHeight: "2", color: "#bbb" }}>
+            <div>No art projects yet.</div><div>Add your first.</div>
+          </div>
+        )}
+
+        {ART_STAGES.map(stage => {
+          const stageProjects = artProjects.filter(p => p.stage === stage.key && (artStatusFilter === "all" || p.status === artStatusFilter));
+          if (stageProjects.length === 0) return null;
+          return (
+            <div key={stage.key} style={{ marginBottom: "32px" }}>
+              <p style={{ ...sml, marginBottom: "12px" }}>{stage.label}</p>
+              {stageProjects.map(p => renderArtProjectRow(p))}
+            </div>
+          );
+        })}
+      </div>
+  );
+
+  const pathPanel = (
+      <StudyPath path={studyPath} onUpdate={updateStudyPath} onPlan={planStudyPath} planNotice={pathNotice} onOpenQuarterly={() => { setTab("timeline"); setTlView("goals"); }} />
+  );
+
   return (
     <div style={{ minHeight: "100vh", background: "#fff", color: "#1a1a1a", fontFamily: TNR, padding: "60px 32px 100px" }}>
 
@@ -2787,7 +2854,7 @@ const [, setAuthTimestamp] = useState(0);
                   </div>
                 )}
                 <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
-                  <span onClick={() => { stuckReset(); setTab("grid"); }} style={{ ...linkStyle, fontSize: "14px" }}>Go to grid</span>
+                  <span onClick={() => { stuckReset(); setTab("week"); }} style={{ ...linkStyle, fontSize: "14px" }}>Go to grid</span>
                   <span onClick={stuckReset} style={{ fontFamily: TNR, fontSize: "13px", color: "#888", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px", alignSelf: "center" }}>dismiss</span>
                 </div>
               </>
@@ -2829,13 +2896,13 @@ const [, setAuthTimestamp] = useState(0);
 
       {/* ── Tabs as boxed buttons ── */}
       <div style={{ textAlign: "center", marginBottom: "52px", display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
-        {[["today","Today"],["grid","Grid"],["targets","Targets"],["art","Art Projects"],["path","Path"],["timeline","Timeline"],["plan","Plan"],["archive","Archive"]].map(([key, lbl]) => (
+        {[["week","Week"],["reflect","Reflect"],["timeline","Timeline"]].map(([key, lbl]) => (
           <span key={key} onClick={() => setTab(key)} style={boxBtn(tab === key)}>{lbl}</span>
         ))}
       </div>
 
       {/* ════ TODAY ════ */}
-      {tab === "today" && (
+      {tab === "week" && (
         <div style={{ maxWidth: "440px", margin: "0 auto" }}>
           <div style={{ marginBottom: "40px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
@@ -2930,8 +2997,20 @@ const [, setAuthTimestamp] = useState(0);
         </div>
       )}
 
+      {tab === "week" && (
+        <div style={{ maxWidth: "720px", margin: "36px auto 0" }}>
+          <div style={{ borderTop: "1px solid #e6e6e6", marginBottom: "28px" }} />
+          <div style={{ marginBottom: "44px" }}>
+            <p style={{ ...sml, marginBottom: "12px" }}>Week note</p>
+            <textarea value={weekNote} onChange={e => { setHasUserInteracted(true); setWeekNote(e.target.value); }}
+              placeholder="What's on this week? Shifts, deadlines, intentions..."
+              style={{ width: "100%", minHeight: "72px", border: "none", borderBottom: "1px solid #e8e8e8", resize: "vertical", fontFamily: TNR, fontSize: "16px", color: "#1a1a1a", padding: "8px 0", outline: "none", background: "transparent", lineHeight: "1.7", boxSizing: "border-box" }} />
+          </div>
+        </div>
+      )}
+
       {/* ════ GRID ════ */}
-      {tab === "grid" && (
+      {tab === "week" && (
         <>
           {fineArtWarning && profile.protectedPractice?.enabled && (
             <div style={{ maxWidth: "600px", margin: "0 auto 24px", textAlign: "center" }}>
@@ -3176,8 +3255,77 @@ const [, setAuthTimestamp] = useState(0);
         </>
       )}
 
+      {tab === "week" && (
+        <div style={{ maxWidth: "520px", margin: "44px auto 0" }}>
+          <details>
+            <summary style={{ ...sml, cursor: "pointer", marginBottom: "18px" }}>Guides: energy matching, runway logic, install as app</summary>
+          <div style={{ marginBottom: "44px" }}>
+            <p style={{ ...sml, marginBottom: "18px" }}>Energy matching</p>
+            {[
+              {
+                level: "High",
+                mode: "making",
+                primary: "Go straight to making",
+                note: "No runway needed. Set a block, lay out materials, start.",
+              },
+              {
+                level: "Medium",
+                mode: "systems",
+                primary: "Support first, then exposure",
+                note: "10–15 mins organising or planning, then move to one harder task.",
+              },
+              {
+                level: "Low",
+                mode: "rest",
+                primary: "Runway only — one small action",
+                note: "Do the easiest available thing. One reply, one file, then stop or rest.",
+              },
+            ].map((e, i) => (
+              <div key={i} style={{ marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid #f0f0f0" }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: "16px", marginBottom: "5px" }}>
+                  <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888", width: "56px", flexShrink: 0 }}>{e.level}</span>
+                  <span style={{
+                    fontFamily: TNR, fontSize: "16px",
+                    color: WORK_MODES.includes(e.mode)
+                      ? `rgba(26, 13, 171, ${(EXEC_INTENSITY[e.mode]?.opacity ?? 0.5)})`
+                      : MODE_COLORS[e.mode]
+                  }}>{e.primary}</span>
+                </div>
+                <div style={{ paddingLeft: "72px" }}>
+                  <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888", lineHeight: "1.7" }}>{e.note}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginBottom: "44px" }}>
+            <p style={{ ...sml, marginBottom: "12px" }}>Runway logic</p>
+            <p style={{ fontFamily: TNR, fontSize: "16px", color: "#1a1a1a", margin: 0 }}>
+              Support → Exposure → Exit
+            </p>
+            <p style={{ fontFamily: TNR, fontSize: "13px", color: "#888", marginTop: "6px" }}>
+              Organise first. One hard task. Then stop.
+            </p>
+          </div>
+          <div>
+            <p style={{ ...sml, marginBottom: "8px" }}>Install as app</p>
+            <p style={{ fontFamily: TNR, fontSize: "13px", color: "#bbb", lineHeight: "1.8" }}>
+              iPhone: Safari → share → "Add to Home Screen".<br />
+              Android: Chrome → menu → "Add to Home Screen".
+            </p>
+          </div>
+          </details>
+        </div>
+      )}
+
+      {tab === "reflect" && (
+        <div style={{ maxWidth: "720px", margin: "0 auto 28px", display: "flex", gap: "10px" }}>
+          <span onClick={() => setRView("targets")} style={{ ...boxBtn(rView === "targets"), fontSize: "12px", padding: "4px 12px" }}>Targets</span>
+          <span onClick={() => setRView("archive")} style={{ ...boxBtn(rView === "archive"), fontSize: "12px", padding: "4px 12px" }}>Past weeks</span>
+        </div>
+      )}
+
       {/* ════ TARGETS ════ */}
-      {tab === "targets" && (
+      {tab === "reflect" && rView === "targets" && (
         <div style={{ maxWidth: "520px", margin: "0 auto" }}>
 
           {/* Capacity — stripped to plain typographic line */}
@@ -3392,82 +3540,15 @@ const [, setAuthTimestamp] = useState(0);
         </div>
       )}
 
-      {/* ════ ART PROJECTS ════ */}
-      {tab === "art" && (
-        <div style={{ maxWidth: "720px", margin: "0 auto" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "10px", flexWrap: "wrap", gap: "10px" }}>
-            <span style={sml}>Art projects</span>
-            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-              <span onClick={() => setShowArtGuide(!showArtGuide)} style={{ ...boxBtn(showArtGuide), fontSize: "12px", padding: "4px 12px" }}>Stage guide</span>
-              <span onClick={addArtProject} style={{ ...linkStyle, fontSize: "13px", marginLeft: "4px" }}>+ Add project</span>
-            </div>
-          </div>
-          <p style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb", marginBottom: "24px" }}>
-            The production pipeline for fine art projects, from first idea to post-show — separate from the general goals in Quarterly.
-          </p>
-
-          {showArtGuide && (
-            <div style={{ marginBottom: "28px", padding: "16px 0", borderTop: "1px solid #f0f0f0", borderBottom: "1px solid #f0f0f0" }}>
-              <p style={{ ...sml, marginBottom: "12px" }}>Stages</p>
-              {ART_STAGES.map((s, i) => (
-                <p key={s.key} style={{ fontFamily: TNR, fontSize: "13px", color: "#1a1a1a", lineHeight: "1.8", marginBottom: "4px" }}>
-                  <span style={{ color: "#888" }}>{i + 1}.</span> <strong>{s.label}</strong> — <span style={{ color: "#888" }}>{s.desc}</span>
-                </p>
-              ))}
-              <p style={{ ...sml, marginTop: "18px", marginBottom: "10px" }}>Funding — London reference points</p>
-              <p style={{ fontFamily: TNR, fontSize: "13px", color: "#888", lineHeight: "1.8" }}>
-                {LONDON_FUNDING_BODIES.filter(f => f !== "Self-funded" && f !== "Gallery-backed" && f !== "Other").join(" · ")}
-              </p>
-            </div>
-          )}
-
-          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "28px" }}>
-            {["active", "all", ...ART_PROJECT_STATUSES.map(s => s.key).filter(k => k !== "active")].map(f => (
-              <span key={f} onClick={() => setArtStatusFilter(f)}
-                style={{
-                  fontFamily: TNR, fontSize: "13px", cursor: "pointer",
-                  color: artStatusFilter === f ? LINK_BLUE : "#888",
-                  textDecoration: artStatusFilter === f ? "underline" : "none",
-                  textUnderlineOffset: "2px",
-                }}>
-                {f === "all" ? "All" : (ART_PROJECT_STATUSES.find(s => s.key === f)?.label || f)}
-              </span>
-            ))}
-          </div>
-
-          {artProjects.length === 0 && (
-            <div style={{ textAlign: "center", fontFamily: TNR, fontSize: "17px", lineHeight: "2", color: "#bbb" }}>
-              <div>No art projects yet.</div><div>Add your first.</div>
-            </div>
-          )}
-
-          {ART_STAGES.map(stage => {
-            const stageProjects = artProjects.filter(p => p.stage === stage.key && (artStatusFilter === "all" || p.status === artStatusFilter));
-            if (stageProjects.length === 0) return null;
-            return (
-              <div key={stage.key} style={{ marginBottom: "32px" }}>
-                <p style={{ ...sml, marginBottom: "12px" }}>{stage.label}</p>
-                {stageProjects.map(p => renderArtProjectRow(p))}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ════ PATH ════ */}
-      {tab === "path" && (
-        <StudyPath path={studyPath} onUpdate={updateStudyPath} onPlan={planStudyPath} planNotice={pathNotice} onOpenQuarterly={() => { setTab("timeline"); setTlView("goals"); }} />
-      )}
-
       {/* ════ TIMELINE ════ */}
       {tab === "timeline" && (
         <ProjectTimeline
           artProjects={artProjects}
           projects={projects}
           steps={(studyPath.plan && studyPath.plan.steps) || []}
-          onOpenArt={(id) => { setTab("art"); setEditingArtProject(id); }}
+          onOpenArt={(id) => { setTlView("art"); setEditingArtProject(id); }}
           onOpenGoal={(id) => { setTlView("goals"); setQView("roadmap"); setEditingProject(id); }}
-          onOpenPath={() => setTab("path")}
+          onOpenPath={() => setTlView("path")}
           onAddGoal={addGoalFromTimeline}
           onUpdateArt={updateArtProject}
           onUpdateGoal={updateProject}
@@ -3475,126 +3556,20 @@ const [, setAuthTimestamp] = useState(0);
           view={tlView}
           onView={setTlView}
           goalsPanel={goalsPanel}
+          artPanel={artPanel}
+          pathPanel={pathPanel}
           inbox={inbox}
           onInboxAdd={addInboxTask}
           onInboxRemove={removeInboxTask}
         />
       )}
 
-      {/* ════ PLAN ════ */}
-      {tab === "plan" && (
-        <div style={{ maxWidth: "520px", margin: "0 auto" }}>
-          <div style={{ marginBottom: "44px" }}>
-            <p style={{ ...sml, marginBottom: "12px" }}>Week note</p>
-            <textarea value={weekNote} onChange={e => { setHasUserInteracted(true); setWeekNote(e.target.value); }}
-              placeholder="What's on this week? Shifts, deadlines, intentions..."
-              style={{ width: "100%", minHeight: "72px", border: "none", borderBottom: "1px solid #e8e8e8", resize: "vertical", fontFamily: TNR, fontSize: "16px", color: "#1a1a1a", padding: "8px 0", outline: "none", background: "transparent", lineHeight: "1.7", boxSizing: "border-box" }} />
-          </div>
-          <div style={{ marginBottom: "44px" }}>
-            <p style={{ ...sml, marginBottom: "14px" }}>Coming up</p>
-            {[1, 2, 3].map(offset => {
-              const ws = new Date(getWeekStart());
-              ws.setDate(ws.getDate() + offset * 7);
-              const we = new Date(ws);
-              we.setDate(we.getDate() + 6);
-              const monthName = ws.toLocaleDateString("en-GB", { month: "long" });
-              const dueGoals = projects.filter(p =>
-                p.status !== "done" &&
-                p.dueMonth && p.dueMonth.toLowerCase().includes(monthName.toLowerCase())
-              );
-              const activeGoals = offset === 1 ? projects.filter(p => p.horizon === "now" && p.status !== "done") : [];
-              const shown = dueGoals.length > 0 ? dueGoals : activeGoals;
-              return (
-                <div key={offset} style={{ marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid #f0f0f0" }}>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: "16px", marginBottom: shown.length ? "6px" : 0 }}>
-                    <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888", width: "56px", flexShrink: 0 }}>W+{offset}</span>
-                    <span style={{ fontFamily: TNR, fontSize: "15px", color: "#1a1a1a" }}>
-                      {ws.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} – {we.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                    </span>
-                  </div>
-                  <div style={{ paddingLeft: "72px" }}>
-                    {shown.length === 0
-                      ? <span style={{ fontFamily: TNR, fontSize: "13px", color: "#bbb" }}>Nothing scheduled yet.</span>
-                      : shown.map(p => (
-                        <p key={p.id} style={{ fontFamily: TNR, fontSize: "13px", color: "#888", margin: "2px 0", lineHeight: "1.6" }}>
-                          <span style={{ color: p.isFineArt ? "#b01904" : LINK_BLUE }}>{p.title || "Untitled"}</span>
-                          {p.dueMonth && dueGoals.length > 0 ? ` — due ${p.dueMonth}` : ""}
-                          {p.nextAction ? ` → ${p.nextAction.slice(0, 50)}` : ""}
-                        </p>
-                      ))
-                    }
-                  </div>
-                </div>
-              );
-            })}
-            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#bbb", lineHeight: "1.7" }}>
-              Shows goals due in each week's month, plus active "Now" goals for next week.
-            </p>
-          </div>
-
-          <div style={{ marginBottom: "44px" }}>
-            <p style={{ ...sml, marginBottom: "18px" }}>Energy matching</p>
-            {[
-              {
-                level: "High",
-                mode: "making",
-                primary: "Go straight to making",
-                note: "No runway needed. Set a block, lay out materials, start.",
-              },
-              {
-                level: "Medium",
-                mode: "systems",
-                primary: "Support first, then exposure",
-                note: "10–15 mins organising or planning, then move to one harder task.",
-              },
-              {
-                level: "Low",
-                mode: "rest",
-                primary: "Runway only — one small action",
-                note: "Do the easiest available thing. One reply, one file, then stop or rest.",
-              },
-            ].map((e, i) => (
-              <div key={i} style={{ marginBottom: "16px", paddingBottom: "16px", borderBottom: "1px solid #f0f0f0" }}>
-                <div style={{ display: "flex", alignItems: "baseline", gap: "16px", marginBottom: "5px" }}>
-                  <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888", width: "56px", flexShrink: 0 }}>{e.level}</span>
-                  <span style={{
-                    fontFamily: TNR, fontSize: "16px",
-                    color: WORK_MODES.includes(e.mode)
-                      ? `rgba(26, 13, 171, ${(EXEC_INTENSITY[e.mode]?.opacity ?? 0.5)})`
-                      : MODE_COLORS[e.mode]
-                  }}>{e.primary}</span>
-                </div>
-                <div style={{ paddingLeft: "72px" }}>
-                  <span style={{ fontFamily: TNR, fontSize: "13px", color: "#888", lineHeight: "1.7" }}>{e.note}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div style={{ marginBottom: "44px" }}>
-            <p style={{ ...sml, marginBottom: "12px" }}>Runway logic</p>
-            <p style={{ fontFamily: TNR, fontSize: "16px", color: "#1a1a1a", margin: 0 }}>
-              Support → Exposure → Exit
-            </p>
-            <p style={{ fontFamily: TNR, fontSize: "13px", color: "#888", marginTop: "6px" }}>
-              Organise first. One hard task. Then stop.
-            </p>
-          </div>
-          <div>
-            <p style={{ ...sml, marginBottom: "8px" }}>Install as app</p>
-            <p style={{ fontFamily: TNR, fontSize: "13px", color: "#bbb", lineHeight: "1.8" }}>
-              iPhone: Safari → share → "Add to Home Screen".<br />
-              Android: Chrome → menu → "Add to Home Screen".
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* ════ ARCHIVE ════ */}
-      {tab === "archive" && (
+      {tab === "reflect" && rView === "archive" && (
         <div style={{ maxWidth: "600px", margin: "0 auto" }}>
           {archive.length === 0 ? (
             <div style={{ textAlign: "center", fontFamily: TNR, fontSize: "17px", lineHeight: "2", color: "#bbb" }}>
-              <div>No archived weeks yet.</div><div>Save a week from the Plan tab.</div>
+              <div>No archived weeks yet.</div><div>Save a week from the Week tab.</div>
             </div>
           ) : (() => {
             const byQuarter = {};

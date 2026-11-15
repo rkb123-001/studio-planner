@@ -119,3 +119,33 @@ test("Goals view shows the goals panel and hides the timeline controls", () => {
   expect(screen.queryByText("GOALS PANEL")).toBeNull();
   expect(screen.getByText("+ Place something")).toBeTruthy();
 });
+
+test("coming up lists dated items by week and flags overdue ones", () => {
+  const { comingUp, buildTimeline: bt } = require("./timelineEngine");
+  const m = bt({
+    artProjects: [{ id: 1, title: "Show", stage: "install", status: "active", keyDate: "2026-11-18" }],
+    projects: [
+      { id: 2, title: "Pay VAT", category: "Finance / systems", quarter: "q4", dueMonth: "November", status: "on-track", startDate: "2026-11-01", endDate: "2026-11-30" },
+      { id: 3, title: "Old deadline", category: "Finance / systems", quarter: "q4", status: "on-track", startDate: "2026-11-01", endDate: "2026-11-05" },
+      { id: 4, title: "Month only", category: "Finance / systems", quarter: "q4", dueMonth: "November", status: "on-track", startDate: "2026-11-01", endDate: "2026-11-30", dueExact: false },
+    ],
+    steps: [{ id: "s", title: "Oxford", track: "pay", from: "2027-03", to: "2027-09", side: [{ title: "Oxford deadline", on: "2026-11-27" }] }],
+  }, { startYM: "2026-11", months: 6 }, TODAY);
+  const c = comingUp(m.all, m.milestones, TODAY); // today is Sun 15 Nov 2026, so this week = 9 to 15 Nov
+  expect(c.overdue.map((i) => i.title)).toEqual(["Old deadline"]);
+  expect(c.rows[1].items.map((i) => i.title)).toEqual(["Show"]);            // 16 to 22 Nov
+  expect(c.rows[2].items.map((i) => i.title)).toEqual(["Oxford deadline"]); // 23 to 29 Nov
+  expect(c.rows[3].items.map((i) => i.title)).toEqual(["Pay VAT"]);         // 30 Nov to 6 Dec
+  expect(c.inProgress.map((i) => i.title)).toContain("Month only");
+});
+
+test("Art and Path views swap in their panels", () => {
+  render(<ProjectTimeline today={TODAY} artProjects={[]} projects={[]} steps={[]} categories={CATS}
+    goalsPanel={<div>G</div>} artPanel={<div>ART PANEL</div>} pathPanel={<div>PATH PANEL</div>}
+    onOpenArt={() => {}} onOpenGoal={() => {}} onOpenPath={() => {}} />);
+  fireEvent.click(screen.getByText("Art"));
+  expect(screen.getByText("ART PANEL")).toBeTruthy();
+  fireEvent.click(screen.getByText("Path"));
+  expect(screen.getByText("PATH PANEL")).toBeTruthy();
+  expect(screen.queryByText("ART PANEL")).toBeNull();
+});

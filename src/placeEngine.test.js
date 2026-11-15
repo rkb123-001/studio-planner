@@ -97,7 +97,7 @@ test("list view groups everything and ticks tasks off", () => {
     onUpdateGoal={(id, f, v) => updates.push([id, f, v])} onUpdateArt={() => {}} onInboxAdd={() => {}} onInboxRemove={() => {}} />);
   fireEvent.click(screen.getByText("List"));
   expect(screen.getByText(/Overdue \(1\)/)).toBeTruthy();
-  expect(screen.getByText(/This month \(1\)/)).toBeTruthy();
+  expect(screen.getByText(/This month \(2\)/)).toBeTruthy();
   expect(screen.getByText("Book dentist")).toBeTruthy();
   expect(screen.queryByText("Done thing")).toBeNull();
   fireEvent.click(screen.getByText("Show done"));

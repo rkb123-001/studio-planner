@@ -47,14 +47,16 @@ function Pill({ item, color, onSelect }) {
 }
 
 export default function ProjectTimeline({
-  artProjects, projects, steps, onOpenArt, onOpenGoal, onOpenPath, onAddGoal, onUpdateArt, onUpdateGoal, categories, inbox = [], onInboxAdd, onInboxRemove, today,
+  artProjects, projects, steps, onOpenArt, onOpenGoal, onOpenPath, onAddGoal, onUpdateArt, onUpdateGoal, categories, view: viewProp, onView, goalsPanel, inbox = [], onInboxAdd, onInboxRemove, today,
 }) {
   const now = today || new Date();
   const [months, setMonths] = useState(6);
   const [panel, setPanel] = useState(null); // "place" | "import" | null
   const [placing, setPlacing] = useState(null); // inbox item being placed
   const [draft, setDraft] = useState("");
-  const [view, setView] = useState("timeline"); // "timeline" | "list"
+  const [viewLocal, setViewLocal] = useState("timeline"); // "timeline" | "list" | "goals"
+  const view = viewProp || viewLocal;
+  const setView = onView || setViewLocal;
   const [showDone, setShowDone] = useState(false);
   const [laneFilter, setLaneFilter] = useState("");
   const [startYM, setStartYM] = useState(ymOf(now));
@@ -78,6 +80,8 @@ export default function ProjectTimeline({
       <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", marginBottom: "18px" }}>
         <span onClick={() => setView("timeline")} style={btn(view === "timeline")} role="button">Timeline</span>
         <span onClick={() => setView("list")} style={btn(view === "list")} role="button">List</span>
+        {goalsPanel && <span onClick={() => setView("goals")} style={btn(view === "goals")} role="button">Goals</span>}
+        {view !== "goals" && <>
         <span style={{ width: "12px" }} />
         <span onClick={() => shift(-3)} style={btn(false)} role="button" aria-label="Earlier">←</span>
         <span onClick={() => setStartYM(ymOf(now))} style={btn(atToday)} role="button">This month</span>
@@ -89,9 +93,12 @@ export default function ProjectTimeline({
         {onAddGoal && <span onClick={() => { setPlacing(null); setPanel(panel === "place" ? null : "place"); }} style={btn(panel === "place")} role="button">+ Place something</span>}
         {onAddGoal && <span onClick={() => setPanel(panel === "import" ? null : "import")} style={btn(panel === "import")} role="button">Import suggestions</span>}
         <span style={{ ...small, marginLeft: "auto" }}>Click a project to open it. Dashed means no dates set yet, so its place is a guess. Set dates in the project itself.</span>
+        </>}
       </div>
 
-      {onInboxAdd && (
+      {view === "goals" && goalsPanel}
+
+      {view !== "goals" && onInboxAdd && (
         <div style={{ maxWidth: "720px", marginBottom: "18px" }}>
           <p style={{ ...small, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Inbox{inbox.length ? ` (${inbox.length})` : ""}: capture now, place later</p>
           <input aria-label="Add to inbox" value={draft} onChange={(e) => setDraft(e.target.value)}
@@ -107,9 +114,9 @@ export default function ProjectTimeline({
         </div>
       )}
 
-      {panel === "place" && <PlaceWizard key={placing ? placing.id : "new"} categories={categories} today={now} initialTitle={placing ? placing.title : ""}
+      {view !== "goals" && panel === "place" && <PlaceWizard key={placing ? placing.id : "new"} categories={categories} today={now} initialTitle={placing ? placing.title : ""}
         onAdd={(g) => { onAddGoal(g); if (placing && onInboxRemove) onInboxRemove(placing.id); }} onClose={() => { setPanel(null); setPlacing(null); }} />}
-      {panel === "import" && <ImportBox categories={categories} today={now} onAdd={onAddGoal} onInbox={onInboxAdd} onClose={() => setPanel(null)} />}
+      {view !== "goals" && panel === "import" && <ImportBox categories={categories} today={now} onAdd={onAddGoal} onInbox={onInboxAdd} onClose={() => setPanel(null)} />}
 
       {view === "timeline" && !hasAnything && (
         <p style={{ fontFamily: TNR, fontSize: "15px", color: MUTED }}>

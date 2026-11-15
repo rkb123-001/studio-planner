@@ -105,3 +105,17 @@ test("list view groups everything and ticks tasks off", () => {
   fireEvent.click(screen.getByLabelText("Done: VAT return"));
   expect(updates).toEqual([[2, "status", "done"]]);
 });
+
+test("Goals view shows the goals panel and hides the timeline controls", () => {
+  render(<ProjectTimeline today={TODAY} artProjects={[]} projects={[]} steps={[]} categories={CATS}
+    goalsPanel={<div>GOALS PANEL</div>} onInboxAdd={() => {}} onAddGoal={() => {}}
+    onOpenArt={() => {}} onOpenGoal={() => {}} onOpenPath={() => {}} />);
+  expect(screen.queryByText("GOALS PANEL")).toBeNull();
+  fireEvent.click(screen.getByText("Goals"));
+  expect(screen.getByText("GOALS PANEL")).toBeTruthy();
+  expect(screen.queryByText("+ Place something")).toBeNull();
+  expect(screen.queryByLabelText("Add to inbox")).toBeNull();
+  fireEvent.click(screen.getByText("Timeline"));
+  expect(screen.queryByText("GOALS PANEL")).toBeNull();
+  expect(screen.getByText("+ Place something")).toBeTruthy();
+});

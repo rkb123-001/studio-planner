@@ -1736,6 +1736,7 @@ const [, setAuthTimestamp] = useState(0);
   // Quarterly
   const [projects, setProjects]           = useState(saved?.projects || []);
   const [qView, setQView]                 = useState("roadmap");
+  const [tlView, setTlView]                 = useState("timeline");
   const [editingProject, setEditingProject] = useState(null);
   const [qFilter, setQFilter]             = useState("all");
 
@@ -2554,6 +2555,177 @@ const [, setAuthTimestamp] = useState(0);
     return <AuthScreen onSuccess={(p) => { setProfile(p); setIsAuthenticated(true); setAuthTimestamp(Date.now()); setSupabaseLoaded(false); }} />;
   }
 
+  // Goals panel (formerly the Quarterly tab) — now lives inside the Timeline tab as its "Goals" view
+  const goalsPanel = (
+      <div style={{ maxWidth: "720px", margin: "0 auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "28px", flexWrap: "wrap", gap: "10px" }}>
+          <span style={sml}>Quarterly goals</span>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+            <span onClick={() => setQView("quarters")} style={{ ...boxBtn(qView === "quarters"), fontSize: "12px", padding: "4px 12px" }}>Quarters</span>
+            <span onClick={() => setQView("roadmap")} style={{ ...boxBtn(qView === "roadmap"), fontSize: "12px", padding: "4px 12px" }}>Roadmap</span>
+            <span onClick={() => setQView("horizon")} style={{ ...boxBtn(qView === "horizon"), fontSize: "12px", padding: "4px 12px" }}>Now / Next / Later</span>
+            <span onClick={addProject} style={{ ...linkStyle, fontSize: "13px", marginLeft: "4px" }}>+ Add goal</span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "28px" }}>
+          {["all", ...Q_CATEGORIES].map(c => (
+            <span key={c} onClick={() => setQFilter(c)}
+              style={{
+                fontFamily: TNR, fontSize: "13px", cursor: "pointer",
+                color: qFilter === c ? LINK_BLUE : "#888",
+                textDecoration: qFilter === c ? "underline" : "none",
+                textUnderlineOffset: "2px",
+              }}>
+              {c === "all" ? "All" : c}
+            </span>
+          ))}
+        </div>
+
+        {projects.length === 0 && (
+          <div style={{ textAlign: "center", fontFamily: TNR, fontSize: "17px", lineHeight: "2", color: "#bbb" }}>
+            <div>No goals yet.</div><div>Add your first.</div>
+          </div>
+        )}
+
+        {qView === "roadmap" && (
+          <div>
+            {/* Art Projects — live-linked from the Art Projects tab, not duplicated data */}
+            {artProjects.length > 0 && (qFilter === "all") && (
+              <div style={{ marginBottom: "36px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
+                  <p style={{ ...sml, color: "#b01904", margin: 0 }}>Art Projects</p>
+                  <span onClick={() => setTab("art")} style={{ fontFamily: TNR, fontSize: "12px", color: "#888", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}>Open Art Projects →</span>
+                </div>
+                {artProjects.map(p => {
+                  const stageObj = ART_STAGES.find(s => s.key === p.stage) || ART_STAGES[0];
+                  const statusColor = { active: "#b01904", paused: "#e8c070", complete: "#0fa97f", declined: "#888" }[p.status] || "#888";
+                  const statusLabel = ART_PROJECT_STATUSES.find(s => s.key === p.status)?.label || p.status;
+                  return (
+                    <div key={p.id} onClick={() => { setTab("art"); setEditingArtProject(p.id); }}
+                      style={{ display: "flex", alignItems: "baseline", gap: "16px", padding: "10px 0", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}>
+                      <span style={{ fontFamily: TNR, fontSize: "12px", color: "#888", width: "52px", flexShrink: 0 }}>
+                        {p.keyDate ? new Date(p.keyDate + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}
+                      </span>
+                      <span style={{ flex: 1, display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
+                        <span style={{ fontFamily: TNR, fontSize: "11px", color: "#b01904" }}>[fine art]</span>
+                        <span style={{ fontFamily: TNR, fontSize: "15px", color: p.title ? "#b01904" : "#888", textDecoration: p.title ? "underline" : "none", textUnderlineOffset: "2px", textDecorationColor: "#b01904" }}>
+                          {p.title || "Untitled project"}
+                        </span>
+                        <span style={{ fontFamily: TNR, fontSize: "12px", color: "#888" }}>→ {stageObj.label}</span>
+                      </span>
+                      <span style={{ fontFamily: TNR, fontSize: "12px", color: statusColor, flexShrink: 0 }}>{statusLabel}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {/* Fine art section — always shown first if any */}
+            {projects.filter(p => p.isFineArt && (qFilter === "all" || qFilter === p.category)).length > 0 && (
+              <div style={{ marginBottom: "36px" }}>
+                <p style={{ ...sml, marginBottom: "14px", color: "#b5936a" }}>Fine Art Practice</p>
+                {projects.filter(p => p.isFineArt && (qFilter === "all" || qFilter === p.category)).map(p => renderProjectRow(p))}
+              </div>
+            )}
+            {/* All other categories */}
+            {Q_CATEGORIES.filter(cat => qFilter === "all" || qFilter === cat).map(cat => {
+              const catProjects = projects.filter(p => !p.isFineArt && p.category === cat);
+              if (catProjects.length === 0) return null;
+              return (
+                <div key={cat} style={{ marginBottom: "32px" }}>
+                  <p style={{ ...sml, marginBottom: "12px" }}>{cat}</p>
+                  {catProjects.map(p => renderProjectRow(p))}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {qView === "quarters" && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "32px" }}>
+            {QUARTERS.map(q => {
+              const isCurrent = q.key === currentQuarterKey();
+              const qProjects = projects.filter(p => (p.quarter || "q1") === q.key && (qFilter === "all" || qFilter === p.category));
+              return (
+                <div key={q.key}>
+                  <div style={{ marginBottom: "16px", paddingBottom: "8px", borderBottom: isCurrent ? `2px solid ${LINK_BLUE}` : "1px solid #f0f0f0" }}>
+                    <p style={{ fontFamily: TNR, fontSize: "17px", color: isCurrent ? LINK_BLUE : "#1a1a1a", margin: "0 0 3px" }}>{q.label}{isCurrent ? " — current" : ""}</p>
+                    <p style={{ ...sml, fontSize: "10px" }}>{q.sub}</p>
+                  </div>
+                  {qProjects.length === 0
+                    ? <p style={{ fontFamily: TNR, fontSize: "13px", color: "#aaa" }}>None.</p>
+                    : qProjects.map(p => {
+                      const sc = {
+                        "on-track": "#0fa97f", "at-risk": "#e8c070", "behind": "#b01904",
+                        "done": "#0fa97f", "not-started": "#888",
+                      }[p.status] || "#888";
+                      return (
+                        <div key={p.id} onClick={() => { setQView("roadmap"); setEditingProject(p.id); }}
+                          style={{ marginBottom: "10px", padding: "8px 0", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "8px" }}>
+                            <span style={{
+                              fontFamily: TNR, fontSize: "14px",
+                              color: p.isFineArt ? "#b01904" : LINK_BLUE,
+                              textDecoration: "underline", textUnderlineOffset: "2px",
+                            }}>{p.title || "Untitled"}</span>
+                            <span style={{ fontFamily: TNR, fontSize: "11px", color: sc, flexShrink: 0 }}>{p.progress}%</span>
+                          </div>
+                          {p.nextAction && (
+                            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", margin: "3px 0 0 0" }}>→ {p.nextAction}</p>
+                          )}
+                        </div>
+                      );
+                    })
+                  }
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {qView === "horizon" && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "32px" }}>
+            {Q_HORIZONS.map(h => {
+              const hProjects = projects.filter(p => p.horizon === h.key && (qFilter === "all" || qFilter === p.category));
+              return (
+                <div key={h.key}>
+                  <div style={{ marginBottom: "16px" }}>
+                    <p style={{ fontFamily: TNR, fontSize: "17px", color: "#1a1a1a", margin: "0 0 3px" }}>{h.label}</p>
+                    <p style={{ ...sml, fontSize: "10px" }}>{h.sub}</p>
+                  </div>
+                  {hProjects.length === 0
+                    ? <p style={{ fontFamily: TNR, fontSize: "13px", color: "#aaa" }}>None.</p>
+                    : hProjects.map(p => {
+                      const sc = {
+                        "on-track": "#0fa97f", "at-risk": "#e8c070", "behind": "#b01904",
+                        "done": "#0fa97f", "not-started": "#888",
+                      }[p.status] || "#888";
+                      return (
+                        <div key={p.id} onClick={() => { setQView("roadmap"); setEditingProject(p.id); }}
+                          style={{ marginBottom: "10px", padding: "8px 0", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "8px" }}>
+                            <span style={{
+                              fontFamily: TNR, fontSize: "14px",
+                              color: p.isFineArt ? "#b01904" : LINK_BLUE,
+                              textDecoration: "underline", textUnderlineOffset: "2px",
+                            }}>{p.title || "Untitled"}</span>
+                            <span style={{ fontFamily: TNR, fontSize: "11px", color: sc, flexShrink: 0 }}>{p.progress}%</span>
+                          </div>
+                          {p.nextAction && (
+                            <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", margin: "3px 0 0 0" }}>→ {p.nextAction}</p>
+                          )}
+                        </div>
+                      );
+                    })
+                  }
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+  );
+
   return (
     <div style={{ minHeight: "100vh", background: "#fff", color: "#1a1a1a", fontFamily: TNR, padding: "60px 32px 100px" }}>
 
@@ -2657,7 +2829,7 @@ const [, setAuthTimestamp] = useState(0);
 
       {/* ── Tabs as boxed buttons ── */}
       <div style={{ textAlign: "center", marginBottom: "52px", display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
-        {[["today","Today"],["grid","Grid"],["targets","Targets"],["quarterly","Quarterly"],["art","Art Projects"],["path","Path"],["timeline","Timeline"],["plan","Plan"],["archive","Archive"]].map(([key, lbl]) => (
+        {[["today","Today"],["grid","Grid"],["targets","Targets"],["art","Art Projects"],["path","Path"],["timeline","Timeline"],["plan","Plan"],["archive","Archive"]].map(([key, lbl]) => (
           <span key={key} onClick={() => setTab(key)} style={boxBtn(tab === key)}>{lbl}</span>
         ))}
       </div>
@@ -3220,177 +3392,6 @@ const [, setAuthTimestamp] = useState(0);
         </div>
       )}
 
-      {/* ════ QUARTERLY ════ */}
-      {tab === "quarterly" && (
-        <div style={{ maxWidth: "720px", margin: "0 auto" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "28px", flexWrap: "wrap", gap: "10px" }}>
-            <span style={sml}>Quarterly goals</span>
-            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-              <span onClick={() => setQView("quarters")} style={{ ...boxBtn(qView === "quarters"), fontSize: "12px", padding: "4px 12px" }}>Quarters</span>
-              <span onClick={() => setQView("roadmap")} style={{ ...boxBtn(qView === "roadmap"), fontSize: "12px", padding: "4px 12px" }}>Roadmap</span>
-              <span onClick={() => setQView("horizon")} style={{ ...boxBtn(qView === "horizon"), fontSize: "12px", padding: "4px 12px" }}>Now / Next / Later</span>
-              <span onClick={addProject} style={{ ...linkStyle, fontSize: "13px", marginLeft: "4px" }}>+ Add goal</span>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "28px" }}>
-            {["all", ...Q_CATEGORIES].map(c => (
-              <span key={c} onClick={() => setQFilter(c)}
-                style={{
-                  fontFamily: TNR, fontSize: "13px", cursor: "pointer",
-                  color: qFilter === c ? LINK_BLUE : "#888",
-                  textDecoration: qFilter === c ? "underline" : "none",
-                  textUnderlineOffset: "2px",
-                }}>
-                {c === "all" ? "All" : c}
-              </span>
-            ))}
-          </div>
-
-          {projects.length === 0 && (
-            <div style={{ textAlign: "center", fontFamily: TNR, fontSize: "17px", lineHeight: "2", color: "#bbb" }}>
-              <div>No goals yet.</div><div>Add your first.</div>
-            </div>
-          )}
-
-          {qView === "roadmap" && (
-            <div>
-              {/* Art Projects — live-linked from the Art Projects tab, not duplicated data */}
-              {artProjects.length > 0 && (qFilter === "all") && (
-                <div style={{ marginBottom: "36px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
-                    <p style={{ ...sml, color: "#b01904", margin: 0 }}>Art Projects</p>
-                    <span onClick={() => setTab("art")} style={{ fontFamily: TNR, fontSize: "12px", color: "#888", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}>Open Art Projects →</span>
-                  </div>
-                  {artProjects.map(p => {
-                    const stageObj = ART_STAGES.find(s => s.key === p.stage) || ART_STAGES[0];
-                    const statusColor = { active: "#b01904", paused: "#e8c070", complete: "#0fa97f", declined: "#888" }[p.status] || "#888";
-                    const statusLabel = ART_PROJECT_STATUSES.find(s => s.key === p.status)?.label || p.status;
-                    return (
-                      <div key={p.id} onClick={() => { setTab("art"); setEditingArtProject(p.id); }}
-                        style={{ display: "flex", alignItems: "baseline", gap: "16px", padding: "10px 0", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}>
-                        <span style={{ fontFamily: TNR, fontSize: "12px", color: "#888", width: "52px", flexShrink: 0 }}>
-                          {p.keyDate ? new Date(p.keyDate + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}
-                        </span>
-                        <span style={{ flex: 1, display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
-                          <span style={{ fontFamily: TNR, fontSize: "11px", color: "#b01904" }}>[fine art]</span>
-                          <span style={{ fontFamily: TNR, fontSize: "15px", color: p.title ? "#b01904" : "#888", textDecoration: p.title ? "underline" : "none", textUnderlineOffset: "2px", textDecorationColor: "#b01904" }}>
-                            {p.title || "Untitled project"}
-                          </span>
-                          <span style={{ fontFamily: TNR, fontSize: "12px", color: "#888" }}>→ {stageObj.label}</span>
-                        </span>
-                        <span style={{ fontFamily: TNR, fontSize: "12px", color: statusColor, flexShrink: 0 }}>{statusLabel}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              {/* Fine art section — always shown first if any */}
-              {projects.filter(p => p.isFineArt && (qFilter === "all" || qFilter === p.category)).length > 0 && (
-                <div style={{ marginBottom: "36px" }}>
-                  <p style={{ ...sml, marginBottom: "14px", color: "#b5936a" }}>Fine Art Practice</p>
-                  {projects.filter(p => p.isFineArt && (qFilter === "all" || qFilter === p.category)).map(p => renderProjectRow(p))}
-                </div>
-              )}
-              {/* All other categories */}
-              {Q_CATEGORIES.filter(cat => qFilter === "all" || qFilter === cat).map(cat => {
-                const catProjects = projects.filter(p => !p.isFineArt && p.category === cat);
-                if (catProjects.length === 0) return null;
-                return (
-                  <div key={cat} style={{ marginBottom: "32px" }}>
-                    <p style={{ ...sml, marginBottom: "12px" }}>{cat}</p>
-                    {catProjects.map(p => renderProjectRow(p))}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {qView === "quarters" && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "32px" }}>
-              {QUARTERS.map(q => {
-                const isCurrent = q.key === currentQuarterKey();
-                const qProjects = projects.filter(p => (p.quarter || "q1") === q.key && (qFilter === "all" || qFilter === p.category));
-                return (
-                  <div key={q.key}>
-                    <div style={{ marginBottom: "16px", paddingBottom: "8px", borderBottom: isCurrent ? `2px solid ${LINK_BLUE}` : "1px solid #f0f0f0" }}>
-                      <p style={{ fontFamily: TNR, fontSize: "17px", color: isCurrent ? LINK_BLUE : "#1a1a1a", margin: "0 0 3px" }}>{q.label}{isCurrent ? " — current" : ""}</p>
-                      <p style={{ ...sml, fontSize: "10px" }}>{q.sub}</p>
-                    </div>
-                    {qProjects.length === 0
-                      ? <p style={{ fontFamily: TNR, fontSize: "13px", color: "#aaa" }}>None.</p>
-                      : qProjects.map(p => {
-                        const sc = {
-                          "on-track": "#0fa97f", "at-risk": "#e8c070", "behind": "#b01904",
-                          "done": "#0fa97f", "not-started": "#888",
-                        }[p.status] || "#888";
-                        return (
-                          <div key={p.id} onClick={() => { setQView("roadmap"); setEditingProject(p.id); }}
-                            style={{ marginBottom: "10px", padding: "8px 0", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "8px" }}>
-                              <span style={{
-                                fontFamily: TNR, fontSize: "14px",
-                                color: p.isFineArt ? "#b01904" : LINK_BLUE,
-                                textDecoration: "underline", textUnderlineOffset: "2px",
-                              }}>{p.title || "Untitled"}</span>
-                              <span style={{ fontFamily: TNR, fontSize: "11px", color: sc, flexShrink: 0 }}>{p.progress}%</span>
-                            </div>
-                            {p.nextAction && (
-                              <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", margin: "3px 0 0 0" }}>→ {p.nextAction}</p>
-                            )}
-                          </div>
-                        );
-                      })
-                    }
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {qView === "horizon" && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "32px" }}>
-              {Q_HORIZONS.map(h => {
-                const hProjects = projects.filter(p => p.horizon === h.key && (qFilter === "all" || qFilter === p.category));
-                return (
-                  <div key={h.key}>
-                    <div style={{ marginBottom: "16px" }}>
-                      <p style={{ fontFamily: TNR, fontSize: "17px", color: "#1a1a1a", margin: "0 0 3px" }}>{h.label}</p>
-                      <p style={{ ...sml, fontSize: "10px" }}>{h.sub}</p>
-                    </div>
-                    {hProjects.length === 0
-                      ? <p style={{ fontFamily: TNR, fontSize: "13px", color: "#aaa" }}>None.</p>
-                      : hProjects.map(p => {
-                        const sc = {
-                          "on-track": "#0fa97f", "at-risk": "#e8c070", "behind": "#b01904",
-                          "done": "#0fa97f", "not-started": "#888",
-                        }[p.status] || "#888";
-                        return (
-                          <div key={p.id} onClick={() => { setQView("roadmap"); setEditingProject(p.id); }}
-                            style={{ marginBottom: "10px", padding: "8px 0", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "8px" }}>
-                              <span style={{
-                                fontFamily: TNR, fontSize: "14px",
-                                color: p.isFineArt ? "#b01904" : LINK_BLUE,
-                                textDecoration: "underline", textUnderlineOffset: "2px",
-                              }}>{p.title || "Untitled"}</span>
-                              <span style={{ fontFamily: TNR, fontSize: "11px", color: sc, flexShrink: 0 }}>{p.progress}%</span>
-                            </div>
-                            {p.nextAction && (
-                              <p style={{ fontFamily: TNR, fontSize: "12px", color: "#888", margin: "3px 0 0 0" }}>→ {p.nextAction}</p>
-                            )}
-                          </div>
-                        );
-                      })
-                    }
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* ════ ART PROJECTS ════ */}
       {tab === "art" && (
         <div style={{ maxWidth: "720px", margin: "0 auto" }}>
@@ -3455,7 +3456,7 @@ const [, setAuthTimestamp] = useState(0);
 
       {/* ════ PATH ════ */}
       {tab === "path" && (
-        <StudyPath path={studyPath} onUpdate={updateStudyPath} onPlan={planStudyPath} planNotice={pathNotice} onOpenQuarterly={() => setTab("quarterly")} />
+        <StudyPath path={studyPath} onUpdate={updateStudyPath} onPlan={planStudyPath} planNotice={pathNotice} onOpenQuarterly={() => { setTab("timeline"); setTlView("goals"); }} />
       )}
 
       {/* ════ TIMELINE ════ */}
@@ -3465,12 +3466,15 @@ const [, setAuthTimestamp] = useState(0);
           projects={projects}
           steps={(studyPath.plan && studyPath.plan.steps) || []}
           onOpenArt={(id) => { setTab("art"); setEditingArtProject(id); }}
-          onOpenGoal={(id) => { setTab("quarterly"); setQView("roadmap"); setEditingProject(id); }}
+          onOpenGoal={(id) => { setTlView("goals"); setQView("roadmap"); setEditingProject(id); }}
           onOpenPath={() => setTab("path")}
           onAddGoal={addGoalFromTimeline}
           onUpdateArt={updateArtProject}
           onUpdateGoal={updateProject}
           categories={Q_CATEGORIES}
+          view={tlView}
+          onView={setTlView}
+          goalsPanel={goalsPanel}
           inbox={inbox}
           onInboxAdd={addInboxTask}
           onInboxRemove={removeInboxTask}

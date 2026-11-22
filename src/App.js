@@ -2608,14 +2608,14 @@ const [, setAuthTimestamp] = useState(0);
               <div style={{ marginBottom: "36px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
                   <p style={{ ...sml, color: "#b01904", margin: 0 }}>Art Projects</p>
-                  <span onClick={() => { setTab("timeline"); setTlView("art"); }} style={{ fontFamily: TNR, fontSize: "12px", color: "#888", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}>Open Art Projects →</span>
+                  <span onClick={() => { setTab("plan"); setTlView("art"); }} style={{ fontFamily: TNR, fontSize: "12px", color: "#888", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}>Open Art Projects →</span>
                 </div>
                 {artProjects.map(p => {
                   const stageObj = ART_STAGES.find(s => s.key === p.stage) || ART_STAGES[0];
                   const statusColor = { active: "#b01904", paused: "#e8c070", complete: "#0fa97f", declined: "#888" }[p.status] || "#888";
                   const statusLabel = ART_PROJECT_STATUSES.find(s => s.key === p.status)?.label || p.status;
                   return (
-                    <div key={p.id} onClick={() => { setTab("timeline"); setTlView("art"); setEditingArtProject(p.id); }}
+                    <div key={p.id} onClick={() => { setTab("plan"); setTlView("art"); setEditingArtProject(p.id); }}
                       style={{ display: "flex", alignItems: "baseline", gap: "16px", padding: "10px 0", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}>
                       <span style={{ fontFamily: TNR, fontSize: "12px", color: "#888", width: "52px", flexShrink: 0 }}>
                         {p.keyDate ? new Date(p.keyDate + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}
@@ -2802,7 +2802,7 @@ const [, setAuthTimestamp] = useState(0);
   );
 
   const pathPanel = (
-      <StudyPath path={studyPath} onUpdate={updateStudyPath} onPlan={planStudyPath} planNotice={pathNotice} onOpenQuarterly={() => { setTab("timeline"); setTlView("goals"); }} />
+      <StudyPath path={studyPath} onUpdate={updateStudyPath} onPlan={planStudyPath} planNotice={pathNotice} onOpenQuarterly={() => { setTab("plan"); setTlView("goals"); }} />
   );
 
   return (
@@ -2908,7 +2908,7 @@ const [, setAuthTimestamp] = useState(0);
 
       {/* ── Tabs as boxed buttons ── */}
       <div style={{ textAlign: "center", marginBottom: "52px", display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
-        {[["week","Week"],["reflect","Reflect"],["timeline","Plan"]].map(([key, lbl]) => (
+        {[["week","Week"],["reflect","Reflect"],["timeline","Timeline"],["plan","Plan"]].map(([key, lbl]) => (
           <span key={key} onClick={() => setTab(key)} style={boxBtn(tab === key)}>{lbl}</span>
         ))}
       </div>
@@ -3553,14 +3553,15 @@ const [, setAuthTimestamp] = useState(0);
       )}
 
       {/* ════ TIMELINE ════ */}
-      {tab === "timeline" && (
+      {(tab === "timeline" || tab === "plan") && (
         <ProjectTimeline
+          mode={tab}
           artProjects={artProjects}
           projects={projects}
           steps={(studyPath.plan && studyPath.plan.steps) || []}
-          onOpenArt={(id) => { setTlView("art"); setEditingArtProject(id); }}
-          onOpenGoal={(id) => { setTlView("goals"); setQView("roadmap"); setEditingProject(id); }}
-          onOpenPath={() => setTlView("path")}
+          onOpenArt={(id) => { setTab("plan"); setTlView("art"); setEditingArtProject(id); }}
+          onOpenGoal={(id) => { setTab("plan"); setTlView("goals"); setQView("roadmap"); setEditingProject(id); }}
+          onOpenPath={() => { setTab("plan"); setTlView("path"); }}
           onAddGoal={addGoalFromTimeline}
           onAddArt={() => { addArtProject(); setTlView("art"); }}
           onUpdateArt={updateArtProject}

@@ -65,7 +65,7 @@ function Pill({ item, color, onSelect, drag }) {
 }
 
 export default function ProjectTimeline({
-  artProjects, projects, steps, onOpenArt, onOpenGoal, onOpenPath, onAddGoal, onAddArt, onUpdateArt, onUpdateGoal, categories, view: viewProp, onView, goalsPanel, artPanel, pathPanel, taskLists = [], onTaskLists, inbox = [], onInboxAdd, onInboxRemove, today,
+  artProjects, projects, steps, onOpenArt, onOpenGoal, onOpenPath, mode = "all", onAddGoal, onAddArt, onUpdateArt, onUpdateGoal, categories, view: viewProp, onView, goalsPanel, artPanel, pathPanel, taskLists = [], onTaskLists, inbox = [], onInboxAdd, onInboxRemove, today,
 }) {
   const now = today || new Date();
   const [months, setMonths] = useState(6);
@@ -73,7 +73,9 @@ export default function ProjectTimeline({
   const [placing, setPlacing] = useState(null); // inbox item being placed
   const [draft, setDraft] = useState("");
   const [viewLocal, setViewLocal] = useState("timeline"); // "timeline" | "list" | "goals"
-  const view = viewProp || viewLocal;
+  let view = viewProp || viewLocal;
+  if (mode === "timeline") view = "timeline";            // the Timeline tab is only the calendar
+  if (mode === "plan" && view === "timeline") view = "list"; // the Plan tab has everything else
   const panels = { goals: goalsPanel, art: artPanel, path: pathPanel };
   const isPanel = ["goals", "art", "path", "lists"].includes(view);
   const setView = onView || setViewLocal;
@@ -213,18 +215,18 @@ export default function ProjectTimeline({
   return (
     <div className="tl-root">
       <style>{CSS}</style>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", marginBottom: "18px" }}>
-        <span onClick={() => setView("timeline")} style={btn(view === "timeline")} role="button">Timeline</span>
+      {mode !== "timeline" && <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", marginBottom: "18px" }}>
+        {mode !== "plan" && <span onClick={() => setView("timeline")} style={btn(view === "timeline")} role="button">Timeline</span>}
         <span onClick={() => setView("list")} style={btn(view === "list")} role="button">By date</span>
         {onTaskLists && <span onClick={() => setView("lists")} style={btn(view === "lists")} role="button">Lists{taskLists.length ? ` (${taskLists.length})` : ""}</span>}
         {goalsPanel && <span onClick={() => setView("goals")} style={btn(view === "goals")} role="button">Goals</span>}
         {pathPanel && <span onClick={() => setView("path")} style={btn(view === "path")} role="button">Path</span>}
         <span style={{ width: "12px" }} />
         <span style={{ ...small, textTransform: "uppercase", letterSpacing: "0.08em" }}>Add</span>
-        {onAddGoal && <span onClick={() => { if (isPanel) setView("timeline"); setPlacing(null); setPanel(panel === "place" && !isPanel ? null : "place"); }} style={btn(panel === "place" && !isPanel)} role="button">+ Place something</span>}
+        {onAddGoal && <span onClick={() => { if (isPanel) setView(mode === "plan" ? "list" : "timeline"); setPlacing(null); setPanel(panel === "place" && !isPanel ? null : "place"); }} style={btn(panel === "place" && !isPanel)} role="button">+ Place something</span>}
         {onAddArt && <span onClick={onAddArt} style={btn(false)} role="button">+ Art project</span>}
-        {onAddGoal && <span onClick={() => { if (isPanel) setView("timeline"); setPanel(panel === "import" && !isPanel ? null : "import"); }} style={btn(panel === "import" && !isPanel)} role="button">Import suggestions</span>}
-      </div>
+        {onAddGoal && <span onClick={() => { if (isPanel) setView(mode === "plan" ? "list" : "timeline"); setPanel(panel === "import" && !isPanel ? null : "import"); }} style={btn(panel === "import" && !isPanel)} role="button">Import suggestions</span>}
+      </div>}
       {view === "timeline" && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", marginBottom: "18px" }}>
           <span onClick={() => shift(-3)} style={btn(false)} role="button" aria-label="Earlier">←</span>
@@ -240,7 +242,7 @@ export default function ProjectTimeline({
       {view === "lists" && onTaskLists && <TaskLists lists={taskLists} onChange={onTaskLists} categories={categories} today={now} onAddGoal={onAddGoal} />}
       {isPanel && panels[view]}
 
-      {!isPanel && (() => {
+      {!isPanel && mode !== "timeline" && (() => {
         const cu = comingUp(model.all, model.milestones, now);
         const fmt = (iso) => new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
         const anything = cu.overdue.length || cu.rows.some((r) => r.items.length) || cu.inProgress.length;
@@ -263,7 +265,7 @@ export default function ProjectTimeline({
         );
       })()}
 
-      {!isPanel && onInboxAdd && (
+      {!isPanel && mode !== "timeline" && onInboxAdd && (
         <div style={{ maxWidth: "720px", marginBottom: "18px" }}>
           <p style={{ ...small, margin: "0 0 6px", textTransform: "uppercase", letterSpacing: "0.08em" }}>Inbox{inbox.length ? ` (${inbox.length})` : ""}: capture now, place later</p>
           <input aria-label="Add to inbox" value={draft} onChange={(e) => setDraft(e.target.value)}

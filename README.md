@@ -30,11 +30,12 @@ Non-exportable modes (Social, Health, Office Work, Rest) sit alongside these so 
 
 **Transition buffers.** High-demand to high-demand switches are flagged and given a pad. Comms into making, office into content, social into studio work: the cost of the context switch is treated as a real cost rather than a free one.
 
-**Three tabs.** *Week* holds today's plan above the weekly grid, with the week note and guides. *Reflect* holds the weekly targets and past weeks. *Plan* is where work is organised over longer stretches of time.
+**Four tabs.** *Week* holds today's plan above the weekly grid, with the week note and guides. *Reflect* holds the weekly targets and past weeks. *Timeline* is the visual calendar of where every project is at. *Plan* is where work is organised and placed.
 
-**Plan.** One tab, five views:
+**Timeline.** A visual calendar of where every project is at: one lane per category, a "Done so far" column, and a "We are here" marker. Pills can be dragged sideways to move a project to another month, and their edges dragged to change its length, with undo. On a phone, press and hold a pill first. Dashed pills have no dates yet, so their place is a guess. Clicking a pill opens the project in Plan.
 
-- **Timeline.** A visual calendar of where every project is at: one lane per category, a "Done so far" column, and a "We are here" marker. Pills can be dragged sideways to move a project to another month, and their edges dragged to change its length, with undo. On a phone, press and hold a pill first. Dashed pills have no dates yet, so their place is a guess. Clicking a pill opens the project.
+**Plan.** Four views, plus the tools for adding work:
+
 - **By date.** Everything in one list, grouped by when it is due.
 - **Lists.** Named task lists, for things that belong together rather than to a date.
 - **Goals.** The quarterly goals editor, with due month, importance, enthusiasm, size, and a waiting-on field.

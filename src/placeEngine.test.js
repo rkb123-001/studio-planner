@@ -149,3 +149,20 @@ test("Art tab is gone, Path swaps in its panel, and an art project can still be 
   expect(screen.getByText("PATH PANEL")).toBeTruthy();
   expect(screen.queryByText("ART PANEL")).toBeNull();
 });
+
+test("Timeline tab is just the calendar; Plan tab has the views, add tools and inbox", () => {
+  const props = { today: TODAY, artProjects: [], projects: [], steps: [], categories: CATS, goalsPanel: <div>GOALS PANEL</div>,
+    onInboxAdd: () => {}, onAddGoal: () => {}, onAddArt: () => {}, onOpenArt: () => {}, onOpenGoal: () => {}, onOpenPath: () => {} };
+  const { unmount } = render(<ProjectTimeline {...props} mode="timeline" />);
+  expect(screen.getByText("6 months")).toBeTruthy();
+  expect(screen.queryByText("By date")).toBeNull();
+  expect(screen.queryByText("+ Place something")).toBeNull();
+  expect(screen.queryByLabelText("Add to inbox")).toBeNull();
+  unmount();
+  render(<ProjectTimeline {...props} mode="plan" />);
+  expect(screen.getByText("By date")).toBeTruthy();
+  expect(screen.getByText("Goals")).toBeTruthy();
+  expect(screen.queryByText("6 months")).toBeNull();
+  expect(screen.getByText("+ Place something")).toBeTruthy();
+  expect(screen.getByLabelText("Add to inbox")).toBeTruthy();
+});

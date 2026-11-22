@@ -109,3 +109,18 @@ test("movePatch resizes: only the end moves, or only the start", () => {
   const same = { startDate: "2026-11-20", endDate: "2026-11-25" };
   expect(movePatch(same, { kind: "art", from: "2026-11", to: "2026-11" }, 0, -1).startDate).toBe("2026-10-25"); // start can't pass the new end
 });
+
+test("pills start and end part-way through their months from the real dates", () => {
+  const m = buildTimeline({
+    artProjects: [
+      { id: 1, title: "Mid Dec", status: "active", startDate: "2026-12-16", endDate: "2027-01-15" },
+      { id: 2, title: "Month only", status: "active", startDate: "2026-12", endDate: "2026-12" },
+    ], projects: [], steps: [],
+  }, { startYM: "2026-11", months: 6 }, TODAY);
+  const items = m.lanes[0].rows.flat();
+  const a = items.find((i) => i.title === "Mid Dec"), b = items.find((i) => i.title === "Month only");
+  expect(a.fromFrac).toBeCloseTo(15 / 31, 5);
+  expect(a.toFrac).toBeCloseTo(15 / 31, 5);
+  expect(b.fromFrac).toBe(0);
+  expect(b.toFrac).toBe(1);
+});

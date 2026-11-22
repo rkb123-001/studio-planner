@@ -32,6 +32,16 @@ const CSS = `
 .tl-root .tl-pill:hover .tl-grip { opacity: .95 !important; }
 .tl-root .tl-band { transition: background .12s ease; }
 `;
+// Start and end a pill part-way into its months, from the real dates (percent margins on a grid item
+// are measured against its grid area, so they line up with the month columns).
+const MIN_PILL = 0.34; // of one month column, so a short item stays readable
+function dayInset(i) {
+  let lf = i.fromFrac || 0, rf = 1 - (i.toFrac == null ? 1 : i.toFrac);
+  if (i.span === 1 && 1 - lf - rf < MIN_PILL) {
+    if (lf + MIN_PILL <= 1) rf = 1 - lf - MIN_PILL; else { lf = 1 - MIN_PILL; rf = 0; }
+  }
+  return { marginLeft: `${(lf / i.span) * 100}%`, marginRight: `${(rf / i.span) * 100}%` };
+}
 const edgeStyle = (side) => ({
   position: "absolute", top: 0, bottom: 0, [side]: 0, width: "14px", display: "flex", alignItems: "center", justifyContent: "center",
   cursor: "ew-resize", touchAction: "none",
@@ -406,7 +416,7 @@ export default function ProjectTimeline({
                     )}
                   </div>
                   {L.rows.map((row, r) => row.map((i) => (
-                    <div key={i.id} style={{ gridColumn: `${3 + i.col} / span ${i.span}`, gridRow: r + 1, minWidth: 0, padding: "0 6px" }}>
+                    <div key={i.id} style={{ gridColumn: `${3 + i.col} / span ${i.span}`, gridRow: r + 1, minWidth: 0, padding: "0 6px", ...dayInset(i) }}>
                       <Pill item={i} color={L.color} onSelect={select} drag={drag} />
                     </div>
                   )))}

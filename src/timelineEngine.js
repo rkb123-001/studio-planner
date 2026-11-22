@@ -45,6 +45,10 @@ export function movePatch(raw, item, nFrom, nTo = nFrom) {
   return patch;
 }
 
+// Where in its month a date sits, 0 to 1: the start of a day, and the end of a day.
+const dayFracStart = (iso) => { const [y, m, d] = iso.split("-").map(Number); return (d - 1) / daysIn(y, m); };
+const dayFracEnd = (iso) => { const [y, m, d] = iso.split("-").map(Number); return d / daysIn(y, m); };
+
 // "June", "Jun 2027", "November 2026" -> "2027-06". Anything else -> "".
 export function parseDueMonth(text, defaultYear) {
   if (!text) return "";
@@ -108,10 +112,10 @@ export function buildTimeline(data, view, today = new Date()) {
     item.from = item.fromYM; item.to = item.toYM || item.fromYM;
     if (item.done) { laneObj.items.push({ ...item, zone: "done" }); return; }
     if (a > endIdx) { later.push({ ...item, lane: laneObj.label }); return; }
-    if (b < startIdx) { laneObj.items.push({ ...item, zone: "grid", col: 0, span: 1, overdue: true }); return; }
+    if (b < startIdx) { laneObj.items.push({ ...item, zone: "grid", col: 0, span: 1, overdue: true, fromFrac: 0, toFrac: 1 }); return; }
     const c0 = Math.max(a, startIdx) - startIdx;
     const c1 = Math.min(b, endIdx) - startIdx;
-    laneObj.items.push({ ...item, zone: "grid", col: c0, span: c1 - c0 + 1, clippedStart: a < startIdx, clippedEnd: b > endIdx });
+    laneObj.items.push({ ...item, zone: "grid", col: c0, span: c1 - c0 + 1, clippedStart: a < startIdx, clippedEnd: b > endIdx, fromFrac: a < startIdx ? 0 : item.fromFrac || 0, toFrac: b > endIdx ? 1 : item.toFrac == null ? 1 : item.toFrac });
   };
 
   // Art projects
@@ -120,7 +124,12 @@ export function buildTimeline(data, view, today = new Date()) {
     const l = lane("art", "Art projects", ART_COLOUR);
     const fromYM = toYM(p.startDate) || toYM(p.keyDate);
     const toYMv = toYM(p.endDate) || toYM(p.keyDate) || fromYM;
+    const aFromYM = fromYM && toYMv && ymIndex(fromYM) > ymIndex(toYMv) ? toYMv : fromYM;
+    const sISO = isISO(p.startDate) ? p.startDate : !p.startDate && isISO(p.keyDate) ? p.keyDate : "";
+    const eISO = isISO(p.endDate) ? p.endDate : isISO(p.keyDate) ? p.keyDate : "";
     place(l, {
+      fromFrac: sISO && toYM(sISO) === aFromYM ? dayFracStart(sISO) : 0,
+      toFrac: eISO && toYM(eISO) === toYMv ? dayFracEnd(eISO) : 1,
       id: `art:${p.id}`, kind: "art", refId: p.id, title: p.title || "Untitled project",
       who: p.stage ? p.stage.replace(/_/g, " ") : "", note: p.keyDateLabel || "",
       fromYM: fromYM && toYMv && ymIndex(fromYM) > ymIndex(toYMv) ? toYMv : fromYM, toYM: toYMv,
@@ -144,7 +153,11 @@ export function buildTimeline(data, view, today = new Date()) {
     const toV = toYM(p.endDate) || due || qEnd;
     let fromV = toYM(p.startDate) || (due && qStart && ymIndex(qStart) <= ymIndex(due) ? qStart : "") || qStart || due;
     if (fromV && toV && ymIndex(fromV) > ymIndex(toV)) fromV = toV;
+    const gSISO = isISO(p.startDate) ? p.startDate : "";
+    const gEISO = isISO(p.endDate) && p.dueExact !== false ? p.endDate : "";
     place(l, {
+      fromFrac: gSISO && toYM(gSISO) === fromV ? dayFracStart(gSISO) : 0,
+      toFrac: gEISO && toYM(gEISO) === toV ? dayFracEnd(gEISO) : 1,
       id: `goal:${p.id}`, kind: "goal", refId: p.id, title: p.title,
       who: [p.importance === 2 ? "!" : "", p.waiting ? "waiting" : "", p.status === "at-risk" ? "at risk" : p.status === "behind" ? "behind" : "", p.enthusiasm === "dread" ? "dreaded" : ""].filter(Boolean).join(" · "),
       note: p.nextMilestone || p.nextAction || "",

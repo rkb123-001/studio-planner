@@ -77,7 +77,7 @@ export function applyBlocks(schedule, blocks, replace) {
 }
 
 /** The text she copies into a Claude chat so the answer comes back in the right shape. */
-export function buildPrompt({ days, slots, modes, schedule, weekNote }) {
+export function buildPrompt({ days, slots, modes, schedule, weekNote, deadlines = [] }) {
   const office = [];
   days.forEach((d) => slots.forEach((s) => { if (schedule && schedule[d] && schedule[d][s] === "office") office.push(`${d} ${s}`); }));
   const modeLines = Object.entries(modes).map(([k, m]) => `- ${k}: ${m.label} (${m.sub}), energy cost ${m.energyCost}`).join("\n");
@@ -90,6 +90,7 @@ export function buildPrompt({ days, slots, modes, schedule, weekNote }) {
     "",
     office.length ? "These slots are already taken by office work, so leave them alone: " + office.join(", ") + "." : "I have no office work blocked in yet. Ask me about my work hours before you place anything.",
     weekNote ? "My note for the week: " + weekNote : null,
+    deadlines.length ? "Due in the next two weeks (give these time first, earliest first):\n" + deadlines.map((d) => `- ${d.title}: ${d.overdue ? "overdue, was due " : "due "}${d.due}`).join("\n") : null,
     "",
     "Aim for a balanced week rather than a full one: leave rest and gaps, avoid two high-energy-cost blocks back to back, and include at least one making block for fine art practice.",
     "Ask me anything you need to know first (deadlines, appointments, energy). Then reply with ONLY a JSON list, like this:",

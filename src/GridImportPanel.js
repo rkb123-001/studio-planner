@@ -10,7 +10,7 @@ const btn = (on) => ({
 });
 
 /** Paste Claude's answer, preview what it will do, then apply it to the weekly grid. */
-export default function GridImport({ days, slots, modes, schedule, weekNote, onApply, onClose }) {
+export default function GridImport({ days, slots, modes, schedule, weekNote, deadlines = [], onApply, onClose, title = "Fill the grid from Claude", embedded = false }) {
   const [text, setText] = useState("");
   const [replace, setReplace] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -19,21 +19,21 @@ export default function GridImport({ days, slots, modes, schedule, weekNote, onA
   const result = useMemo(() => (parsed && !parsed.error ? applyBlocks(schedule, parsed.blocks, replace) : null), [parsed, schedule, replace]);
 
   const copyPrompt = async () => {
-    try { await navigator.clipboard.writeText(buildPrompt({ days, slots, modes, schedule, weekNote })); setCopied(true); setTimeout(() => setCopied(false), 2500); }
+    try { await navigator.clipboard.writeText(buildPrompt({ days, slots, modes, schedule, weekNote, deadlines })); setCopied(true); setTimeout(() => setCopied(false), 2500); }
     catch (e) { setShowPrompt(true); } // clipboard blocked: show it so it can be copied by hand
   };
 
   return (
-    <div style={{ maxWidth: "560px", margin: "0 auto 36px", border: "1px solid #e6e6e6", padding: "18px 20px" }}>
+    <div style={embedded ? {} : { maxWidth: "560px", margin: "0 auto 36px", border: "1px solid #e6e6e6", padding: "18px 20px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "8px" }}>
-        <span style={{ ...small, textTransform: "uppercase", letterSpacing: "0.08em" }}>Fill the grid from Claude</span>
-        <span role="button" aria-label="Close" onClick={onClose} style={{ cursor: "pointer", color: "#888", fontSize: "18px", lineHeight: 1 }}>×</span>
+        <span style={{ ...small, textTransform: "uppercase", letterSpacing: "0.08em" }}>{title}</span>
+        {!embedded && <span role="button" aria-label="Close" onClick={onClose} style={{ cursor: "pointer", color: "#888", fontSize: "18px", lineHeight: 1 }}>×</span>}
       </div>
       <p style={{ ...small, margin: "0 0 10px", lineHeight: 1.5 }}>
-        1. Copy the prompt and give it to Claude. 2. Answer its questions. 3. Paste its reply below. Office work blocks are never changed.
+        1. Copy the prompt (it includes your deadlines) and give it to Claude. 2. Answer its questions. 3. Paste its reply below. Office work blocks are never changed.
       </p>
       <div style={{ marginBottom: "10px" }}><span role="button" onClick={copyPrompt} style={btn(copied)}>{copied ? "Copied" : "Copy prompt for Claude"}</span></div>
-      {showPrompt && <textarea readOnly aria-label="Prompt for Claude" value={buildPrompt({ days, slots, modes, schedule, weekNote })} rows={6} onFocus={(e) => e.target.select()}
+      {showPrompt && <textarea readOnly aria-label="Prompt for Claude" value={buildPrompt({ days, slots, modes, schedule, weekNote, deadlines })} rows={6} onFocus={(e) => e.target.select()}
         style={{ width: "100%", boxSizing: "border-box", fontFamily: "monospace", fontSize: "11px", padding: "8px", border: "1px dashed #ccc", marginBottom: "10px", color: "#555" }} />}
       <textarea aria-label="Claude's reply" value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder='Paste the reply here, e.g. [{"day":"Mon","slot":"9–11am","mode":"making"}]'
         style={{ width: "100%", boxSizing: "border-box", fontFamily: "monospace", fontSize: "12px", padding: "8px", border: "1px solid #ccc" }} />

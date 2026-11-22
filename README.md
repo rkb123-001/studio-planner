@@ -41,6 +41,8 @@ Non-exportable modes (Social, Health, Office Work, Rest) sit alongside these so 
 - **Goals.** The quarterly goals editor, with due month, importance, enthusiasm, size, and a waiting-on field. Finished goals and art projects move to a collapsed Archive so the active lists stay short.
 - **Path.** The study path, laid out as steps over time.
 
+**Setting up the week.** "Set up this week" on the Week tab walks through three steps: what is due in the next two weeks (from the timeline, the study path and the task lists), marking fixed time such as shifts and appointments, then filling the rest from Claude with those deadlines included in the prompt. Under the week note, the same due list stays visible, and anything due within a week with no matching time on the grid (for example a making task with no making blocks) is flagged.
+
 **Filling the week from Claude.** The + on the Week tab copies a prompt describing the grid, the modes and any office blocks. Claude's reply (a short JSON list of blocks) is pasted back, previewed, and added to empty slots; office work is never overwritten.
 
 **Capturing and placing work.** A quick-add inbox takes a task now and places it later. A short question series (how much it matters, how keen you are, how long it takes, whether it has a hard date) places a task on the timeline for you, and marks anything it had to guess. Suggestions can also be imported as JSON, including from a monthly AI review, and sent to the timeline, a task list, or the inbox.

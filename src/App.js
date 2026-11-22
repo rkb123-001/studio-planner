@@ -4,6 +4,9 @@ import { StudyPath } from "./StudyPath";
 import ProjectTimeline from "./ProjectTimeline";
 import { normaliseLists } from "./listOps";
 import GridImportPanel from "./GridImportPanel";
+import WeekSetupPanel, { DueSoon } from "./WeekSetupPanel";
+import { dueSoon as collectDueSoon, withGaps } from "./weekSetup";
+import { buildTimeline, ymOf } from "./timelineEngine";
 import { applyBlocks } from "./gridImport";
 import { normaliseStudyPath, goalsFromSteps } from "./pathEngine";
 
@@ -1936,6 +1939,7 @@ const [, setAuthTimestamp] = useState(0);
   };
 
   const [showGridImport, setShowGridImport] = useState(false);
+  const [showWeekSetup, setShowWeekSetup] = useState(false);
   const importGridBlocks = (blocks, replace) => {
     setHasUserInteracted(true);
     setSchedule(prev => applyBlocks(prev, blocks, replace).schedule);
@@ -2392,6 +2396,10 @@ const [, setAuthTimestamp] = useState(0);
 
   // Named task lists (e.g. "Before Australia"), stored on the profile so they sync.
   const taskLists = normaliseLists(profile.taskLists);
+  // Due soon, from the timeline and the task lists, and whether this week's grid has time for each
+  const nowDate = new Date();
+  const tlModel = buildTimeline({ artProjects, projects, steps: (normaliseStudyPath(profile.studyPath).plan || {}).steps || [] }, { startYM: ymOf(nowDate), months: 2 }, nowDate);
+  const dueList = withGaps(collectDueSoon({ items: tlModel.all, milestones: tlModel.milestones, taskLists, today: nowDate }), schedule, nowDate);
   const updateTaskLists = (fn) => {
     setHasUserInteracted(true);
     setProfile(prev => {
@@ -2944,7 +2952,7 @@ const [, setAuthTimestamp] = useState(0);
       {/* ── Tabs as boxed buttons ── */}
       <div style={{ textAlign: "center", marginBottom: "52px", display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap", position: "relative", maxWidth: "922px", marginLeft: "auto", marginRight: "auto" }}>
         {tab === "week" && (
-          <span role="button" aria-label="Fill the grid from Claude" title="Fill the grid from Claude" onClick={() => setShowGridImport(v => !v)}
+          <span role="button" aria-label="Fill the grid from Claude" title="Fill the grid from Claude" onClick={() => { setShowGridImport(v => !v); setShowWeekSetup(false); }}
             style={{ position: "absolute", right: 0, top: 0, width: "32px", height: "32px", boxSizing: "border-box", border: `1px solid ${showGridImport ? "#1a0dab" : "#1a1a1a"}`, color: showGridImport ? "#1a0dab" : "#1a1a1a", fontFamily: TNR, fontSize: "20px", lineHeight: "28px", textAlign: "center", cursor: "pointer", userSelect: "none" }}>+</span>
         )}
         {[["week","Week"],["reflect","Reflect"],["timeline","Timeline"],["plan","Plan"]].map(([key, lbl]) => (
@@ -2952,8 +2960,16 @@ const [, setAuthTimestamp] = useState(0);
         ))}
       </div>
 
+      {tab === "week" && !showWeekSetup && (
+        <div style={{ textAlign: "center", margin: "-30px 0 30px" }}>
+          <span role="button" onClick={() => { setShowWeekSetup(true); setShowGridImport(false); }} style={{ fontFamily: TNR, fontSize: "13px", color: "#1a0dab", textDecoration: "underline", textUnderlineOffset: "2px", cursor: "pointer" }}>Set up this week →</span>
+        </div>
+      )}
+      {tab === "week" && showWeekSetup && (
+        <WeekSetupPanel list={dueList} days={DAYS} slots={TIME_SLOTS} modes={MODES} schedule={schedule} weekNote={weekNote} onApply={importGridBlocks} onClose={() => setShowWeekSetup(false)} />
+      )}
       {tab === "week" && showGridImport && (
-        <GridImportPanel days={DAYS} slots={TIME_SLOTS} modes={MODES} schedule={schedule} weekNote={weekNote} onApply={importGridBlocks} onClose={() => setShowGridImport(false)} />
+        <GridImportPanel days={DAYS} slots={TIME_SLOTS} modes={MODES} schedule={schedule} weekNote={weekNote} deadlines={dueList} onApply={importGridBlocks} onClose={() => setShowGridImport(false)} />
       )}
 
       {/* ════ TODAY ════ */}
@@ -3061,6 +3077,7 @@ const [, setAuthTimestamp] = useState(0);
               placeholder="What's on this week? Shifts, deadlines, intentions..."
               style={{ width: "100%", minHeight: "72px", border: "none", borderBottom: "1px solid #e8e8e8", resize: "vertical", fontFamily: TNR, fontSize: "16px", color: "#1a1a1a", padding: "8px 0", outline: "none", background: "transparent", lineHeight: "1.7", boxSizing: "border-box" }} />
           </div>
+          {!showWeekSetup && <DueSoon list={dueList} modes={MODES} />}
         </div>
       )}
 

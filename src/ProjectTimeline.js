@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { PlaceWizard, ImportBox } from "./PlaceThis";
 import TaskLists from "./TaskListsView";
 import { importIntoLists } from "./listOps";
-import { buildTimeline, groupList, comingUp, LIST_GROUPS, ymOf, addMonthsYM, labelYM } from "./timelineEngine";
+import { buildTimeline, groupList, comingUp, LIST_GROUPS, ymOf, ymIndex, addMonthsYM, labelYM, movePatch } from "./timelineEngine";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ProjectTimeline — a visual calendar of where every project is at.
@@ -23,12 +23,12 @@ const btn = (active) => ({
 });
 const small = { fontFamily: TNR, fontSize: "12px", color: MUTED };
 
-function Pill({ item, color, onSelect }) {
+function Pill({ item, color, onSelect, drag }) {
   const done = item.zone === "done";
   const plain = done || item.ghost || item.overdue;
   const style = {
     display: "block", padding: "4px 9px", borderRadius: item.span > 1 ? "8px" : "999px",
-    fontFamily: TNR, fontSize: "11px", lineHeight: 1.25, color: plain ? INK : color.text, cursor: "pointer", textAlign: "left",
+    fontFamily: TNR, fontSize: "11px", lineHeight: 1.25, color: plain ? INK : color.text, cursor: drag && drag.draggable ? "grab" : "pointer", textAlign: "left",
     background: done || item.ghost ? "#fff" : color.fill,
     border: item.ghost ? `1px dashed ${color.edge}` : `1px solid ${color.edge}`,
     width: "100%", boxSizing: "border-box", minWidth: 0, appearance: "none",
@@ -38,7 +38,7 @@ function Pill({ item, color, onSelect }) {
   const tag = item.overdue ? "overdue" : item.who;
   const nowrap = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
   return (
-    <button type="button" onClick={() => onSelect(item)} title={[item.title, tag, item.note].filter(Boolean).join(" · ")} style={style}>
+    <button type="button" {...(drag || {})} onClick={() => onSelect(item)} title={[item.title, tag, item.note].filter(Boolean).join(" · ")} style={style}>
       <span style={{ display: "flex", justifyContent: "space-between", gap: "6px", alignItems: "baseline" }}>
         <span style={{ ...nowrap, fontWeight: done ? 400 : 600 }}>{item.clippedStart ? "← " : ""}{done ? "✓ " : ""}{item.title}{item.clippedEnd ? " →" : ""}</span>
         {tag && <span style={{ fontSize: "9.5px", whiteSpace: "nowrap", color: item.overdue ? "#b01904" : plain ? MUTED : color.text, opacity: 0.85 }}>{tag}</span>}
@@ -68,6 +68,59 @@ export default function ProjectTimeline({
     () => buildTimeline({ artProjects, projects, steps }, { startYM, months }, now),
     [artProjects, projects, steps, startYM, months] // eslint-disable-line react-hooks/exhaustive-deps
   );
+
+  const rootRef = useRef(null);
+  const grabRef = useRef(null);
+  const [hoverYM, setHoverYM] = useState("");
+  const [moved, setMoved] = useState(null);
+  const ymAt = (x) => {
+    const els = rootRef.current ? rootRef.current.querySelectorAll("[data-ym]") : [];
+    for (const el of els) { const r = el.getBoundingClientRect(); if (x >= r.left - 3 && x <= r.right + 3) return el.getAttribute("data-ym"); }
+    return "";
+  };
+  const upd = (kind) => (kind === "art" ? onUpdateArt : onUpdateGoal);
+  const applyMove = (it, delta) => {
+    const raw = (it.kind === "art" ? artProjects : projects).find((p) => p.id === it.refId);
+    if (!raw || !upd(it.kind)) return;
+    const patch = movePatch(raw, it, delta);
+    const prev = {};
+    Object.keys(patch).forEach((k) => { prev[k] = raw[k]; });
+    Object.entries(patch).forEach(([k, v]) => upd(it.kind)(it.refId, k, v));
+    setMoved({ title: it.title, kind: it.kind, refId: it.refId, prev, label: `${labelYM(addMonthsYM(it.from, delta))} to ${labelYM(addMonthsYM(it.to || it.from, delta))}` });
+  };
+  const undoMove = () => {
+    if (!moved) return;
+    Object.entries(moved.prev).forEach(([k, v]) => upd(moved.kind)(moved.refId, k, v));
+    setMoved(null);
+  };
+  const dragProps = (i) => ((i.kind === "art" || i.kind === "goal") && !i.done && i.zone === "grid" ? {
+    draggable: true,
+    onDragStart: (e) => {
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", i.title);
+      grabRef.current = { item: i, ym: ymAt(e.clientX) || addMonthsYM(startYM, i.col) };
+    },
+    onDragEnd: () => { grabRef.current = null; setHoverYM(""); },
+  } : undefined);
+  const onDragOverRoot = (e) => {
+    if (!grabRef.current) return;
+    e.preventDefault();
+    const y = ymAt(e.clientX);
+    if (y !== hoverYM) setHoverYM(y);
+  };
+  const onDropRoot = (e) => {
+    const g = grabRef.current;
+    if (!g) return;
+    e.preventDefault();
+    const y = ymAt(e.clientX);
+    grabRef.current = null;
+    setHoverYM("");
+    if (!y) return;
+    const it = g.item;
+    // An overdue pill sits in the first column but really ends earlier: drop sets its end month.
+    const delta = it.overdue ? ymIndex(y) - ymIndex(it.to) : ymIndex(y) - ymIndex(g.ym);
+    if (delta) applyMove(it, delta);
+  };
 
   const cols = `150px minmax(130px,1.1fr) repeat(${months}, minmax(0,1fr))`;
   const open = (item) => {
@@ -99,7 +152,7 @@ export default function ProjectTimeline({
         <span style={{ width: "12px" }} />
         {onAddGoal && <span onClick={() => { setPlacing(null); setPanel(panel === "place" ? null : "place"); }} style={btn(panel === "place")} role="button">+ Place something</span>}
         {onAddGoal && <span onClick={() => setPanel(panel === "import" ? null : "import")} style={btn(panel === "import")} role="button">Import suggestions</span>}
-        <span style={{ ...small, marginLeft: "auto" }}>Click a project to open it. Dashed means no dates set yet, so its place is a guess. Set dates in the project itself.</span>
+        <span style={{ ...small, marginLeft: "auto" }}>Click a project to open it, or drag it sideways to move it. Dashed means no dates set yet, so its place is a guess. Set dates in the project itself.</span>
         </>}
       </div>
 
@@ -204,16 +257,24 @@ export default function ProjectTimeline({
         );
       })()}
 
+      {view === "timeline" && moved && (
+        <p style={{ ...small, margin: "0 0 10px", color: INK }}>
+          Moved {moved.title} to {moved.label}.{" "}
+          <span onClick={undoMove} role="button" style={{ color: LINK_BLUE, textDecoration: "underline", cursor: "pointer" }}>Undo</span>{" "}
+          <span onClick={() => setMoved(null)} role="button" aria-label="Dismiss" style={{ cursor: "pointer", marginLeft: "6px" }}>×</span>
+        </p>
+      )}
+
       {view === "timeline" && hasAnything ? (
         <div style={{ overflowX: "auto", paddingTop: "26px" }}>
-          <div style={{ position: "relative", minWidth: months === 12 ? "1250px" : "860px" }}>
+          <div ref={rootRef} onDragOver={onDragOverRoot} onDrop={onDropRoot} style={{ position: "relative", minWidth: months === 12 ? "1250px" : "860px" }}>
             {/* bands */}
             <div aria-hidden="true" style={{ position: "absolute", inset: 0, display: "grid", gridTemplateColumns: cols, columnGap: "6px", pointerEvents: "none" }}>
               <div />
               <div style={{ border: `2px dashed ${LINE}`, borderRadius: "12px" }} />
               {model.months.map((m) => (
-                <div key={m.ym} style={{
-                  position: "relative", borderRadius: "12px", background: m.index === model.nowIndex ? NOW_BG : "#fff", border: m.index === model.nowIndex ? "none" : `1px solid ${LINE}`,
+                <div key={m.ym} data-ym={m.ym} style={{
+                  position: "relative", borderRadius: "12px", background: m.index === model.nowIndex ? NOW_BG : hoverYM === m.ym ? "#e8e6fb" : "#fff", border: m.index === model.nowIndex ? "none" : `1px solid ${LINE}`,
                   boxShadow: m.index === model.nowIndex ? `inset 0 0 0 1.5px ${LINK_BLUE}` : "none",
                 }}>
                   {m.index === model.nowIndex && (
@@ -249,18 +310,18 @@ export default function ProjectTimeline({
                       <details>
                         <summary style={{ cursor: "pointer", fontFamily: TNR, fontSize: "11px", border: `1px solid ${L.color.edge}`, borderRadius: "999px", padding: "4px 9px" }}>✓ Finished ({L.done.length})</summary>
                         <div style={{ display: "flex", flexDirection: "column", gap: "5px", marginTop: "6px" }}>
-                          {L.done.map((i) => <Pill key={i.id} item={i} color={L.color} onSelect={open} />)}
+                          {L.done.map((i) => <Pill key={i.id} item={i} color={L.color} onSelect={open} drag={dragProps(i)} />)}
                         </div>
                       </details>
                     ) : (
                       <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-                        {L.done.map((i) => <Pill key={i.id} item={i} color={L.color} onSelect={open} />)}
+                        {L.done.map((i) => <Pill key={i.id} item={i} color={L.color} onSelect={open} drag={dragProps(i)} />)}
                       </div>
                     )}
                   </div>
                   {L.rows.map((row, r) => row.map((i) => (
                     <div key={i.id} style={{ gridColumn: `${3 + i.col} / span ${i.span}`, gridRow: r + 1, minWidth: 0, padding: "0 6px" }}>
-                      <Pill item={i} color={L.color} onSelect={open} />
+                      <Pill item={i} color={L.color} onSelect={open} drag={dragProps(i)} />
                     </div>
                   )))}
                 </div>

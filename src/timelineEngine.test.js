@@ -1,4 +1,4 @@
-import { buildTimeline, parseDueMonth } from "./timelineEngine";
+import { buildTimeline, parseDueMonth, shiftDate, movePatch } from "./timelineEngine";
 import { render, screen, fireEvent } from "@testing-library/react";
 import ProjectTimeline from "./ProjectTimeline";
 
@@ -87,4 +87,17 @@ test("messy real-world data does not crash the engine or the page", () => {
   render(<ProjectTimeline today={TODAY} artProjects={artProjects} projects={projects} steps={[]} onOpenArt={() => {}} onOpenGoal={() => {}} onOpenPath={() => {}} />);
   expect(screen.getByText("Done so far")).toBeTruthy();
   fireEvent.click(screen.getByText("By date"));
+});
+
+test("shiftDate keeps the day and clamps to the end of shorter months", () => {
+  expect(shiftDate("2026-11-15", 2)).toBe("2027-01-15");
+  expect(shiftDate("2026-12-31", 2)).toBe("2027-02-28");
+  expect(shiftDate("2026-03-10", -4)).toBe("2025-11-10");
+});
+
+test("movePatch shifts exact dates and fills month ranges for derived ones", () => {
+  const art = { startDate: "2026-11-02", endDate: "2027-02-10", keyDate: "2027-02-01" };
+  expect(movePatch(art, { kind: "art", from: "2026-11", to: "2027-02" }, 1)).toEqual({ startDate: "2026-12-02", endDate: "2027-03-10", keyDate: "2027-03-01" });
+  const goal = { quarter: "q4", dueMonth: "December" };
+  expect(movePatch(goal, { kind: "goal", from: "2026-10", to: "2026-12" }, 2)).toEqual({ startDate: "2026-12-01", endDate: "2027-02-28", dueMonth: "Feb 2027", dueExact: false });
 });

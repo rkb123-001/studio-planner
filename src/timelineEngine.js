@@ -14,6 +14,35 @@ const isISO = (s) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
 const isYM = (s) => typeof s === "string" && /^\d{4}-\d{2}$/.test(s);
 const toYM = (s) => (isISO(s) ? s.slice(0, 7) : isYM(s) ? s : "");
 
+const pad2 = (n) => String(n).padStart(2, "0");
+const daysIn = (y, m) => new Date(y, m, 0).getDate(); // m is 1-12
+/** Move an ISO date by n months, keeping the day where the month is long enough. */
+export function shiftDate(iso, n) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const ym = ymFromIndex(y * 12 + (m - 1) + n);
+  const [ny, nm] = ym.split("-").map(Number);
+  return `${ym}-${pad2(Math.min(d, daysIn(ny, nm)))}`;
+}
+/**
+ * The field changes for dragging a timeline item n months. `item` is a timeline item (from/to are YYYY-MM).
+ * Exact dates shift by n months; month-only or derived dates become the first and last day of the new months.
+ */
+export function movePatch(raw, item, n) {
+  const newFrom = addMonthsYM(item.from, n);
+  const newTo = addMonthsYM(item.to || item.from, n);
+  const [ty, tm] = newTo.split("-").map(Number);
+  const patch = {
+    startDate: isISO(raw.startDate) ? shiftDate(raw.startDate, n) : `${newFrom}-01`,
+    endDate: isISO(raw.endDate) ? shiftDate(raw.endDate, n) : `${newTo}-${pad2(daysIn(ty, tm))}`,
+  };
+  if (isISO(raw.keyDate)) patch.keyDate = shiftDate(raw.keyDate, n);
+  if (item.kind === "goal") {
+    if (raw.dueMonth) patch.dueMonth = `${MONTH_SHORT[tm - 1]} ${ty}`;
+    if (!isISO(raw.endDate)) patch.dueExact = false; // a month, not a day
+  }
+  return patch;
+}
+
 // "June", "Jun 2027", "November 2026" -> "2027-06". Anything else -> "".
 export function parseDueMonth(text, defaultYear) {
   if (!text) return "";

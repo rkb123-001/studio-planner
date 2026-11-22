@@ -30,7 +30,17 @@ Non-exportable modes (Social, Health, Office Work, Rest) sit alongside these so 
 
 **Transition buffers.** High-demand to high-demand switches are flagged and given a pad. Comms into making, office into content, social into studio work: the cost of the context switch is treated as a real cost rather than a free one.
 
-**Projects on horizons.** Work is held as Now, Next, or Later, each with a progress percentage, a confidence rating, and a due month. Later is a legitimate resting place, not a backlog of failure.
+**Three tabs.** *Week* holds today's plan above the weekly grid, with the week note and guides. *Reflect* holds the weekly targets and past weeks. *Plan* is where work is organised over longer stretches of time.
+
+**Plan.** One tab, five views:
+
+- **Timeline.** A visual calendar of where every project is at: one lane per category, a "Done so far" column, and a "We are here" marker. Pills can be dragged sideways to move a project to another month, and their edges dragged to change its length, with undo. On a phone, press and hold a pill first. Dashed pills have no dates yet, so their place is a guess. Clicking a pill opens the project.
+- **By date.** Everything in one list, grouped by when it is due.
+- **Lists.** Named task lists, for things that belong together rather than to a date.
+- **Goals.** The quarterly goals editor, with due month, importance, enthusiasm, size, and a waiting-on field.
+- **Path.** The study path, laid out as steps over time.
+
+**Capturing and placing work.** A quick-add inbox takes a task now and places it later. A short question series (how much it matters, how keen you are, how long it takes, whether it has a hard date) places a task on the timeline for you, and marks anything it had to guess. Suggestions can also be imported as JSON, including from a monthly AI review, and sent to the timeline, a task list, or the inbox.
 
 **Weekly success metrics.** The week is judged on whether you stayed within capacity, avoided overload, completed at least one meaningful task, and progressed a fine art project. Volume is deliberately not a metric.
 
@@ -59,7 +69,8 @@ The accompanying diagram, `studio-planner-system.html`, renders the whole model 
 - React 19
 - Create React App (`react-scripts` 5)
 - `localStorage` as the primary store, key `studio-planner-v1`
-- Supabase for cross-device sync
+- Supabase for cross-device sync (projects, art projects and profile, including the inbox and task lists, are stored as JSON)
+- A small serverless endpoint calls the Anthropic API for the study path coach (`api/path-coach.js`), using an `ANTHROPIC_API_KEY` environment variable on Vercel
 
 ## Running locally
 

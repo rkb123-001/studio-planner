@@ -139,12 +139,11 @@ test("coming up lists dated items by week and flags overdue ones", () => {
   expect(c.inProgress.map((i) => i.title)).toContain("Month only");
 });
 
-test("Art and Path views swap in their panels", () => {
+test("Art tab is gone, Path swaps in its panel, and an art project can still be opened", () => {
   render(<ProjectTimeline today={TODAY} artProjects={[]} projects={[]} steps={[]} categories={CATS}
     goalsPanel={<div>G</div>} artPanel={<div>ART PANEL</div>} pathPanel={<div>PATH PANEL</div>}
     onOpenArt={() => {}} onOpenGoal={() => {}} onOpenPath={() => {}} />);
-  fireEvent.click(screen.getByText("Art"));
-  expect(screen.getByText("ART PANEL")).toBeTruthy();
+  expect(screen.queryByText("Art")).toBeNull();
   fireEvent.click(screen.getByText("Path"));
   expect(screen.getByText("PATH PANEL")).toBeTruthy();
   expect(screen.queryByText("ART PANEL")).toBeNull();

@@ -2576,6 +2576,15 @@ const [, setAuthTimestamp] = useState(0);
     return <AuthScreen onSuccess={(p) => { setProfile(p); setIsAuthenticated(true); setAuthTimestamp(Date.now()); setSupabaseLoaded(false); }} />;
   }
 
+  // Finished work lives in the Archive section, not the active lists
+  const activeGoals = projects.filter(p => p.status !== "done");
+  const doneGoals = projects.filter(p => p.status === "done");
+  const activeArt = artProjects.filter(p => p.status !== "complete" && p.status !== "declined");
+  const doneArt = artProjects.filter(p => p.status === "complete" || p.status === "declined");
+  const archivedGoals = doneGoals.filter(p => qFilter === "all" || qFilter === p.category);
+  const archivedArt = qFilter === "all" ? doneArt : [];
+  const archiveCount = archivedGoals.length + archivedArt.length;
+
   // Goals panel (formerly the Quarterly tab) — now lives inside the Timeline tab as its "Goals" view
   const goalsPanel = (
       <div style={{ maxWidth: "720px", margin: "0 auto" }}>
@@ -2612,13 +2621,13 @@ const [, setAuthTimestamp] = useState(0);
         {qView === "roadmap" && (
           <div>
             {/* Art Projects — live-linked from the Art Projects tab, not duplicated data */}
-            {artProjects.length > 0 && (qFilter === "all") && (
+            {activeArt.length > 0 && (qFilter === "all") && (
               <div style={{ marginBottom: "36px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
                   <p style={{ ...sml, color: "#b01904", margin: 0 }}>Art Projects</p>
                   <span onClick={() => { setTab("plan"); setTlView("art"); }} style={{ fontFamily: TNR, fontSize: "12px", color: "#888", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}>Open Art Projects →</span>
                 </div>
-                {artProjects.map(p => {
+                {activeArt.map(p => {
                   const stageObj = ART_STAGES.find(s => s.key === p.stage) || ART_STAGES[0];
                   const statusColor = { active: "#b01904", paused: "#e8c070", complete: "#0fa97f", declined: "#888" }[p.status] || "#888";
                   const statusLabel = ART_PROJECT_STATUSES.find(s => s.key === p.status)?.label || p.status;
@@ -2642,15 +2651,15 @@ const [, setAuthTimestamp] = useState(0);
               </div>
             )}
             {/* Fine art section — always shown first if any */}
-            {projects.filter(p => p.isFineArt && (qFilter === "all" || qFilter === p.category)).length > 0 && (
+            {activeGoals.filter(p => p.isFineArt && (qFilter === "all" || qFilter === p.category)).length > 0 && (
               <div style={{ marginBottom: "36px" }}>
                 <p style={{ ...sml, marginBottom: "14px", color: "#b5936a" }}>Fine Art Practice</p>
-                {projects.filter(p => p.isFineArt && (qFilter === "all" || qFilter === p.category)).map(p => renderProjectRow(p))}
+                {activeGoals.filter(p => p.isFineArt && (qFilter === "all" || qFilter === p.category)).map(p => renderProjectRow(p))}
               </div>
             )}
             {/* All other categories */}
             {Q_CATEGORIES.filter(cat => qFilter === "all" || qFilter === cat).map(cat => {
-              const catProjects = projects.filter(p => !p.isFineArt && p.category === cat);
+              const catProjects = activeGoals.filter(p => !p.isFineArt && p.category === cat);
               if (catProjects.length === 0) return null;
               return (
                 <div key={cat} style={{ marginBottom: "32px" }}>
@@ -2666,7 +2675,7 @@ const [, setAuthTimestamp] = useState(0);
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "32px" }}>
             {QUARTERS.map(q => {
               const isCurrent = q.key === currentQuarterKey();
-              const qProjects = projects.filter(p => (p.quarter || "q1") === q.key && (qFilter === "all" || qFilter === p.category));
+              const qProjects = activeGoals.filter(p => (p.quarter || "q1") === q.key && (qFilter === "all" || qFilter === p.category));
               return (
                 <div key={q.key}>
                   <div style={{ marginBottom: "16px", paddingBottom: "8px", borderBottom: isCurrent ? `2px solid ${LINK_BLUE}` : "1px solid #f0f0f0" }}>
@@ -2707,7 +2716,7 @@ const [, setAuthTimestamp] = useState(0);
         {qView === "horizon" && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "32px" }}>
             {Q_HORIZONS.map(h => {
-              const hProjects = projects.filter(p => p.horizon === h.key && (qFilter === "all" || qFilter === p.category));
+              const hProjects = activeGoals.filter(p => p.horizon === h.key && (qFilter === "all" || qFilter === p.category));
               return (
                 <div key={h.key}>
                   <div style={{ marginBottom: "16px" }}>
@@ -2743,6 +2752,23 @@ const [, setAuthTimestamp] = useState(0);
               );
             })}
           </div>
+        )}
+        {archiveCount > 0 && (
+          <details style={{ marginTop: "44px", borderTop: "1px solid #f0f0f0", paddingTop: "18px" }}>
+            <summary style={{ ...sml, cursor: "pointer", marginBottom: "14px" }}>Archive ({archiveCount}): finished, so off the active lists</summary>
+            {archivedArt.map(p => {
+              const statusLabel = ART_PROJECT_STATUSES.find(s => s.key === p.status)?.label || p.status;
+              return (
+                <div key={"art" + p.id} onClick={() => { setTab("plan"); setTlView("art"); setEditingArtProject(p.id); }}
+                  style={{ display: "flex", alignItems: "baseline", gap: "16px", padding: "10px 0", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}>
+                  <span style={{ fontFamily: TNR, fontSize: "11px", color: "#b01904" }}>[fine art]</span>
+                  <span style={{ flex: 1, fontFamily: TNR, fontSize: "14px", color: "#888" }}>{p.title || "Untitled project"}</span>
+                  <span style={{ fontFamily: TNR, fontSize: "12px", color: "#888" }}>{statusLabel}</span>
+                </div>
+              );
+            })}
+            {archivedGoals.map(p => renderProjectRow(p))}
+          </details>
         )}
       </div>
   );

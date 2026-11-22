@@ -132,3 +132,8 @@ test("items carry their exact start and end dates, whole months when only a mont
   expect(items.find((i) => i.title === "Exact")).toMatchObject({ fromISO: "2026-12-16", toISO: "2027-01-15" });
   expect(items.find((i) => i.title === "Month")).toMatchObject({ fromISO: "2026-12-01", toISO: "2026-12-31" });
 });
+
+test("dropped goals stay off the timeline", () => {
+  const m = buildTimeline({ artProjects: [], steps: [], projects: [{ id: 1, title: "Gone", category: "Finance / systems", quarter: "q4", dueMonth: "December", status: "dropped" }] }, { startYM: "2026-11", months: 6 }, TODAY);
+  expect(m.all.find((i) => i.title === "Gone")).toBeUndefined();
+});

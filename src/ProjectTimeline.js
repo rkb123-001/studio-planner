@@ -274,6 +274,7 @@ export default function ProjectTimeline({
         {onTaskLists && <span onClick={() => setView("lists")} style={btn(view === "lists")} role="button">Lists{taskLists.length ? ` (${taskLists.length})` : ""}</span>}
         {goalsPanel && <span onClick={() => setView("goals")} style={btn(view === "goals")} role="button">Goals</span>}
         {pathPanel && <span onClick={() => setView("path")} style={btn(view === "path")} role="button">Path</span>}
+        {artPanel && <span onClick={() => setView("art")} role="button" style={{ fontFamily: TNR, fontSize: "12px", color: view === "art" ? LINK_BLUE : MUTED, textDecoration: "underline", textUnderlineOffset: "2px", cursor: "pointer", marginLeft: "2px" }}>art projects</span>}
         <span style={{ width: "12px" }} />
         <span style={{ ...small, textTransform: "uppercase", letterSpacing: "0.08em" }}>Add</span>
         {onAddGoal && <span onClick={() => { if (isPanel) setView(mode === "plan" ? "list" : "timeline"); setPlacing(null); setPanel(panel === "place" && !isPanel ? null : "place"); }} style={btn(panel === "place" && !isPanel)} role="button">+ Place something</span>}

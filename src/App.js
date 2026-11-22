@@ -178,6 +178,7 @@ const Q_STATUSES = [
   { key: "behind",      label: "Behind",      color: "#b01904" },
   { key: "done",        label: "Done",        color: "#a8b87a" },
   { key: "not-started", label: "Not started", color: "#cccccc" },
+  { key: "dropped",     label: "Dropped",     color: "#bbbbbb" },
 ];
 
 const Q_HORIZONS = [
@@ -240,7 +241,7 @@ const ART_PROJECT_STATUSES = [
   { key: "active",   label: "Active" },
   { key: "paused",   label: "Paused" },
   { key: "complete", label: "Complete" },
-  { key: "declined", label: "Declined / not taken forward" },
+  { key: "declined", label: "Dropped / not taken forward" },
 ];
 
 // Reference list for the funding stage — London-specific, editable free text field
@@ -2439,7 +2440,7 @@ const [, setAuthTimestamp] = useState(0);
     const isEditing = editingProject === p.id;
     const statusColor = {
       "on-track": "#0fa97f", "at-risk": "#e8c070", "behind": "#b01904",
-      "done": "#0fa97f", "not-started": "#888",
+      "done": "#0fa97f", "not-started": "#888", "dropped": "#bbb",
     }[p.status] || "#888";
     return (
       <div key={p.id} style={{ marginBottom: "2px" }}>
@@ -2577,8 +2578,8 @@ const [, setAuthTimestamp] = useState(0);
   }
 
   // Finished work lives in the Archive section, not the active lists
-  const activeGoals = projects.filter(p => p.status !== "done");
-  const doneGoals = projects.filter(p => p.status === "done");
+  const activeGoals = projects.filter(p => p.status !== "done" && p.status !== "dropped");
+  const doneGoals = projects.filter(p => p.status === "done" || p.status === "dropped");
   const activeArt = artProjects.filter(p => p.status !== "complete" && p.status !== "declined");
   const doneArt = artProjects.filter(p => p.status === "complete" || p.status === "declined");
   const archivedGoals = doneGoals.filter(p => qFilter === "all" || qFilter === p.category);
@@ -2687,7 +2688,7 @@ const [, setAuthTimestamp] = useState(0);
                     : qProjects.map(p => {
                       const sc = {
                         "on-track": "#0fa97f", "at-risk": "#e8c070", "behind": "#b01904",
-                        "done": "#0fa97f", "not-started": "#888",
+                        "done": "#0fa97f", "not-started": "#888", "dropped": "#bbb",
                       }[p.status] || "#888";
                       return (
                         <div key={p.id} onClick={() => { setQView("roadmap"); setEditingProject(p.id); }}
@@ -2728,7 +2729,7 @@ const [, setAuthTimestamp] = useState(0);
                     : hProjects.map(p => {
                       const sc = {
                         "on-track": "#0fa97f", "at-risk": "#e8c070", "behind": "#b01904",
-                        "done": "#0fa97f", "not-started": "#888",
+                        "done": "#0fa97f", "not-started": "#888", "dropped": "#bbb",
                       }[p.status] || "#888";
                       return (
                         <div key={p.id} onClick={() => { setQView("roadmap"); setEditingProject(p.id); }}
@@ -2755,7 +2756,7 @@ const [, setAuthTimestamp] = useState(0);
         )}
         {archiveCount > 0 && (
           <details style={{ marginTop: "44px", borderTop: "1px solid #f0f0f0", paddingTop: "18px" }}>
-            <summary style={{ ...sml, cursor: "pointer", marginBottom: "14px" }}>Archive ({archiveCount}): finished, so off the active lists</summary>
+            <summary style={{ ...sml, cursor: "pointer", marginBottom: "14px" }}>Archive ({archiveCount}): done or dropped, so off the active lists</summary>
             {archivedArt.map(p => {
               const statusLabel = ART_PROJECT_STATUSES.find(s => s.key === p.status)?.label || p.status;
               return (

@@ -144,7 +144,9 @@ test("Art tab is gone, Path swaps in its panel, and an art project can still be 
   render(<ProjectTimeline today={TODAY} artProjects={[]} projects={[]} steps={[]} categories={CATS}
     goalsPanel={<div>G</div>} artPanel={<div>ART PANEL</div>} pathPanel={<div>PATH PANEL</div>}
     onOpenArt={() => {}} onOpenGoal={() => {}} onOpenPath={() => {}} />);
-  expect(screen.queryByText("Art")).toBeNull();
+  expect(screen.queryByText("Art")).toBeNull(); // no boxed Art tab
+  fireEvent.click(screen.getByText("art projects")); // just a small link
+  expect(screen.getByText("ART PANEL")).toBeTruthy();
   fireEvent.click(screen.getByText("Path"));
   expect(screen.getByText("PATH PANEL")).toBeTruthy();
   expect(screen.queryByText("ART PANEL")).toBeNull();

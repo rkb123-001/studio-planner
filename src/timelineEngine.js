@@ -149,6 +149,7 @@ export function buildTimeline(data, view, today = new Date()) {
   (data.projects || []).forEach((p) => {
     if (p.fromPath) return;
     if (!p.title) return;
+    if (p.status === "dropped") return; // dropped goals live only in the Archive
     const l = lane(`goal:${p.category}`, p.category || "Goals", CATEGORY_COLOURS[p.category] || FALLBACK_COLOUR);
     let due = parseDueMonth(p.dueMonth, year);
     const qFirst = QUARTER_FIRST[p.quarter];

@@ -30,6 +30,7 @@ const CSS = `
 .tl-root .tl-pill:hover { box-shadow: 0 3px 10px rgba(26, 13, 171, .2); transform: translateY(-1px); }
 .tl-root .tl-pill:active { cursor: grabbing; }
 .tl-root .tl-pill:hover .tl-grip { opacity: .95 !important; }
+@media (hover: hover) { .tl-root .tl-grip { opacity: 0 !important; } .tl-root .tl-pill:hover .tl-grip { opacity: .95 !important; } }
 .tl-root .tl-band { transition: background .12s ease; }
 `;
 // Start and end a pill part-way into its months, from the real dates (percent margins on a grid item
@@ -43,7 +44,7 @@ function dayInset(i) {
   return { marginLeft: `${(lf / i.span) * 100}%`, marginRight: `${(rf / i.span) * 100}%` };
 }
 const edgeStyle = (side) => ({
-  position: "absolute", top: 0, bottom: 0, [side]: 0, width: "14px", display: "flex", alignItems: "center", justifyContent: "center",
+  position: "absolute", top: 0, bottom: 0, [side]: 0, width: "9px", display: "flex", alignItems: "center", justifyContent: "center",
   cursor: "ew-resize", touchAction: "none",
 });
 function Pill({ item, color, onSelect, drag }) {
@@ -136,11 +137,15 @@ export default function ProjectTimeline({
     const d = dragRef.current;
     if (d && d.timer) clearTimeout(d.timer);
     if (d && d.scroller) clearInterval(d.scroller);
+    document.body.style.userSelect = "";
+    document.body.style.cursor = "";
     dragRef.current = null;
     setPreview(null);
   };
   const activate = (d) => {
     d.active = true;
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = d.mode === "move" ? "grabbing" : "ew-resize";
     if (d.touch && navigator.vibrate) { try { navigator.vibrate(12); } catch (err) { /* not supported */ } }
     const sc = rootRef.current && rootRef.current.parentElement;
     if (sc) d.scroller = setInterval(() => { if (d.scrollBy) sc.scrollLeft += d.scrollBy; }, 16);
@@ -159,9 +164,9 @@ export default function ProjectTimeline({
     edge: (e, i, mode) => {
       e.stopPropagation();
       if (e.pointerType === "mouse") { if (e.button !== 0) return; e.preventDefault(); }
-      const d = { mode, item: i, x0: e.clientX, y0: e.clientY, active: false, touch: e.pointerType !== "mouse" };
+      const d = { mode, item: i, x0: e.clientX, y0: e.clientY, active: false, touch: e.pointerType !== "mouse", edge: true };
       dragRef.current = d;
-      activate(d);
+      if (d.touch) activate(d); // a mouse edge-drag waits for a few pixels of movement, so a click near the edge still opens the project
     },
   };
   latest.current = { stop, rangeFor, applyRange, ymAt, activate };
@@ -173,7 +178,7 @@ export default function ProjectTimeline({
       const dist = Math.hypot(e.clientX - d.x0, e.clientY - d.y0);
       if (!d.active) {
         if (d.touch) { if (dist > 8) L.stop(); return; }
-        if (dist < 5) return;
+        if (dist < (d.edge ? 4 : 5)) return;
         L.activate(d);
       }
       const y = L.ymAt(e.clientX);
@@ -350,14 +355,18 @@ export default function ProjectTimeline({
         );
       })()}
 
-      {view === "timeline" && preview && (
-        <p style={{ ...small, margin: "0 0 10px", color: INK }}>{preview.item.title}: {preview.from === preview.to ? labelYM(preview.from) : `${labelYM(preview.from)} to ${labelYM(preview.to)}`}</p>
-      )}
-      {view === "timeline" && !preview && moved && (
-        <p style={{ ...small, margin: "0 0 10px", color: INK }}>
-          Moved {moved.title} to {moved.label}.{" "}
-          <span onClick={undoMove} role="button" style={{ color: LINK_BLUE, textDecoration: "underline", cursor: "pointer" }}>Undo</span>{" "}
-          <span onClick={() => setMoved(null)} role="button" aria-label="Dismiss" style={{ cursor: "pointer", marginLeft: "6px" }}>×</span>
+      {view === "timeline" && (
+        // fixed height, so showing or hiding it never shifts the calendar under the pointer mid-drag
+        <p style={{ ...small, margin: "0 0 8px", color: INK, height: "18px", lineHeight: "18px", overflow: "hidden", whiteSpace: "nowrap" }}>
+          {preview ? (
+            <>{preview.item.title}: {preview.from === preview.to ? labelYM(preview.from) : `${labelYM(preview.from)} to ${labelYM(preview.to)}`}</>
+          ) : moved ? (
+            <>
+              Moved {moved.title} to {moved.label}.{" "}
+              <span onClick={undoMove} role="button" style={{ color: LINK_BLUE, textDecoration: "underline", cursor: "pointer" }}>Undo</span>{" "}
+              <span onClick={() => setMoved(null)} role="button" aria-label="Dismiss" style={{ cursor: "pointer", marginLeft: "6px" }}>×</span>
+            </>
+          ) : null}
         </p>
       )}
 

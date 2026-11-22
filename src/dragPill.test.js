@@ -40,3 +40,12 @@ test("dragging the right edge grip lengthens the pill", () => {
   expect(onUpdateArt).toHaveBeenCalledWith(1, "endDate", "2027-02-28");
   expect(onUpdateArt).toHaveBeenCalledWith(1, "startDate", "2026-12-16");
 });
+
+test("pressing an edge grip without moving changes nothing (so a click near the edge is just a click)", () => {
+  const { onUpdateArt } = setup();
+  const grip = screen.getByLabelText("Change end of Mid Dec show");
+  act(() => { grip.dispatchEvent(ev("pointerdown", 190)); });
+  act(() => { window.dispatchEvent(ev("pointermove", 192)); });
+  act(() => { window.dispatchEvent(ev("pointerup", 192)); });
+  expect(onUpdateArt).not.toHaveBeenCalled();
+});

@@ -113,7 +113,8 @@ test("Goals view shows the goals panel and hides the timeline controls", () => {
   expect(screen.queryByText("GOALS PANEL")).toBeNull();
   fireEvent.click(screen.getByText("Goals"));
   expect(screen.getByText("GOALS PANEL")).toBeTruthy();
-  expect(screen.queryByText("+ Place something")).toBeNull();
+  expect(screen.getByText("+ Place something")).toBeTruthy(); // Add buttons stay on every view
+  expect(screen.queryByText("6 months")).toBeNull();           // month controls are timeline-only
   expect(screen.queryByLabelText("Add to inbox")).toBeNull();
   fireEvent.click(screen.getByText("Timeline"));
   expect(screen.queryByText("GOALS PANEL")).toBeNull();

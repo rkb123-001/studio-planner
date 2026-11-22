@@ -219,21 +219,23 @@ export default function ProjectTimeline({
         {onTaskLists && <span onClick={() => setView("lists")} style={btn(view === "lists")} role="button">Lists{taskLists.length ? ` (${taskLists.length})` : ""}</span>}
         {goalsPanel && <span onClick={() => setView("goals")} style={btn(view === "goals")} role="button">Goals</span>}
         {pathPanel && <span onClick={() => setView("path")} style={btn(view === "path")} role="button">Path</span>}
-        {!isPanel && <>
         <span style={{ width: "12px" }} />
-        <span onClick={() => shift(-3)} style={btn(false)} role="button" aria-label="Earlier">←</span>
-        <span onClick={() => setStartYM(ymOf(now))} style={btn(atToday)} role="button">This month</span>
-        <span onClick={() => shift(3)} style={btn(false)} role="button" aria-label="Later">→</span>
-        <span style={{ width: "12px" }} />
-        <span onClick={() => setMonths(6)} style={btn(months === 6)} role="button">6 months</span>
-        <span onClick={() => setMonths(12)} style={btn(months === 12)} role="button">12 months</span>
-        <span style={{ width: "12px" }} />
+        <span style={{ ...small, textTransform: "uppercase", letterSpacing: "0.08em" }}>Add</span>
+        {onAddGoal && <span onClick={() => { if (isPanel) setView("timeline"); setPlacing(null); setPanel(panel === "place" && !isPanel ? null : "place"); }} style={btn(panel === "place" && !isPanel)} role="button">+ Place something</span>}
         {onAddArt && <span onClick={onAddArt} style={btn(false)} role="button">+ Art project</span>}
-        {onAddGoal && <span onClick={() => { setPlacing(null); setPanel(panel === "place" ? null : "place"); }} style={btn(panel === "place")} role="button">+ Place something</span>}
-        {onAddGoal && <span onClick={() => setPanel(panel === "import" ? null : "import")} style={btn(panel === "import")} role="button">Import suggestions</span>}
-        <span style={{ ...small, marginLeft: "auto" }}>Click a project to open it, or drag it sideways to move it (on a phone, press and hold first). Drag a pill's edge to change its length. Dashed means no dates set yet, so its place is a guess. Set dates in the project itself.</span>
-        </>}
+        {onAddGoal && <span onClick={() => { if (isPanel) setView("timeline"); setPanel(panel === "import" && !isPanel ? null : "import"); }} style={btn(panel === "import" && !isPanel)} role="button">Import suggestions</span>}
       </div>
+      {view === "timeline" && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", marginBottom: "18px" }}>
+          <span onClick={() => shift(-3)} style={btn(false)} role="button" aria-label="Earlier">←</span>
+          <span onClick={() => setStartYM(ymOf(now))} style={btn(atToday)} role="button">This month</span>
+          <span onClick={() => shift(3)} style={btn(false)} role="button" aria-label="Later">→</span>
+          <span style={{ width: "12px" }} />
+          <span onClick={() => setMonths(6)} style={btn(months === 6)} role="button">6 months</span>
+          <span onClick={() => setMonths(12)} style={btn(months === 12)} role="button">12 months</span>
+          <span style={{ ...small, marginLeft: "auto" }}>Click a project to open it. Drag it sideways to move it (on a phone, press and hold first) and drag its edges to change its length. Dashed means no dates set yet.</span>
+        </div>
+      )}
 
       {view === "lists" && onTaskLists && <TaskLists lists={taskLists} onChange={onTaskLists} categories={categories} today={now} onAddGoal={onAddGoal} />}
       {isPanel && panels[view]}

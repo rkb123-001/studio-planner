@@ -2908,7 +2908,7 @@ const [, setAuthTimestamp] = useState(0);
 
       {/* ── Tabs as boxed buttons ── */}
       <div style={{ textAlign: "center", marginBottom: "52px", display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
-        {[["week","Week"],["reflect","Reflect"],["timeline","Timeline"]].map(([key, lbl]) => (
+        {[["week","Week"],["reflect","Reflect"],["timeline","Plan"]].map(([key, lbl]) => (
           <span key={key} onClick={() => setTab(key)} style={boxBtn(tab === key)}>{lbl}</span>
         ))}
       </div>

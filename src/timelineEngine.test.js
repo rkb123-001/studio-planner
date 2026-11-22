@@ -86,5 +86,5 @@ test("messy real-world data does not crash the engine or the page", () => {
   expect(Array.isArray(t.lanes)).toBe(true);
   render(<ProjectTimeline today={TODAY} artProjects={artProjects} projects={projects} steps={[]} onOpenArt={() => {}} onOpenGoal={() => {}} onOpenPath={() => {}} />);
   expect(screen.getByText("Done so far")).toBeTruthy();
-  fireEvent.click(screen.getByText("List"));
+  fireEvent.click(screen.getByText("By date"));
 });

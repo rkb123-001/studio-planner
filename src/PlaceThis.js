@@ -96,13 +96,14 @@ export function PlaceWizard({ categories, today, onAdd, onClose, initialTitle = 
   );
 }
 
-export function ImportBox({ categories, today, onAdd, onClose, onInbox }) {
+export function ImportBox({ categories, today, onAdd, onClose, onInbox, onLists }) {
   const [text, setText] = useState("");
   const [items, setItems] = useState(null);
   const [error, setError] = useState("");
   const read = () => { const r = parseProposals(text, categories); setError(r.error); setItems(r.items.length ? r.items : null); };
   const update = (key, patch) => setItems((cur) => cur.map((it) => (it.key === key ? { ...it, ...patch, answers: { ...it.answers, ...(patch.answers || {}) } } : it)));
   const chosen = items ? items.filter((i) => i.include) : [];
+  const toLists = () => { onLists(chosen.map((i) => ({ list: i.list || "Imported", title: i.answers.title, due: i.answers.date, source: i.source }))); onClose(); };
   const toInbox = () => { chosen.forEach((i) => onInbox(i.answers.title, i.source)); onClose(); };
   const addAll = () => { chosen.forEach((i) => onAdd(placeFromAnswers(i.answers, today).goal)); onClose(); };
 
@@ -140,6 +141,7 @@ export function ImportBox({ categories, today, onAdd, onClose, onInbox }) {
         })}
         <div style={{ marginTop: "14px", display: "flex", gap: "12px", alignItems: "center" }}>
           <span role="button" onClick={chosen.length ? addAll : undefined} style={{ ...btn(true), opacity: chosen.length ? 1 : 0.4 }}>Add {chosen.length} to timeline</span>
+          {onLists && <span role="button" onClick={chosen.length ? toLists : undefined} style={{ ...btn(false), opacity: chosen.length ? 1 : 0.4 }}>Add to task lists</span>}
           {onInbox && <span role="button" onClick={chosen.length ? toInbox : undefined} style={{ ...btn(false), opacity: chosen.length ? 1 : 0.4 }}>Add to inbox instead</span>}
           <span role="button" onClick={() => setItems(null)} style={btn(false)}>Back</span>
           <span onClick={onClose} style={{ fontFamily: TNR, fontSize: "13px", color: MUTED, textDecoration: "underline", cursor: "pointer", marginLeft: "auto" }}>Cancel</span>

@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { PlaceWizard, ImportBox } from "./PlaceThis";
+import TaskLists from "./TaskListsView";
+import { importIntoLists } from "./listOps";
 import { buildTimeline, groupList, comingUp, LIST_GROUPS, ymOf, addMonthsYM, labelYM } from "./timelineEngine";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -47,7 +49,7 @@ function Pill({ item, color, onSelect }) {
 }
 
 export default function ProjectTimeline({
-  artProjects, projects, steps, onOpenArt, onOpenGoal, onOpenPath, onAddGoal, onUpdateArt, onUpdateGoal, categories, view: viewProp, onView, goalsPanel, artPanel, pathPanel, inbox = [], onInboxAdd, onInboxRemove, today,
+  artProjects, projects, steps, onOpenArt, onOpenGoal, onOpenPath, onAddGoal, onUpdateArt, onUpdateGoal, categories, view: viewProp, onView, goalsPanel, artPanel, pathPanel, taskLists = [], onTaskLists, inbox = [], onInboxAdd, onInboxRemove, today,
 }) {
   const now = today || new Date();
   const [months, setMonths] = useState(6);
@@ -57,7 +59,7 @@ export default function ProjectTimeline({
   const [viewLocal, setViewLocal] = useState("timeline"); // "timeline" | "list" | "goals"
   const view = viewProp || viewLocal;
   const panels = { goals: goalsPanel, art: artPanel, path: pathPanel };
-  const isPanel = ["goals", "art", "path"].includes(view);
+  const isPanel = ["goals", "art", "path", "lists"].includes(view);
   const setView = onView || setViewLocal;
   const [showDone, setShowDone] = useState(false);
   const [laneFilter, setLaneFilter] = useState("");
@@ -81,7 +83,8 @@ export default function ProjectTimeline({
     <div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", marginBottom: "18px" }}>
         <span onClick={() => setView("timeline")} style={btn(view === "timeline")} role="button">Timeline</span>
-        <span onClick={() => setView("list")} style={btn(view === "list")} role="button">List</span>
+        <span onClick={() => setView("list")} style={btn(view === "list")} role="button">By date</span>
+        {onTaskLists && <span onClick={() => setView("lists")} style={btn(view === "lists")} role="button">Lists{taskLists.length ? ` (${taskLists.length})` : ""}</span>}
         {goalsPanel && <span onClick={() => setView("goals")} style={btn(view === "goals")} role="button">Goals</span>}
         {artPanel && <span onClick={() => setView("art")} style={btn(view === "art")} role="button">Art</span>}
         {pathPanel && <span onClick={() => setView("path")} style={btn(view === "path")} role="button">Path</span>}
@@ -100,6 +103,7 @@ export default function ProjectTimeline({
         </>}
       </div>
 
+      {view === "lists" && onTaskLists && <TaskLists lists={taskLists} onChange={onTaskLists} categories={categories} today={now} onAddGoal={onAddGoal} />}
       {isPanel && panels[view]}
 
       {!isPanel && (() => {
@@ -143,7 +147,7 @@ export default function ProjectTimeline({
 
       {!isPanel && panel === "place" && <PlaceWizard key={placing ? placing.id : "new"} categories={categories} today={now} initialTitle={placing ? placing.title : ""}
         onAdd={(g) => { onAddGoal(g); if (placing && onInboxRemove) onInboxRemove(placing.id); }} onClose={() => { setPanel(null); setPlacing(null); }} />}
-      {!isPanel && panel === "import" && <ImportBox categories={categories} today={now} onAdd={onAddGoal} onInbox={onInboxAdd} onClose={() => setPanel(null)} />}
+      {!isPanel && panel === "import" && <ImportBox categories={categories} today={now} onAdd={onAddGoal} onInbox={onInboxAdd} onLists={onTaskLists ? (entries) => { onTaskLists((l) => importIntoLists(l, entries)); setView("lists"); } : undefined} onClose={() => setPanel(null)} />}
 
       {view === "timeline" && !hasAnything && (
         <p style={{ fontFamily: TNR, fontSize: "15px", color: MUTED }}>

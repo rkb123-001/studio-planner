@@ -107,7 +107,7 @@ export function parseProposals(text, categories) {
     const feeling = pick(FEELING, x.feeling, "neutral", () => guessed.push("how you feel"));
     const size = pick(SIZE, x.size, "days", () => guessed.push("size"));
     return {
-      key: i, include: true, source: String(x.source || "").slice(0, 200), guessed,
+      key: i, include: true, source: String(x.source || "").slice(0, 200), list: String(x.list || "").trim().slice(0, 60), guessed,
       answers: {
         title: x.title.trim().slice(0, 140), category: categories.includes(x.category) ? x.category : "Practice development",
         dateKind: isISO(x.date) ? (dateKind === "none" ? "soft" : dateKind) : "none", date: isISO(x.date) ? x.date : "",

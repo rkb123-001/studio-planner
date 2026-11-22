@@ -2,6 +2,7 @@ import { useState, useEffect, Component } from "react";
 import { ProjectRoadmap, normaliseRoadmap, roadmapProgress } from "./ProjectRoadmap";
 import { StudyPath } from "./StudyPath";
 import ProjectTimeline from "./ProjectTimeline";
+import { normaliseLists } from "./listOps";
 import { normaliseStudyPath, goalsFromSteps } from "./pathEngine";
 
 const TNR = "'Times New Roman', Times, serif";
@@ -2380,6 +2381,17 @@ const [, setAuthTimestamp] = useState(0);
   };
   const removeInboxTask = (id) => updateInbox(list => list.filter(x => x.id !== id));
 
+  // Named task lists (e.g. "Before Australia"), stored on the profile so they sync.
+  const taskLists = normaliseLists(profile.taskLists);
+  const updateTaskLists = (fn) => {
+    setHasUserInteracted(true);
+    setProfile(prev => {
+      const next = { ...prev, taskLists: normaliseLists(fn(normaliseLists(prev.taskLists))) };
+      saveProfile(next);
+      return next;
+    });
+  };
+
   const planStudyPath = (steps) => {
     const goals = goalsFromSteps(steps).map(g => ({ ...emptyProject(), ...g, id: Date.now() + Math.random() }));
     setHasUserInteracted(true);
@@ -3558,6 +3570,8 @@ const [, setAuthTimestamp] = useState(0);
           goalsPanel={goalsPanel}
           artPanel={artPanel}
           pathPanel={pathPanel}
+          taskLists={taskLists}
+          onTaskLists={updateTaskLists}
           inbox={inbox}
           onInboxAdd={addInboxTask}
           onInboxRemove={removeInboxTask}

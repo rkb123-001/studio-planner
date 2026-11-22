@@ -3562,6 +3562,7 @@ const [, setAuthTimestamp] = useState(0);
           onOpenGoal={(id) => { setTlView("goals"); setQView("roadmap"); setEditingProject(id); }}
           onOpenPath={() => setTlView("path")}
           onAddGoal={addGoalFromTimeline}
+          onAddArt={() => { addArtProject(); setTlView("art"); }}
           onUpdateArt={updateArtProject}
           onUpdateGoal={updateProject}
           categories={Q_CATEGORIES}

@@ -24,20 +24,22 @@ export function shiftDate(iso, n) {
   return `${ym}-${pad2(Math.min(d, daysIn(ny, nm)))}`;
 }
 /**
- * The field changes for dragging a timeline item n months. `item` is a timeline item (from/to are YYYY-MM).
- * Exact dates shift by n months; month-only or derived dates become the first and last day of the new months.
+ * The field changes for moving or resizing a timeline item. `item` has from/to (YYYY-MM).
+ * nFrom and nTo are how many months the start and the end move (equal for a plain move).
+ * Exact dates shift by that many months; month-only or derived dates become the first and last day of the new months.
  */
-export function movePatch(raw, item, n) {
-  const newFrom = addMonthsYM(item.from, n);
-  const newTo = addMonthsYM(item.to || item.from, n);
+export function movePatch(raw, item, nFrom, nTo = nFrom) {
+  const newFrom = addMonthsYM(item.from, nFrom);
+  const newTo = addMonthsYM(item.to || item.from, nTo);
   const [ty, tm] = newTo.split("-").map(Number);
   const patch = {
-    startDate: isISO(raw.startDate) ? shiftDate(raw.startDate, n) : `${newFrom}-01`,
-    endDate: isISO(raw.endDate) ? shiftDate(raw.endDate, n) : `${newTo}-${pad2(daysIn(ty, tm))}`,
+    startDate: isISO(raw.startDate) ? shiftDate(raw.startDate, nFrom) : `${newFrom}-01`,
+    endDate: isISO(raw.endDate) ? shiftDate(raw.endDate, nTo) : `${newTo}-${pad2(daysIn(ty, tm))}`,
   };
-  if (isISO(raw.keyDate)) patch.keyDate = shiftDate(raw.keyDate, n);
+  if (patch.startDate > patch.endDate) patch.startDate = patch.endDate; // resized start past the end day in the same month
+  if (isISO(raw.keyDate) && nTo !== 0) patch.keyDate = shiftDate(raw.keyDate, nTo);
   if (item.kind === "goal") {
-    if (raw.dueMonth) patch.dueMonth = `${MONTH_SHORT[tm - 1]} ${ty}`;
+    if (raw.dueMonth && nTo !== 0) patch.dueMonth = `${MONTH_SHORT[tm - 1]} ${ty}`;
     if (!isISO(raw.endDate)) patch.dueExact = false; // a month, not a day
   }
   return patch;

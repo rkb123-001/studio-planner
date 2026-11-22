@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { PlaceWizard, ImportBox } from "./PlaceThis";
 import TaskLists from "./TaskListsView";
 import { importIntoLists } from "./listOps";
@@ -23,6 +23,19 @@ const btn = (active) => ({
 });
 const small = { fontFamily: TNR, fontSize: "12px", color: MUTED };
 
+const CSS = `
+.tl-root [role="button"] { transition: background .12s ease, border-color .12s ease; }
+.tl-root [role="button"]:hover { background: #f1f0fc !important; }
+.tl-root .tl-pill { transition: box-shadow .15s ease, transform .15s ease; }
+.tl-root .tl-pill:hover { box-shadow: 0 3px 10px rgba(26, 13, 171, .2); transform: translateY(-1px); }
+.tl-root .tl-pill:active { cursor: grabbing; }
+.tl-root .tl-pill:hover .tl-grip { opacity: .95 !important; }
+.tl-root .tl-band { transition: background .12s ease; }
+`;
+const edgeStyle = (side) => ({
+  position: "absolute", top: 0, bottom: 0, [side]: 0, width: "14px", display: "flex", alignItems: "center", justifyContent: "center",
+  cursor: "ew-resize", touchAction: "none",
+});
 function Pill({ item, color, onSelect, drag }) {
   const done = item.zone === "done";
   const plain = done || item.ghost || item.overdue;
@@ -31,25 +44,28 @@ function Pill({ item, color, onSelect, drag }) {
     fontFamily: TNR, fontSize: "11px", lineHeight: 1.25, color: plain ? INK : color.text, cursor: drag && drag.draggable ? "grab" : "pointer", textAlign: "left",
     background: done || item.ghost ? "#fff" : color.fill,
     border: item.ghost ? `1px dashed ${color.edge}` : `1px solid ${color.edge}`,
-    width: "100%", boxSizing: "border-box", minWidth: 0, appearance: "none",
+    width: "100%", boxSizing: "border-box", minWidth: 0, appearance: "none", position: "relative",
   };
+  if (drag) { style.userSelect = "none"; style.WebkitUserSelect = "none"; style.WebkitTouchCallout = "none"; }
   if (item.overdue) { style.border = "1px solid #b01904"; style.background = "#fff"; }
   if (item.paused) style.opacity = 0.7;
   const tag = item.overdue ? "overdue" : item.who;
   const nowrap = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
   return (
-    <button type="button" {...(drag || {})} onClick={() => onSelect(item)} title={[item.title, tag, item.note].filter(Boolean).join(" · ")} style={style}>
+    <button type="button" className="tl-pill" onPointerDown={drag ? (e) => drag.body(e, item) : undefined} onClick={() => onSelect(item)} title={[item.title, tag, item.note].filter(Boolean).join(" · ")} style={style}>
       <span style={{ display: "flex", justifyContent: "space-between", gap: "6px", alignItems: "baseline" }}>
         <span style={{ ...nowrap, fontWeight: done ? 400 : 600 }}>{item.clippedStart ? "← " : ""}{done ? "✓ " : ""}{item.title}{item.clippedEnd ? " →" : ""}</span>
         {tag && <span style={{ fontSize: "9.5px", whiteSpace: "nowrap", color: item.overdue ? "#b01904" : plain ? MUTED : color.text, opacity: 0.85 }}>{tag}</span>}
       </span>
       {item.note && <span style={{ display: "block", ...nowrap, fontSize: "10px", color: plain ? MUTED : color.text, opacity: 0.85 }}>{item.note}</span>}
+      {drag && drag.canStart(item) && <span aria-label={`Change start of ${item.title}`} onPointerDown={(e) => drag.edge(e, item, "start")} style={edgeStyle("left")}><span className="tl-grip" style={{ width: "3px", height: "55%", borderRadius: "2px", background: plain ? MUTED : color.text, opacity: 0.45 }} /></span>}
+      {drag && drag.canEnd(item) && <span aria-label={`Change end of ${item.title}`} onPointerDown={(e) => drag.edge(e, item, "end")} style={edgeStyle("right")}><span className="tl-grip" style={{ width: "3px", height: "55%", borderRadius: "2px", background: plain ? MUTED : color.text, opacity: 0.45 }} /></span>}
     </button>
   );
 }
 
 export default function ProjectTimeline({
-  artProjects, projects, steps, onOpenArt, onOpenGoal, onOpenPath, onAddGoal, onUpdateArt, onUpdateGoal, categories, view: viewProp, onView, goalsPanel, artPanel, pathPanel, taskLists = [], onTaskLists, inbox = [], onInboxAdd, onInboxRemove, today,
+  artProjects, projects, steps, onOpenArt, onOpenGoal, onOpenPath, onAddGoal, onAddArt, onUpdateArt, onUpdateGoal, categories, view: viewProp, onView, goalsPanel, artPanel, pathPanel, taskLists = [], onTaskLists, inbox = [], onInboxAdd, onInboxRemove, today,
 }) {
   const now = today || new Date();
   const [months, setMonths] = useState(6);
@@ -70,8 +86,10 @@ export default function ProjectTimeline({
   );
 
   const rootRef = useRef(null);
-  const grabRef = useRef(null);
-  const [hoverYM, setHoverYM] = useState("");
+  const dragRef = useRef(null);
+  const clickBlock = useRef(false);
+  const latest = useRef({});
+  const [preview, setPreview] = useState(null); // { item, from, to } while a pill is being moved or resized
   const [moved, setMoved] = useState(null);
   const ymAt = (x) => {
     const els = rootRef.current ? rootRef.current.querySelectorAll("[data-ym]") : [];
@@ -79,48 +97,107 @@ export default function ProjectTimeline({
     return "";
   };
   const upd = (kind) => (kind === "art" ? onUpdateArt : onUpdateGoal);
-  const applyMove = (it, delta) => {
+  const applyRange = (it, newFrom, newTo) => {
     const raw = (it.kind === "art" ? artProjects : projects).find((p) => p.id === it.refId);
     if (!raw || !upd(it.kind)) return;
-    const patch = movePatch(raw, it, delta);
+    const patch = movePatch(raw, it, ymIndex(newFrom) - ymIndex(it.from), ymIndex(newTo) - ymIndex(it.to || it.from));
     const prev = {};
     Object.keys(patch).forEach((k) => { prev[k] = raw[k]; });
     Object.entries(patch).forEach(([k, v]) => upd(it.kind)(it.refId, k, v));
-    setMoved({ title: it.title, kind: it.kind, refId: it.refId, prev, label: `${labelYM(addMonthsYM(it.from, delta))} to ${labelYM(addMonthsYM(it.to || it.from, delta))}` });
+    setMoved({ title: it.title, kind: it.kind, refId: it.refId, prev, label: newFrom === newTo ? labelYM(newFrom) : `${labelYM(newFrom)} to ${labelYM(newTo)}` });
   };
   const undoMove = () => {
     if (!moved) return;
     Object.entries(moved.prev).forEach(([k, v]) => upd(moved.kind)(moved.refId, k, v));
     setMoved(null);
   };
-  const dragProps = (i) => ((i.kind === "art" || i.kind === "goal") && !i.done && i.zone === "grid" ? {
-    draggable: true,
-    onDragStart: (e) => {
-      e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData("text/plain", i.title);
-      grabRef.current = { item: i, ym: ymAt(e.clientX) || addMonthsYM(startYM, i.col) };
+  const rangeFor = (d, y) => {
+    const it = d.item, f = it.from, t = it.to || it.from;
+    if (d.mode === "start") return { from: ymIndex(y) > ymIndex(t) ? t : y, to: t };
+    if (d.mode === "end") return { from: f, to: ymIndex(y) < ymIndex(f) ? f : y };
+    // An overdue pill sits in the first column but really ends earlier: the drop sets its end month.
+    const delta = it.overdue ? ymIndex(y) - ymIndex(t) : ymIndex(y) - ymIndex(d.grabYM);
+    return { from: addMonthsYM(f, delta), to: addMonthsYM(t, delta) };
+  };
+  const movable = (i) => (i.kind === "art" || i.kind === "goal") && !i.done && i.zone === "grid";
+  const stop = () => {
+    const d = dragRef.current;
+    if (d && d.timer) clearTimeout(d.timer);
+    if (d && d.scroller) clearInterval(d.scroller);
+    dragRef.current = null;
+    setPreview(null);
+  };
+  const activate = (d) => {
+    d.active = true;
+    if (d.touch && navigator.vibrate) { try { navigator.vibrate(12); } catch (err) { /* not supported */ } }
+    const sc = rootRef.current && rootRef.current.parentElement;
+    if (sc) d.scroller = setInterval(() => { if (d.scrollBy) sc.scrollLeft += d.scrollBy; }, 16);
+    const y = d.grabYM || d.item.from;
+    setPreview({ item: d.item, ...rangeFor(d, y) });
+  };
+  const drag = {
+    canStart: (i) => movable(i) && !i.clippedStart,
+    canEnd: (i) => movable(i) && !i.clippedEnd,
+    body: (e, i) => {
+      if (!movable(i) || (e.pointerType === "mouse" && e.button !== 0)) return;
+      const d = { mode: "move", item: i, x0: e.clientX, y0: e.clientY, active: false, touch: e.pointerType !== "mouse", grabYM: ymAt(e.clientX) || addMonthsYM(startYM, i.col) };
+      dragRef.current = d;
+      if (d.touch) d.timer = setTimeout(() => { if (dragRef.current === d && !d.active) activate(d); }, 350);
     },
-    onDragEnd: () => { grabRef.current = null; setHoverYM(""); },
-  } : undefined);
-  const onDragOverRoot = (e) => {
-    if (!grabRef.current) return;
-    e.preventDefault();
-    const y = ymAt(e.clientX);
-    if (y !== hoverYM) setHoverYM(y);
+    edge: (e, i, mode) => {
+      e.stopPropagation();
+      if (e.pointerType === "mouse") { if (e.button !== 0) return; e.preventDefault(); }
+      const d = { mode, item: i, x0: e.clientX, y0: e.clientY, active: false, touch: e.pointerType !== "mouse" };
+      dragRef.current = d;
+      activate(d);
+    },
   };
-  const onDropRoot = (e) => {
-    const g = grabRef.current;
-    if (!g) return;
-    e.preventDefault();
-    const y = ymAt(e.clientX);
-    grabRef.current = null;
-    setHoverYM("");
-    if (!y) return;
-    const it = g.item;
-    // An overdue pill sits in the first column but really ends earlier: drop sets its end month.
-    const delta = it.overdue ? ymIndex(y) - ymIndex(it.to) : ymIndex(y) - ymIndex(g.ym);
-    if (delta) applyMove(it, delta);
-  };
+  latest.current = { stop, rangeFor, applyRange, ymAt, activate };
+  useEffect(() => {
+    const move = (e) => {
+      const d = dragRef.current;
+      if (!d) return;
+      const L = latest.current;
+      const dist = Math.hypot(e.clientX - d.x0, e.clientY - d.y0);
+      if (!d.active) {
+        if (d.touch) { if (dist > 8) L.stop(); return; }
+        if (dist < 5) return;
+        L.activate(d);
+      }
+      const y = L.ymAt(e.clientX);
+      const sc = rootRef.current && rootRef.current.parentElement;
+      if (sc) { const r = sc.getBoundingClientRect(); d.scrollBy = e.clientX < r.left + 40 ? -12 : e.clientX > r.right - 40 ? 12 : 0; }
+      if (y) setPreview({ item: d.item, ...L.rangeFor(d, y) });
+    };
+    const end = (e) => {
+      const d = dragRef.current;
+      if (!d) return;
+      const L = latest.current;
+      if (d.active) {
+        clickBlock.current = true;
+        setTimeout(() => { clickBlock.current = false; }, 0);
+        const y = e.type === "pointercancel" ? "" : L.ymAt(e.clientX);
+        if (y) {
+          const r = L.rangeFor(d, y);
+          if (r.from !== d.item.from || r.to !== (d.item.to || d.item.from)) L.applyRange(d.item, r.from, r.to);
+        }
+      }
+      L.stop();
+    };
+    const block = (e) => { if (dragRef.current && dragRef.current.active) e.preventDefault(); };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+    window.addEventListener("touchmove", block, { passive: false });
+    window.addEventListener("contextmenu", block);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+      window.removeEventListener("touchmove", block);
+      window.removeEventListener("contextmenu", block);
+    };
+  }, []);
 
   const cols = `150px minmax(130px,1.1fr) repeat(${months}, minmax(0,1fr))`;
   const open = (item) => {
@@ -128,12 +205,14 @@ export default function ProjectTimeline({
     else if (item.kind === "goal") onOpenGoal(item.refId);
     else onOpenPath();
   };
+  const select = (item) => { if (clickBlock.current) return; open(item); };
   const shift = (n) => setStartYM((s) => addMonthsYM(s, n));
   const atToday = startYM === ymOf(now);
   const hasAnything = model.lanes.length || model.unscheduled.length || model.later.length;
 
   return (
-    <div>
+    <div className="tl-root">
+      <style>{CSS}</style>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", marginBottom: "18px" }}>
         <span onClick={() => setView("timeline")} style={btn(view === "timeline")} role="button">Timeline</span>
         <span onClick={() => setView("list")} style={btn(view === "list")} role="button">By date</span>
@@ -149,9 +228,10 @@ export default function ProjectTimeline({
         <span onClick={() => setMonths(6)} style={btn(months === 6)} role="button">6 months</span>
         <span onClick={() => setMonths(12)} style={btn(months === 12)} role="button">12 months</span>
         <span style={{ width: "12px" }} />
+        {onAddArt && <span onClick={onAddArt} style={btn(false)} role="button">+ Art project</span>}
         {onAddGoal && <span onClick={() => { setPlacing(null); setPanel(panel === "place" ? null : "place"); }} style={btn(panel === "place")} role="button">+ Place something</span>}
         {onAddGoal && <span onClick={() => setPanel(panel === "import" ? null : "import")} style={btn(panel === "import")} role="button">Import suggestions</span>}
-        <span style={{ ...small, marginLeft: "auto" }}>Click a project to open it, or drag it sideways to move it. Dashed means no dates set yet, so its place is a guess. Set dates in the project itself.</span>
+        <span style={{ ...small, marginLeft: "auto" }}>Click a project to open it, or drag it sideways to move it (on a phone, press and hold first). Drag a pill's edge to change its length. Dashed means no dates set yet, so its place is a guess. Set dates in the project itself.</span>
         </>}
       </div>
 
@@ -256,7 +336,10 @@ export default function ProjectTimeline({
         );
       })()}
 
-      {view === "timeline" && moved && (
+      {view === "timeline" && preview && (
+        <p style={{ ...small, margin: "0 0 10px", color: INK }}>{preview.item.title}: {preview.from === preview.to ? labelYM(preview.from) : `${labelYM(preview.from)} to ${labelYM(preview.to)}`}</p>
+      )}
+      {view === "timeline" && !preview && moved && (
         <p style={{ ...small, margin: "0 0 10px", color: INK }}>
           Moved {moved.title} to {moved.label}.{" "}
           <span onClick={undoMove} role="button" style={{ color: LINK_BLUE, textDecoration: "underline", cursor: "pointer" }}>Undo</span>{" "}
@@ -266,14 +349,14 @@ export default function ProjectTimeline({
 
       {view === "timeline" && hasAnything ? (
         <div style={{ overflowX: "auto", paddingTop: "26px" }}>
-          <div ref={rootRef} onDragOver={onDragOverRoot} onDrop={onDropRoot} style={{ position: "relative", minWidth: months === 12 ? "1250px" : "860px" }}>
+          <div ref={rootRef} style={{ position: "relative", minWidth: months === 12 ? "1250px" : "860px" }}>
             {/* bands */}
             <div aria-hidden="true" style={{ position: "absolute", inset: 0, display: "grid", gridTemplateColumns: cols, columnGap: "6px", pointerEvents: "none" }}>
               <div />
               <div style={{ border: `2px dashed ${LINE}`, borderRadius: "12px" }} />
               {model.months.map((m) => (
-                <div key={m.ym} data-ym={m.ym} style={{
-                  position: "relative", borderRadius: "12px", background: m.index === model.nowIndex ? NOW_BG : hoverYM === m.ym ? "#e8e6fb" : "#fff", border: m.index === model.nowIndex ? "none" : `1px solid ${LINE}`,
+                <div key={m.ym} data-ym={m.ym} className="tl-band" style={{
+                  position: "relative", borderRadius: "12px", background: m.index === model.nowIndex ? NOW_BG : preview && ymIndex(m.ym) >= ymIndex(preview.from) && ymIndex(m.ym) <= ymIndex(preview.to) ? "#e8e6fb" : "#fff", border: m.index === model.nowIndex ? "none" : `1px solid ${LINE}`,
                   boxShadow: m.index === model.nowIndex ? `inset 0 0 0 1.5px ${LINK_BLUE}` : "none",
                 }}>
                   {m.index === model.nowIndex && (
@@ -309,18 +392,18 @@ export default function ProjectTimeline({
                       <details>
                         <summary style={{ cursor: "pointer", fontFamily: TNR, fontSize: "11px", border: `1px solid ${L.color.edge}`, borderRadius: "999px", padding: "4px 9px" }}>✓ Finished ({L.done.length})</summary>
                         <div style={{ display: "flex", flexDirection: "column", gap: "5px", marginTop: "6px" }}>
-                          {L.done.map((i) => <Pill key={i.id} item={i} color={L.color} onSelect={open} drag={dragProps(i)} />)}
+                          {L.done.map((i) => <Pill key={i.id} item={i} color={L.color} onSelect={select} drag={drag} />)}
                         </div>
                       </details>
                     ) : (
                       <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-                        {L.done.map((i) => <Pill key={i.id} item={i} color={L.color} onSelect={open} drag={dragProps(i)} />)}
+                        {L.done.map((i) => <Pill key={i.id} item={i} color={L.color} onSelect={select} drag={drag} />)}
                       </div>
                     )}
                   </div>
                   {L.rows.map((row, r) => row.map((i) => (
                     <div key={i.id} style={{ gridColumn: `${3 + i.col} / span ${i.span}`, gridRow: r + 1, minWidth: 0, padding: "0 6px" }}>
-                      <Pill item={i} color={L.color} onSelect={open} drag={dragProps(i)} />
+                      <Pill item={i} color={L.color} onSelect={select} drag={drag} />
                     </div>
                   )))}
                 </div>

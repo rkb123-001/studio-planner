@@ -32,7 +32,7 @@ Non-exportable modes (Social, Health, Office Work, Rest) sit alongside these so 
 
 **Four tabs.** *Week* holds today's plan above the weekly grid, with the week note and guides. *Reflect* holds the weekly targets and past weeks. *Timeline* is the visual calendar of where every project is at. *Plan* is where work is organised and placed.
 
-**Timeline.** A visual calendar of where every project is at: one lane per category, a "Done so far" column, and a "We are here" marker. Pills sit on their real dates, so something starting mid-December starts half way across December. Drag a pill to move it to another day and drag its edges to change its length, with undo; Esc cancels. On a phone, press and hold a pill first. Dashed pills have no dates yet, so their place is a guess. Clicking a pill opens the project in Plan.
+**Timeline.** A visual calendar of where every project is at: one lane per category, a "Done so far" column, and a "We are here" marker. Pills sit on their real dates, so something starting mid-December starts half way across December. Drag a pill to move it to another day and drag its edges to change its length, with undo; Esc cancels. On a phone, press and hold a pill first. Dashed pills have no dates yet, so their place is a guess. Clicking a pill opens the project in Plan. "Month in view" switches to five weeks (last week, this week and the next three), Monday to Sunday, with projects as bars across their days, dated tasks on their day, and a blue edge where each new month begins.
 
 **Plan.** Four views, plus the tools for adding work:
 

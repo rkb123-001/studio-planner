@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PlaceWizard, ImportBox } from "./PlaceThis";
 import TaskLists from "./TaskListsView";
+import WeekView from "./WeekView";
 import { importIntoLists } from "./listOps";
 import { buildTimeline, groupList, comingUp, LIST_GROUPS, ymOf, addMonthsYM, labelYM, rangePatch, addDays, daysBetween, fmtDay } from "./timelineEngine";
 
@@ -87,6 +88,8 @@ export default function ProjectTimeline({
 }) {
   const now = today || new Date();
   const [months, setMonths] = useState(6);
+  const [scale, setScale] = useState("months"); // "weeks" (five weeks in view) | "months"
+  const [weekOffset, setWeekOffset] = useState(0);
   const [panel, setPanel] = useState(null); // "place" | "import" | null
   const [placing, setPlacing] = useState(null); // inbox item being placed
   const [draft, setDraft] = useState("");
@@ -283,13 +286,20 @@ export default function ProjectTimeline({
       </div>}
       {view === "timeline" && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", marginBottom: "18px" }}>
-          <span onClick={() => shift(-3)} style={btn(false)} role="button" aria-label="Earlier">←</span>
-          <span onClick={() => setStartYM(ymOf(now))} style={btn(atToday)} role="button">This month</span>
-          <span onClick={() => shift(3)} style={btn(false)} role="button" aria-label="Later">→</span>
+          {scale === "weeks" ? <>
+            <span onClick={() => setWeekOffset((o) => o - 1)} style={btn(false)} role="button" aria-label="Earlier">←</span>
+            <span onClick={() => setWeekOffset(0)} style={btn(weekOffset === 0)} role="button">This week</span>
+            <span onClick={() => setWeekOffset((o) => o + 1)} style={btn(false)} role="button" aria-label="Later">→</span>
+          </> : <>
+            <span onClick={() => shift(-3)} style={btn(false)} role="button" aria-label="Earlier">←</span>
+            <span onClick={() => setStartYM(ymOf(now))} style={btn(atToday)} role="button">This month</span>
+            <span onClick={() => shift(3)} style={btn(false)} role="button" aria-label="Later">→</span>
+          </>}
           <span style={{ width: "12px" }} />
-          <span onClick={() => setMonths(6)} style={btn(months === 6)} role="button">6 months</span>
-          <span onClick={() => setMonths(12)} style={btn(months === 12)} role="button">12 months</span>
-          <span style={{ ...small, marginLeft: "auto" }}>Click a project to open it. Drag it to move it to another day (on a phone, press and hold first), drag its edges to change its length, Esc to cancel. Dashed means no dates set yet.</span>
+          <span onClick={() => setScale("weeks")} style={btn(scale === "weeks")} role="button">Month in view</span>
+          <span onClick={() => { setScale("months"); setMonths(6); }} style={btn(scale === "months" && months === 6)} role="button">6 months</span>
+          <span onClick={() => { setScale("months"); setMonths(12); }} style={btn(scale === "months" && months === 12)} role="button">12 months</span>
+          <span style={{ ...small, marginLeft: "auto" }}>{scale === "weeks" ? "Last week, this week and the next three. A blue edge marks where a new month begins. Click a project to open it." : <>Click a project to open it. Drag it to move it to another day (on a phone, press and hold first), drag its edges to change its length, Esc to cancel. Dashed means no dates set yet.</>}</span>
         </div>
       )}
 
@@ -394,7 +404,7 @@ export default function ProjectTimeline({
         );
       })()}
 
-      {view === "timeline" && (
+      {view === "timeline" && scale === "months" && (
         // fixed height, so showing or hiding it never shifts the calendar under the pointer mid-drag
         <p style={{ ...small, margin: "0 0 8px", color: INK, height: "18px", lineHeight: "18px", overflow: "hidden", whiteSpace: "nowrap" }}>
           {preview ? (
@@ -409,7 +419,11 @@ export default function ProjectTimeline({
         </p>
       )}
 
-      {view === "timeline" && hasAnything ? (
+      {view === "timeline" && scale === "weeks" && (
+        <WeekView items={model.all} milestones={model.milestones} taskLists={taskLists} today={now} offset={weekOffset} onSelect={select} />
+      )}
+
+      {view === "timeline" && scale === "months" && hasAnything ? (
         <div style={{ overflowX: "auto", paddingTop: "26px" }}>
           <div ref={rootRef} style={{ position: "relative", minWidth: months === 12 ? "1250px" : "860px" }}>
             {/* bands */}

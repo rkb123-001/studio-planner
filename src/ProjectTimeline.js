@@ -139,7 +139,6 @@ export default function ProjectTimeline({
         <span onClick={() => setView("list")} style={btn(view === "list")} role="button">By date</span>
         {onTaskLists && <span onClick={() => setView("lists")} style={btn(view === "lists")} role="button">Lists{taskLists.length ? ` (${taskLists.length})` : ""}</span>}
         {goalsPanel && <span onClick={() => setView("goals")} style={btn(view === "goals")} role="button">Goals</span>}
-        {artPanel && <span onClick={() => setView("art")} style={btn(view === "art")} role="button">Art</span>}
         {pathPanel && <span onClick={() => setView("path")} style={btn(view === "path")} role="button">Path</span>}
         {!isPanel && <>
         <span style={{ width: "12px" }} />

@@ -3,6 +3,8 @@ import { ProjectRoadmap, normaliseRoadmap, roadmapProgress } from "./ProjectRoad
 import { StudyPath } from "./StudyPath";
 import ProjectTimeline from "./ProjectTimeline";
 import { normaliseLists } from "./listOps";
+import GridImportPanel from "./GridImportPanel";
+import { applyBlocks } from "./gridImport";
 import { normaliseStudyPath, goalsFromSteps } from "./pathEngine";
 
 const TNR = "'Times New Roman', Times, serif";
@@ -1932,6 +1934,12 @@ const [, setAuthTimestamp] = useState(0);
     setSchedule(prev => ({ ...prev, [day]: { ...(prev[day] || {}), [slot]: current === activeMode ? null : activeMode } }));
   };
 
+  const [showGridImport, setShowGridImport] = useState(false);
+  const importGridBlocks = (blocks, replace) => {
+    setHasUserInteracted(true);
+    setSchedule(prev => applyBlocks(prev, blocks, replace).schedule);
+  };
+
   const clearAll = () => {
     setHasUserInteracted(true);
     setSchedule(defaultSchedule());
@@ -2907,11 +2915,19 @@ const [, setAuthTimestamp] = useState(0);
       </div>
 
       {/* ── Tabs as boxed buttons ── */}
-      <div style={{ textAlign: "center", marginBottom: "52px", display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
+      <div style={{ textAlign: "center", marginBottom: "52px", display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap", position: "relative" }}>
+        {tab === "week" && (
+          <span role="button" aria-label="Fill the grid from Claude" title="Fill the grid from Claude" onClick={() => setShowGridImport(v => !v)}
+            style={{ position: "absolute", right: 0, top: 0, width: "32px", height: "32px", boxSizing: "border-box", border: `1px solid ${showGridImport ? "#1a0dab" : "#1a1a1a"}`, color: showGridImport ? "#1a0dab" : "#1a1a1a", fontFamily: TNR, fontSize: "20px", lineHeight: "28px", textAlign: "center", cursor: "pointer", userSelect: "none" }}>+</span>
+        )}
         {[["week","Week"],["reflect","Reflect"],["timeline","Timeline"],["plan","Plan"]].map(([key, lbl]) => (
           <span key={key} onClick={() => setTab(key)} style={boxBtn(tab === key)}>{lbl}</span>
         ))}
       </div>
+
+      {tab === "week" && showGridImport && (
+        <GridImportPanel days={DAYS} slots={TIME_SLOTS} modes={MODES} schedule={schedule} weekNote={weekNote} onApply={importGridBlocks} onClose={() => setShowGridImport(false)} />
+      )}
 
       {/* ════ TODAY ════ */}
       {tab === "week" && (

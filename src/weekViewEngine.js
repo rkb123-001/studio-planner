@@ -10,10 +10,17 @@ export const addDaysISO = (iso, k) => fromNum(dayNum(iso) + k);
 
 /**
  * items: buildTimeline().all (with fromISO/toISO), milestones, taskLists.
- * Returns weeks: [{ start, days:[iso x7], bars:[[{item, c0, c1, clipL, clipR}]] (packed rows), points:{iso:[{title, where, color, done}]} }]
+ * Only items with real start and end days become bars; anything longer than LONG_DAYS is drawn thin.
+ * Items placed by month only (no exact days) are left out of the bars and returned once as `loose`.
+ * Returns { weeks: [{ start, end, days:[iso x7], bars:[[{item, c0, c1, clipL, clipR, thin}]], points:{iso:[...]}}], loose: [item] }
  */
-export function buildWeeks({ items = [], milestones = [], taskLists = [], today, offset = 0, weeks = 5, showDone = false }) {
+export const LONG_DAYS = 21;
+export function buildWeeks(opts) { return buildWeekView(opts).weeks; }
+export function buildWeekView({ items = [], milestones = [], taskLists = [], today, offset = 0, weeks = 5, showDone = false }) {
   const first = addDaysISO(mondayOf(today), 7 * (offset - 1));
+  const last = addDaysISO(first, 7 * weeks - 1);
+  const loose = items.filter((i) => i.fromISO && i.toISO && i.datesExact === false && (showDone || !i.done) && i.fromISO <= last && i.toISO >= first);
+  items = items.filter((i) => i.datesExact !== false);
   const out = [];
   for (let w = 0; w < weeks; w++) {
     const start = addDaysISO(first, 7 * w), end = addDaysISO(start, 6);
@@ -26,7 +33,9 @@ export function buildWeeks({ items = [], milestones = [], taskLists = [], today,
         c0: Math.max(0, dayNum(item.fromISO) - dayNum(start)),
         c1: Math.min(6, dayNum(item.toISO) - dayNum(start)),
         clipL: item.fromISO < start, clipR: item.toISO > end,
-      }));
+        thin: dayNum(item.toISO) - dayNum(item.fromISO) + 1 > LONG_DAYS,
+      }))
+      .sort((a, b) => a.thin - b.thin); // short, specific work on top; long-running lines underneath
     const rows = [];
     spans.forEach((s) => {
       const row = rows.find((r) => r.every((o) => o.c1 < s.c0 || o.c0 > s.c1));
@@ -38,5 +47,5 @@ export function buildWeeks({ items = [], milestones = [], taskLists = [], today,
     taskLists.forEach((l) => l.items.forEach((i) => { if (i.due && (showDone || !i.done)) add(i.due, { title: i.title, where: l.name, done: i.done }); }));
     out.push({ start, end, days, bars: rows, points });
   }
-  return out;
+  return { weeks: out, loose };
 }

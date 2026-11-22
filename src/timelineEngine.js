@@ -132,6 +132,7 @@ export function buildTimeline(data, view, today = new Date()) {
     const sISO = isISO(p.startDate) ? p.startDate : !p.startDate && isISO(p.keyDate) ? p.keyDate : "";
     const eISO = isISO(p.endDate) ? p.endDate : isISO(p.keyDate) ? p.keyDate : "";
     place(l, {
+      datesExact: !!(sISO && eISO),
       fromISO: !aFromYM ? "" : sISO && toYM(sISO) === aFromYM ? sISO : monthStartISO(aFromYM),
       toISO: !toYMv ? "" : eISO && toYM(eISO) === toYMv ? eISO : monthEndISO(toYMv),
       fromFrac: sISO && toYM(sISO) === aFromYM ? dayFracStart(sISO) : 0,
@@ -163,6 +164,7 @@ export function buildTimeline(data, view, today = new Date()) {
     const gSISO = isISO(p.startDate) ? p.startDate : "";
     const gEISO = isISO(p.endDate) && p.dueExact !== false ? p.endDate : "";
     place(l, {
+      datesExact: !!(gSISO && gEISO),
       fromISO: !fromV ? "" : gSISO && toYM(gSISO) === fromV ? gSISO : monthStartISO(fromV),
       toISO: !toV ? "" : gEISO && toYM(gEISO) === toV ? gEISO : monthEndISO(toV),
       fromFrac: gSISO && toYM(gSISO) === fromV ? dayFracStart(gSISO) : 0,

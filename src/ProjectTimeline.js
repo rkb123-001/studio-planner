@@ -299,7 +299,7 @@ export default function ProjectTimeline({
           <span onClick={() => setScale("weeks")} style={btn(scale === "weeks")} role="button">Month in view</span>
           <span onClick={() => { setScale("months"); setMonths(6); }} style={btn(scale === "months" && months === 6)} role="button">6 months</span>
           <span onClick={() => { setScale("months"); setMonths(12); }} style={btn(scale === "months" && months === 12)} role="button">12 months</span>
-          <span style={{ ...small, marginLeft: "auto" }}>{scale === "weeks" ? "Last week, this week and the next three. A blue edge marks where a new month begins. Click a project to open it." : <>Click a project to open it. Drag it to move it to another day (on a phone, press and hold first), drag its edges to change its length, Esc to cancel. Dashed means no dates set yet.</>}</span>
+          <span style={{ ...small, marginLeft: "auto" }}>{scale === "weeks" ? "Last week, this week and the next three. A blue edge marks where a new month begins. Long projects show as thin lines. Click a project to open it." : <>Click a project to open it. Drag it to move it to another day (on a phone, press and hold first), drag its edges to change its length, Esc to cancel. Dashed means no dates set yet.</>}</span>
         </div>
       )}
 
@@ -404,7 +404,7 @@ export default function ProjectTimeline({
         );
       })()}
 
-      {view === "timeline" && scale === "months" && (
+      {view === "timeline" && (
         // fixed height, so showing or hiding it never shifts the calendar under the pointer mid-drag
         <p style={{ ...small, margin: "0 0 8px", color: INK, height: "18px", lineHeight: "18px", overflow: "hidden", whiteSpace: "nowrap" }}>
           {preview ? (
@@ -420,7 +420,8 @@ export default function ProjectTimeline({
       )}
 
       {view === "timeline" && scale === "weeks" && (
-        <WeekView items={model.all} milestones={model.milestones} taskLists={taskLists} today={now} offset={weekOffset} onSelect={select} />
+        <WeekView items={model.all} milestones={model.milestones} taskLists={taskLists} today={now} offset={weekOffset} onSelect={select}
+          onDropDate={onUpdateArt || onUpdateGoal ? (it, iso) => applyRange(it, iso, iso) : undefined} />
       )}
 
       {view === "timeline" && scale === "months" && hasAnything ? (

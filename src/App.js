@@ -2941,7 +2941,7 @@ const [, setAuthTimestamp] = useState(0);
       </div>
 
       {/* ── Tabs as boxed buttons ── */}
-      <div style={{ textAlign: "center", marginBottom: "52px", display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap", position: "relative" }}>
+      <div style={{ textAlign: "center", marginBottom: "52px", display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap", position: "relative", maxWidth: "922px", marginLeft: "auto", marginRight: "auto" }}>
         {tab === "week" && (
           <span role="button" aria-label="Fill the grid from Claude" title="Fill the grid from Claude" onClick={() => setShowGridImport(v => !v)}
             style={{ position: "absolute", right: 0, top: 0, width: "32px", height: "32px", boxSizing: "border-box", border: `1px solid ${showGridImport ? "#1a0dab" : "#1a1a1a"}`, color: showGridImport ? "#1a0dab" : "#1a1a1a", fontFamily: TNR, fontSize: "20px", lineHeight: "28px", textAlign: "center", cursor: "pointer", userSelect: "none" }}>+</span>

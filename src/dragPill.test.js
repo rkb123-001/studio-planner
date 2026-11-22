@@ -22,22 +22,31 @@ function setup() {
   return { onUpdateArt, pill: screen.getByRole("button", { name: /Mid Dec show/ }) };
 }
 
-test("dragging a part-month pill one month right moves its dates a month", () => {
+test("dragging a part-month pill into the next month keeps its length and moves it by days", () => {
   const { onUpdateArt, pill } = setup();
-  act(() => { pill.dispatchEvent(ev("pointerdown", 150)); });          // Dec band (100-194)
-  act(() => { window.dispatchEvent(ev("pointermove", 260)); });         // Jan band (200-294)
+  act(() => { pill.dispatchEvent(ev("pointerdown", 150)); });          // Dec band (100-194): 17 Dec
+  act(() => { window.dispatchEvent(ev("pointermove", 260)); });         // Jan band (200-294): 20 Jan, 34 days on
   act(() => { window.dispatchEvent(ev("pointerup", 260)); });
-  expect(onUpdateArt).toHaveBeenCalledWith(1, "startDate", "2027-01-16");
-  expect(onUpdateArt).toHaveBeenCalledWith(1, "endDate", "2027-01-28");
+  expect(onUpdateArt).toHaveBeenCalledWith(1, "startDate", "2027-01-19");
+  expect(onUpdateArt).toHaveBeenCalledWith(1, "endDate", "2027-01-31");
 });
 
-test("dragging the right edge grip lengthens the pill", () => {
+test("dragging within the same month changes the day, not the month", () => {
+  const { onUpdateArt, pill } = setup();
+  act(() => { pill.dispatchEvent(ev("pointerdown", 150)); });          // 17 Dec
+  act(() => { window.dispatchEvent(ev("pointermove", 120)); });         // 7 Dec, 10 days back
+  act(() => { window.dispatchEvent(ev("pointerup", 120)); });
+  expect(onUpdateArt).toHaveBeenCalledWith(1, "startDate", "2026-12-06");
+  expect(onUpdateArt).toHaveBeenCalledWith(1, "endDate", "2026-12-18");
+});
+
+test("dragging the right edge grip sets the end to the exact day under the pointer", () => {
   const { onUpdateArt } = setup();
   const grip = screen.getByLabelText("Change end of Mid Dec show");
   act(() => { grip.dispatchEvent(ev("pointerdown", 190)); });
-  act(() => { window.dispatchEvent(ev("pointermove", 360)); });          // Feb band (300-394)
+  act(() => { window.dispatchEvent(ev("pointermove", 360)); });          // Feb band (300-394): 18 Feb
   act(() => { window.dispatchEvent(ev("pointerup", 360)); });
-  expect(onUpdateArt).toHaveBeenCalledWith(1, "endDate", "2027-02-28");
+  expect(onUpdateArt).toHaveBeenCalledWith(1, "endDate", "2027-02-18");
   expect(onUpdateArt).toHaveBeenCalledWith(1, "startDate", "2026-12-16");
 });
 

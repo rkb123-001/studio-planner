@@ -1,4 +1,4 @@
-import { buildTimeline, parseDueMonth, shiftDate, movePatch } from "./timelineEngine";
+import { buildTimeline, parseDueMonth, shiftDate, rangePatch, addDays, daysBetween } from "./timelineEngine";
 import { render, screen, fireEvent } from "@testing-library/react";
 import ProjectTimeline from "./ProjectTimeline";
 
@@ -95,19 +95,17 @@ test("shiftDate keeps the day and clamps to the end of shorter months", () => {
   expect(shiftDate("2026-03-10", -4)).toBe("2025-11-10");
 });
 
-test("movePatch shifts exact dates and fills month ranges for derived ones", () => {
-  const art = { startDate: "2026-11-02", endDate: "2027-02-10", keyDate: "2027-02-01" };
-  expect(movePatch(art, { kind: "art", from: "2026-11", to: "2027-02" }, 1)).toEqual({ startDate: "2026-12-02", endDate: "2027-03-10", keyDate: "2027-03-01" });
-  const goal = { quarter: "q4", dueMonth: "December" };
-  expect(movePatch(goal, { kind: "goal", from: "2026-10", to: "2026-12" }, 2)).toEqual({ startDate: "2026-12-01", endDate: "2027-02-28", dueMonth: "Feb 2027", dueExact: false });
+test("day arithmetic crosses month and year ends", () => {
+  expect(addDays("2026-12-30", 3)).toBe("2027-01-02");
+  expect(addDays("2026-03-01", -1)).toBe("2026-02-28");
+  expect(daysBetween("2026-11-22", "2026-12-10")).toBe(18);
 });
 
-test("movePatch resizes: only the end moves, or only the start", () => {
-  const art = { startDate: "2026-11-02", endDate: "2027-02-10" };
-  expect(movePatch(art, { kind: "art", from: "2026-11", to: "2027-02" }, 0, 2)).toEqual({ startDate: "2026-11-02", endDate: "2027-04-10" });
-  expect(movePatch(art, { kind: "art", from: "2026-11", to: "2027-02" }, 1, 0)).toEqual({ startDate: "2026-12-02", endDate: "2027-02-10" });
-  const same = { startDate: "2026-11-20", endDate: "2026-11-25" };
-  expect(movePatch(same, { kind: "art", from: "2026-11", to: "2026-11" }, 0, -1).startDate).toBe("2026-10-25"); // start can't pass the new end
+test("rangePatch puts an item on exact dates and carries a key date with the end", () => {
+  const art = { keyDate: "2027-02-01" };
+  expect(rangePatch(art, { kind: "art", toISO: "2027-02-01" }, "2026-12-10", "2027-02-08")).toEqual({ startDate: "2026-12-10", endDate: "2027-02-08", keyDate: "2027-02-08" });
+  const goal = { quarter: "q4", dueMonth: "December" };
+  expect(rangePatch(goal, { kind: "goal", toISO: "2026-12-31" }, "2026-12-05", "2027-01-20")).toEqual({ startDate: "2026-12-05", endDate: "2027-01-20", dueMonth: "Jan 2027", dueExact: true });
 });
 
 test("pills start and end part-way through their months from the real dates", () => {
@@ -123,4 +121,14 @@ test("pills start and end part-way through their months from the real dates", ()
   expect(a.toFrac).toBeCloseTo(15 / 31, 5);
   expect(b.fromFrac).toBe(0);
   expect(b.toFrac).toBe(1);
+});
+
+test("items carry their exact start and end dates, whole months when only a month is known", () => {
+  const m = buildTimeline({
+    artProjects: [{ id: 1, title: "Exact", status: "active", startDate: "2026-12-16", endDate: "2027-01-15" }, { id: 2, title: "Month", status: "active", startDate: "2026-12", endDate: "2026-12" }],
+    projects: [], steps: [],
+  }, { startYM: "2026-11", months: 6 }, TODAY);
+  const items = m.lanes[0].rows.flat();
+  expect(items.find((i) => i.title === "Exact")).toMatchObject({ fromISO: "2026-12-16", toISO: "2027-01-15" });
+  expect(items.find((i) => i.title === "Month")).toMatchObject({ fromISO: "2026-12-01", toISO: "2026-12-31" });
 });

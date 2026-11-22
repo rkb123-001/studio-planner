@@ -23,24 +23,28 @@ export function shiftDate(iso, n) {
   const [ny, nm] = ym.split("-").map(Number);
   return `${ym}-${pad2(Math.min(d, daysIn(ny, nm)))}`;
 }
+// Whole-day arithmetic on YYYY-MM-DD strings (UTC, so daylight saving never skews it).
+const dayNum = (iso) => { const [y, m, d] = iso.split("-").map(Number); return Math.round(Date.UTC(y, m - 1, d) / 86400000); };
+export const addDays = (iso, n) => new Date((dayNum(iso) + n) * 86400000).toISOString().slice(0, 10);
+export const daysBetween = (a, b) => dayNum(b) - dayNum(a);
+export const monthStartISO = (ym) => `${ym}-01`;
+export const monthEndISO = (ym) => { const [y, m] = ym.split("-").map(Number); return `${ym}-${pad2(daysIn(y, m))}`; };
+export const fmtDay = (iso) => { const [y, m, d] = iso.split("-").map(Number); return `${d} ${MONTH_SHORT[m - 1]}${y !== new Date().getFullYear() ? " " + y : ""}`; };
+
 /**
- * The field changes for moving or resizing a timeline item. `item` has from/to (YYYY-MM).
- * nFrom and nTo are how many months the start and the end move (equal for a plain move).
- * Exact dates shift by that many months; month-only or derived dates become the first and last day of the new months.
+ * The field changes for putting an item on new exact dates (a move or a resize).
+ * `item` is a timeline item (toISO is where it ended before); newFrom/newTo are YYYY-MM-DD.
  */
-export function movePatch(raw, item, nFrom, nTo = nFrom) {
-  const newFrom = addMonthsYM(item.from, nFrom);
-  const newTo = addMonthsYM(item.to || item.from, nTo);
-  const [ty, tm] = newTo.split("-").map(Number);
-  const patch = {
-    startDate: isISO(raw.startDate) ? shiftDate(raw.startDate, nFrom) : `${newFrom}-01`,
-    endDate: isISO(raw.endDate) ? shiftDate(raw.endDate, nTo) : `${newTo}-${pad2(daysIn(ty, tm))}`,
-  };
-  if (patch.startDate > patch.endDate) patch.startDate = patch.endDate; // resized start past the end day in the same month
-  if (isISO(raw.keyDate) && nTo !== 0) patch.keyDate = shiftDate(raw.keyDate, nTo);
+export function rangePatch(raw, item, newFrom, newTo) {
+  const patch = { startDate: newFrom, endDate: newTo };
+  const dEnd = item.toISO ? daysBetween(item.toISO, newTo) : 0;
+  if (isISO(raw.keyDate) && dEnd !== 0) patch.keyDate = addDays(raw.keyDate, dEnd);
   if (item.kind === "goal") {
-    if (raw.dueMonth && nTo !== 0) patch.dueMonth = `${MONTH_SHORT[tm - 1]} ${ty}`;
-    if (!isISO(raw.endDate)) patch.dueExact = false; // a month, not a day
+    if (raw.dueMonth && newTo.slice(0, 7) !== (item.toISO || "").slice(0, 7)) {
+      const [ty, tm] = newTo.split("-").map(Number);
+      patch.dueMonth = `${MONTH_SHORT[tm - 1]} ${ty}`;
+    }
+    patch.dueExact = true; // it now sits on a real day, not just a month
   }
   return patch;
 }
@@ -128,6 +132,8 @@ export function buildTimeline(data, view, today = new Date()) {
     const sISO = isISO(p.startDate) ? p.startDate : !p.startDate && isISO(p.keyDate) ? p.keyDate : "";
     const eISO = isISO(p.endDate) ? p.endDate : isISO(p.keyDate) ? p.keyDate : "";
     place(l, {
+      fromISO: !aFromYM ? "" : sISO && toYM(sISO) === aFromYM ? sISO : monthStartISO(aFromYM),
+      toISO: !toYMv ? "" : eISO && toYM(eISO) === toYMv ? eISO : monthEndISO(toYMv),
       fromFrac: sISO && toYM(sISO) === aFromYM ? dayFracStart(sISO) : 0,
       toFrac: eISO && toYM(eISO) === toYMv ? dayFracEnd(eISO) : 1,
       id: `art:${p.id}`, kind: "art", refId: p.id, title: p.title || "Untitled project",
@@ -156,6 +162,8 @@ export function buildTimeline(data, view, today = new Date()) {
     const gSISO = isISO(p.startDate) ? p.startDate : "";
     const gEISO = isISO(p.endDate) && p.dueExact !== false ? p.endDate : "";
     place(l, {
+      fromISO: !fromV ? "" : gSISO && toYM(gSISO) === fromV ? gSISO : monthStartISO(fromV),
+      toISO: !toV ? "" : gEISO && toYM(gEISO) === toV ? gEISO : monthEndISO(toV),
       fromFrac: gSISO && toYM(gSISO) === fromV ? dayFracStart(gSISO) : 0,
       toFrac: gEISO && toYM(gEISO) === toV ? dayFracEnd(gEISO) : 1,
       id: `goal:${p.id}`, kind: "goal", refId: p.id, title: p.title,

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PlaceWizard, ImportBox } from "./PlaceThis";
 import TaskLists from "./TaskListsView";
 import { importIntoLists } from "./listOps";
-import { buildTimeline, groupList, comingUp, LIST_GROUPS, ymOf, ymIndex, addMonthsYM, labelYM, movePatch } from "./timelineEngine";
+import { buildTimeline, groupList, comingUp, LIST_GROUPS, ymOf, addMonthsYM, labelYM, rangePatch, addDays, daysBetween, fmtDay } from "./timelineEngine";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ProjectTimeline — a visual calendar of where every project is at.
@@ -35,7 +35,7 @@ const CSS = `
 `;
 // Start and end a pill part-way into its months, from the real dates (percent margins on a grid item
 // are measured against its grid area, so they line up with the month columns).
-const MIN_PILL = 0.34; // of one month column, so a short item stays readable
+const MIN_PILL = 0.4; // of one month column, so a short item stays readable
 function dayInset(i) {
   let lf = i.fromFrac || 0, rf = 1 - (i.toFrac == null ? 1 : i.toFrac);
   if (i.span === 1 && 1 - lf - rf < MIN_PILL) {
@@ -52,7 +52,7 @@ function Pill({ item, color, onSelect, drag }) {
   const plain = done || item.ghost || item.overdue;
   const style = {
     display: "block", padding: "4px 9px", borderRadius: item.span > 1 ? "8px" : "999px",
-    fontFamily: TNR, fontSize: "11px", lineHeight: 1.25, color: plain ? INK : color.text, cursor: drag && drag.draggable ? "grab" : "pointer", textAlign: "left",
+    fontFamily: TNR, fontSize: "11px", lineHeight: 1.25, color: plain ? INK : color.text, cursor: drag && drag.can(item) ? "grab" : "pointer", textAlign: "left",
     background: done || item.ghost ? "#fff" : color.fill,
     border: item.ghost ? `1px dashed ${color.edge}` : `1px solid ${color.edge}`,
     width: "100%", boxSizing: "border-box", minWidth: 0, appearance: "none", position: "relative",
@@ -62,15 +62,22 @@ function Pill({ item, color, onSelect, drag }) {
   if (item.paused) style.opacity = 0.7;
   const tag = item.overdue ? "overdue" : item.who;
   const nowrap = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+  const sub = plain ? MUTED : color.text;
+  const grip = (side, mode) => drag && (mode === "start" ? drag.canStart(item) : drag.canEnd(item)) && (
+    <span aria-label={`Change ${mode} of ${item.title}`} onPointerDown={(e) => drag.edge(e, item, mode)} style={edgeStyle(side)}>
+      <span className="tl-grip" style={{ width: "2px", height: "50%", borderRadius: "2px", background: plain ? MUTED : color.edge === color.fill ? "rgba(255,255,255,.8)" : color.edge, opacity: 0.55 }} />
+    </span>
+  );
   return (
     <button type="button" className="tl-pill" onPointerDown={drag ? (e) => drag.body(e, item) : undefined} onClick={() => onSelect(item)} title={[item.title, tag, item.note].filter(Boolean).join(" · ")} style={style}>
-      <span style={{ display: "flex", justifyContent: "space-between", gap: "6px", alignItems: "baseline" }}>
-        <span style={{ ...nowrap, fontWeight: done ? 400 : 600 }}>{item.clippedStart ? "← " : ""}{done ? "✓ " : ""}{item.title}{item.clippedEnd ? " →" : ""}</span>
-        {tag && <span style={{ fontSize: "9.5px", whiteSpace: "nowrap", color: item.overdue ? "#b01904" : plain ? MUTED : color.text, opacity: 0.85 }}>{tag}</span>}
-      </span>
-      {item.note && <span style={{ display: "block", ...nowrap, fontSize: "10px", color: plain ? MUTED : color.text, opacity: 0.85 }}>{item.note}</span>}
-      {drag && drag.canStart(item) && <span aria-label={`Change start of ${item.title}`} onPointerDown={(e) => drag.edge(e, item, "start")} style={edgeStyle("left")}><span className="tl-grip" style={{ width: "3px", height: "55%", borderRadius: "2px", background: plain ? MUTED : color.text, opacity: 0.45 }} /></span>}
-      {drag && drag.canEnd(item) && <span aria-label={`Change end of ${item.title}`} onPointerDown={(e) => drag.edge(e, item, "end")} style={edgeStyle("right")}><span className="tl-grip" style={{ width: "3px", height: "55%", borderRadius: "2px", background: plain ? MUTED : color.text, opacity: 0.45 }} /></span>}
+      <span style={{ display: "block", ...nowrap, fontWeight: done ? 400 : 600 }}>{item.clippedStart ? "← " : ""}{done ? "✓ " : ""}{item.title}{item.clippedEnd ? " →" : ""}</span>
+      {(tag || item.note) && (
+        <span style={{ display: "block", ...nowrap, fontSize: "10px", color: sub, opacity: 0.85 }}>
+          {tag && <span style={{ color: item.overdue ? "#b01904" : sub }}>{tag}</span>}{tag && item.note ? " · " : ""}{item.note && <span>{item.note}</span>}
+        </span>
+      )}
+      {grip("left", "start")}
+      {grip("right", "end")}
     </button>
   );
 }
@@ -102,37 +109,65 @@ export default function ProjectTimeline({
   const dragRef = useRef(null);
   const clickBlock = useRef(false);
   const latest = useRef({});
-  const [preview, setPreview] = useState(null); // { item, from, to } while a pill is being moved or resized
+  const [preview, setPreview] = useState(null); // { item, from, to, x1, x2 } while a pill is being moved or resized
   const [moved, setMoved] = useState(null);
-  const ymAt = (x) => {
-    const els = rootRef.current ? rootRef.current.querySelectorAll("[data-ym]") : [];
-    for (const el of els) { const r = el.getBoundingClientRect(); if (x >= r.left - 3 && x <= r.right + 3) return el.getAttribute("data-ym"); }
+  const bands = () => (rootRef.current ? Array.from(rootRef.current.querySelectorAll("[data-ym]")) : []);
+  // The exact day under a pointer: which month column it is in, and how far across that column.
+  const isoAt = (x) => {
+    for (const el of bands()) {
+      const r = el.getBoundingClientRect();
+      if (x >= r.left - 3 && x <= r.right + 3) {
+        const ym = el.getAttribute("data-ym");
+        const [y, m] = ym.split("-").map(Number);
+        const dim = new Date(y, m, 0).getDate();
+        const f = Math.min(1, Math.max(0, (x - r.left) / (r.right - r.left)));
+        return `${ym}-${String(Math.min(dim, Math.floor(f * dim) + 1)).padStart(2, "0")}`;
+      }
+    }
     return "";
   };
+  // The pointer x (in the page) of the start or end of a day, for drawing the guide.
+  const xOfISO = (iso, edge) => {
+    const bs = bands();
+    if (!bs.length) return 0;
+    const ym = iso.slice(0, 7);
+    const el = bs.find((b) => b.getAttribute("data-ym") === ym);
+    if (!el) return ym < bs[0].getAttribute("data-ym") ? bs[0].getBoundingClientRect().left : bs[bs.length - 1].getBoundingClientRect().right;
+    const r = el.getBoundingClientRect();
+    const [y, m, d] = iso.split("-").map(Number);
+    const dim = new Date(y, m, 0).getDate();
+    return r.left + ((d - 1 + (edge === "end" ? 1 : 0)) / dim) * (r.right - r.left);
+  };
   const upd = (kind) => (kind === "art" ? onUpdateArt : onUpdateGoal);
+  const rangeLabel = (f, t) => (f === t ? fmtDay(f) : `${fmtDay(f)} to ${fmtDay(t)}`);
   const applyRange = (it, newFrom, newTo) => {
     const raw = (it.kind === "art" ? artProjects : projects).find((p) => p.id === it.refId);
     if (!raw || !upd(it.kind)) return;
-    const patch = movePatch(raw, it, ymIndex(newFrom) - ymIndex(it.from), ymIndex(newTo) - ymIndex(it.to || it.from));
+    const patch = rangePatch(raw, it, newFrom, newTo);
     const prev = {};
     Object.keys(patch).forEach((k) => { prev[k] = raw[k]; });
     Object.entries(patch).forEach(([k, v]) => upd(it.kind)(it.refId, k, v));
-    setMoved({ title: it.title, kind: it.kind, refId: it.refId, prev, label: newFrom === newTo ? labelYM(newFrom) : `${labelYM(newFrom)} to ${labelYM(newTo)}` });
+    setMoved({ title: it.title, kind: it.kind, refId: it.refId, prev, label: rangeLabel(newFrom, newTo) });
   };
   const undoMove = () => {
     if (!moved) return;
     Object.entries(moved.prev).forEach(([k, v]) => upd(moved.kind)(moved.refId, k, v));
     setMoved(null);
   };
-  const rangeFor = (d, y) => {
-    const it = d.item, f = it.from, t = it.to || it.from;
-    if (d.mode === "start") return { from: ymIndex(y) > ymIndex(t) ? t : y, to: t };
-    if (d.mode === "end") return { from: f, to: ymIndex(y) < ymIndex(f) ? f : y };
-    // An overdue pill sits in the first column but really ends earlier: the drop sets its end month.
-    const delta = it.overdue ? ymIndex(y) - ymIndex(t) : ymIndex(y) - ymIndex(d.grabYM);
-    return { from: addMonthsYM(f, delta), to: addMonthsYM(t, delta) };
+  const rangeFor = (d, iso) => {
+    const it = d.item, f = it.fromISO, t = it.toISO || it.fromISO;
+    if (d.mode === "start") return { from: iso > t ? t : iso, to: t };
+    if (d.mode === "end") return { from: f, to: iso < f ? f : iso };
+    // An overdue pill sits in the first column but really ended earlier: the drop sets its end day.
+    const delta = it.overdue ? daysBetween(t, iso) : daysBetween(d.grabISO, iso);
+    return { from: addDays(f, delta), to: addDays(t, delta) };
   };
-  const movable = (i) => (i.kind === "art" || i.kind === "goal") && !i.done && i.zone === "grid";
+  const showPreview = (d, iso) => {
+    const r = rangeFor(d, iso);
+    const left = rootRef.current ? rootRef.current.getBoundingClientRect().left : 0;
+    setPreview({ item: d.item, ...r, x1: xOfISO(r.from, "start") - left, x2: xOfISO(r.to, "end") - left });
+  };
+  const movable = (i) => (i.kind === "art" || i.kind === "goal") && !i.done && i.zone === "grid" && !!i.fromISO;
   const stop = () => {
     const d = dragRef.current;
     if (d && d.timer) clearTimeout(d.timer);
@@ -149,27 +184,27 @@ export default function ProjectTimeline({
     if (d.touch && navigator.vibrate) { try { navigator.vibrate(12); } catch (err) { /* not supported */ } }
     const sc = rootRef.current && rootRef.current.parentElement;
     if (sc) d.scroller = setInterval(() => { if (d.scrollBy) sc.scrollLeft += d.scrollBy; }, 16);
-    const y = d.grabYM || d.item.from;
-    setPreview({ item: d.item, ...rangeFor(d, y) });
+    showPreview(d, d.grabISO || d.item.fromISO);
   };
   const drag = {
+    can: movable,
     canStart: (i) => movable(i) && !i.clippedStart,
     canEnd: (i) => movable(i) && !i.clippedEnd,
     body: (e, i) => {
       if (!movable(i) || (e.pointerType === "mouse" && e.button !== 0)) return;
-      const d = { mode: "move", item: i, x0: e.clientX, y0: e.clientY, active: false, touch: e.pointerType !== "mouse", grabYM: ymAt(e.clientX) || addMonthsYM(startYM, i.col) };
+      const d = { mode: "move", item: i, x0: e.clientX, y0: e.clientY, active: false, touch: e.pointerType !== "mouse", grabISO: isoAt(e.clientX) || i.fromISO };
       dragRef.current = d;
       if (d.touch) d.timer = setTimeout(() => { if (dragRef.current === d && !d.active) activate(d); }, 350);
     },
     edge: (e, i, mode) => {
       e.stopPropagation();
       if (e.pointerType === "mouse") { if (e.button !== 0) return; e.preventDefault(); }
-      const d = { mode, item: i, x0: e.clientX, y0: e.clientY, active: false, touch: e.pointerType !== "mouse", edge: true };
+      const d = { mode, item: i, x0: e.clientX, y0: e.clientY, active: false, touch: e.pointerType !== "mouse", edge: true, grabISO: i.fromISO };
       dragRef.current = d;
       if (d.touch) activate(d); // a mouse edge-drag waits for a few pixels of movement, so a click near the edge still opens the project
     },
   };
-  latest.current = { stop, rangeFor, applyRange, ymAt, activate };
+  latest.current = { stop, rangeFor, applyRange, isoAt, activate, showPreview };
   useEffect(() => {
     const move = (e) => {
       const d = dragRef.current;
@@ -181,10 +216,10 @@ export default function ProjectTimeline({
         if (dist < (d.edge ? 4 : 5)) return;
         L.activate(d);
       }
-      const y = L.ymAt(e.clientX);
+      const iso = L.isoAt(e.clientX);
       const sc = rootRef.current && rootRef.current.parentElement;
       if (sc) { const r = sc.getBoundingClientRect(); d.scrollBy = e.clientX < r.left + 40 ? -12 : e.clientX > r.right - 40 ? 12 : 0; }
-      if (y) setPreview({ item: d.item, ...L.rangeFor(d, y) });
+      if (iso) L.showPreview(d, iso);
     };
     const end = (e) => {
       const d = dragRef.current;
@@ -193,10 +228,10 @@ export default function ProjectTimeline({
       if (d.active) {
         clickBlock.current = true;
         setTimeout(() => { clickBlock.current = false; }, 0);
-        const y = e.type === "pointercancel" ? "" : L.ymAt(e.clientX);
-        if (y) {
-          const r = L.rangeFor(d, y);
-          if (r.from !== d.item.from || r.to !== (d.item.to || d.item.from)) L.applyRange(d.item, r.from, r.to);
+        const iso = e.type === "pointercancel" ? "" : L.isoAt(e.clientX);
+        if (iso) {
+          const r = L.rangeFor(d, iso);
+          if (r.from !== d.item.fromISO || r.to !== (d.item.toISO || d.item.fromISO)) L.applyRange(d.item, r.from, r.to);
         }
       }
       L.stop();
@@ -359,7 +394,7 @@ export default function ProjectTimeline({
         // fixed height, so showing or hiding it never shifts the calendar under the pointer mid-drag
         <p style={{ ...small, margin: "0 0 8px", color: INK, height: "18px", lineHeight: "18px", overflow: "hidden", whiteSpace: "nowrap" }}>
           {preview ? (
-            <>{preview.item.title}: {preview.from === preview.to ? labelYM(preview.from) : `${labelYM(preview.from)} to ${labelYM(preview.to)}`}</>
+            <>{preview.item.title}: {rangeLabel(preview.from, preview.to)}</>
           ) : moved ? (
             <>
               Moved {moved.title} to {moved.label}.{" "}
@@ -379,7 +414,7 @@ export default function ProjectTimeline({
               <div style={{ border: `2px dashed ${LINE}`, borderRadius: "12px" }} />
               {model.months.map((m) => (
                 <div key={m.ym} data-ym={m.ym} className="tl-band" style={{
-                  position: "relative", borderRadius: "12px", background: m.index === model.nowIndex ? NOW_BG : preview && ymIndex(m.ym) >= ymIndex(preview.from) && ymIndex(m.ym) <= ymIndex(preview.to) ? "#e8e6fb" : "#fff", border: m.index === model.nowIndex ? "none" : `1px solid ${LINE}`,
+                  position: "relative", borderRadius: "12px", background: m.index === model.nowIndex ? NOW_BG : "#fff", border: m.index === model.nowIndex ? "none" : `1px solid ${LINE}`,
                   boxShadow: m.index === model.nowIndex ? `inset 0 0 0 1.5px ${LINK_BLUE}` : "none",
                 }}>
                   {m.index === model.nowIndex && (
@@ -388,6 +423,10 @@ export default function ProjectTimeline({
                 </div>
               ))}
             </div>
+
+            {preview && (
+              <div aria-hidden="true" style={{ position: "absolute", top: 0, bottom: 0, left: `${preview.x1}px`, width: `${Math.max(3, preview.x2 - preview.x1)}px`, background: "rgba(26, 13, 171, 0.09)", borderLeft: `1.5px solid ${LINK_BLUE}`, borderRight: `1.5px solid ${LINK_BLUE}`, boxSizing: "border-box", pointerEvents: "none", borderRadius: "4px" }} />
+            )}
 
             {/* header */}
             <div style={{ position: "relative", display: "grid", gridTemplateColumns: cols, columnGap: "6px", padding: "14px 0 10px" }}>

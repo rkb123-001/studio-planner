@@ -1,4 +1,4 @@
-import { parseGridBlocks, applyBlocks, buildPrompt } from "./gridImport";
+import { parseGridBlocks, applyBlocks, buildPrompt, startHour } from "./gridImport";
 
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const slots = ["7–9am", "9–11am", "11am–1pm", "1–3pm"];
@@ -45,4 +45,10 @@ test("the prompt lists the modes, slots and any office slots", () => {
   expect(p).toContain("Wed 1–3pm");
   expect(p).toContain("Commissions first");
   expect(p).toContain('"mode":"making"');
+});
+
+test("slot names Claude might write differently still match", () => {
+  expect(["7–9am", "11am–1pm", "1–3pm", "9am-11am", "1pm", "13:00"].map(startHour)).toEqual([7, 11, 13, 9, 13, 13]);
+  const r = parseGridBlocks('[{"day":"Thu","slot":"9am - 11am","mode":"making"},{"day":"Thu","slot":"1pm-3pm","mode":"comms"}]', { days, slots, modes });
+  expect(r.blocks).toEqual([{ day: "Thu", slot: "9–11am", mode: "making" }, { day: "Thu", slot: "1–3pm", mode: "comms" }]);
 });

@@ -237,12 +237,15 @@ export default function ProjectTimeline({
       L.stop();
     };
     const block = (e) => { if (dragRef.current && dragRef.current.active) e.preventDefault(); };
+    const esc = (e) => { if (e.key === "Escape" && dragRef.current) { clickBlock.current = true; setTimeout(() => { clickBlock.current = false; }, 0); latest.current.stop(); } };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", end);
     window.addEventListener("pointercancel", end);
     window.addEventListener("touchmove", block, { passive: false });
     window.addEventListener("contextmenu", block);
+    window.addEventListener("keydown", esc);
     return () => {
+      window.removeEventListener("keydown", esc);
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", end);
       window.removeEventListener("pointercancel", end);
@@ -285,7 +288,7 @@ export default function ProjectTimeline({
           <span style={{ width: "12px" }} />
           <span onClick={() => setMonths(6)} style={btn(months === 6)} role="button">6 months</span>
           <span onClick={() => setMonths(12)} style={btn(months === 12)} role="button">12 months</span>
-          <span style={{ ...small, marginLeft: "auto" }}>Click a project to open it. Drag it sideways to move it (on a phone, press and hold first) and drag its edges to change its length. Dashed means no dates set yet.</span>
+          <span style={{ ...small, marginLeft: "auto" }}>Click a project to open it. Drag it to move it to another day (on a phone, press and hold first), drag its edges to change its length, Esc to cancel. Dashed means no dates set yet.</span>
         </div>
       )}
 
@@ -417,6 +420,9 @@ export default function ProjectTimeline({
                   position: "relative", borderRadius: "12px", background: m.index === model.nowIndex ? NOW_BG : "#fff", border: m.index === model.nowIndex ? "none" : `1px solid ${LINE}`,
                   boxShadow: m.index === model.nowIndex ? `inset 0 0 0 1.5px ${LINK_BLUE}` : "none",
                 }}>
+                  {m.index === model.nowIndex && (
+                    <span title={`Today, ${now.getDate()} ${labelYM(m.ym).split(" ")[0]}`} style={{ position: "absolute", top: "50px", bottom: "8px", left: `${((now.getDate() - 0.5) / new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()) * 100}%`, width: 0, borderLeft: `1.5px dashed ${LINK_BLUE}`, opacity: 0.45 }} />
+                  )}
                   {m.index === model.nowIndex && (
                     <span style={{ position: "absolute", top: "-26px", left: "50%", transform: "translateX(-50%)", background: LINK_BLUE, color: "#fff", fontFamily: TNR, fontSize: "12px", fontWeight: 700, padding: "3px 10px", borderRadius: "999px", whiteSpace: "nowrap" }}>We are here</span>
                   )}

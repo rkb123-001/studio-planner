@@ -14,12 +14,13 @@ export default function GridImport({ days, slots, modes, schedule, weekNote, onA
   const [text, setText] = useState("");
   const [replace, setReplace] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showPrompt, setShowPrompt] = useState(false);
   const parsed = useMemo(() => (text.trim() ? parseGridBlocks(text, { days, slots, modes }) : null), [text, days, slots, modes]);
   const result = useMemo(() => (parsed && !parsed.error ? applyBlocks(schedule, parsed.blocks, replace) : null), [parsed, schedule, replace]);
 
   const copyPrompt = async () => {
     try { await navigator.clipboard.writeText(buildPrompt({ days, slots, modes, schedule, weekNote })); setCopied(true); setTimeout(() => setCopied(false), 2500); }
-    catch (e) { setText(buildPrompt({ days, slots, modes, schedule, weekNote })); }
+    catch (e) { setShowPrompt(true); } // clipboard blocked: show it so it can be copied by hand
   };
 
   return (
@@ -32,6 +33,8 @@ export default function GridImport({ days, slots, modes, schedule, weekNote, onA
         1. Copy the prompt and give it to Claude. 2. Answer its questions. 3. Paste its reply below. Office work blocks are never changed.
       </p>
       <div style={{ marginBottom: "10px" }}><span role="button" onClick={copyPrompt} style={btn(copied)}>{copied ? "Copied" : "Copy prompt for Claude"}</span></div>
+      {showPrompt && <textarea readOnly aria-label="Prompt for Claude" value={buildPrompt({ days, slots, modes, schedule, weekNote })} rows={6} onFocus={(e) => e.target.select()}
+        style={{ width: "100%", boxSizing: "border-box", fontFamily: "monospace", fontSize: "11px", padding: "8px", border: "1px dashed #ccc", marginBottom: "10px", color: "#555" }} />}
       <textarea aria-label="Claude's reply" value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder='Paste the reply here, e.g. [{"day":"Mon","slot":"9–11am","mode":"making"}]'
         style={{ width: "100%", boxSizing: "border-box", fontFamily: "monospace", fontSize: "12px", padding: "8px", border: "1px solid #ccc" }} />
       {parsed && parsed.error && <p style={{ ...small, color: "#b01904", margin: "8px 0 0" }}>{parsed.error}</p>}

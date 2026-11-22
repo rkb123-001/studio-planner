@@ -15,6 +15,20 @@ export function extractJSON(text) {
   return null;
 }
 
+// The hour a slot label starts at: "9–11am" -> 9, "1–3pm" -> 13, "11am–1pm" -> 11, "9:00" -> 9.
+export function startHour(label) {
+  const t = String(label || "").toLowerCase().replace(/\s+/g, "");
+  const m = t.match(/^(\d{1,2})(?::\d{2})?(am|pm)?/);
+  if (!m) return null;
+  let h = Number(m[1]);
+  let ap = m[2];
+  if (!ap) { const rest = t.match(/(am|pm)/); ap = rest ? rest[1] : ""; } // "9–11am": the range shares one am/pm
+  if (!ap) return h; // 24-hour or bare number
+  if (ap === "pm" && h < 12) h += 12;
+  if (ap === "am" && h === 12) h = 0;
+  return h;
+}
+
 /** Returns { blocks: [{day, slot, mode}], skipped: [reason strings], error } */
 export function parseGridBlocks(text, { days, slots, modes }) {
   const data = extractJSON(text);
@@ -22,6 +36,8 @@ export function parseGridBlocks(text, { days, slots, modes }) {
   const list = Array.isArray(data) ? data : Array.isArray(data.blocks) ? data.blocks : null;
   if (!list) return { blocks: [], skipped: [], error: "Expected a list of blocks." };
   const slotMap = new Map(slots.map((s) => [norm(s), s]));
+  const byHour = new Map(slots.map((s) => [startHour(s), s]));
+  const findSlot = (w) => slotMap.get(norm(w)) || byHour.get(startHour(w));
   const modeMap = new Map();
   Object.entries(modes).forEach(([k, m]) => { modeMap.set(norm(k), k); modeMap.set(norm(m.label), k); });
   const dayOf = (v) => days.find((d) => String(v || "").trim().toLowerCase().slice(0, 3) === d.toLowerCase());
@@ -33,7 +49,7 @@ export function parseGridBlocks(text, { days, slots, modes }) {
     if (!day) { skipped.push(`#${n + 1}: unknown day "${raw.day}"`); return; }
     if (!mode) { skipped.push(`#${n + 1}: unknown mode "${raw.mode}"`); return; }
     wanted.forEach((w) => {
-      const slot = slotMap.get(norm(w));
+      const slot = findSlot(w);
       if (!slot) skipped.push(`#${n + 1}: unknown slot "${w}"`);
       else blocks.push({ day, slot, mode });
     });

@@ -1,8 +1,7 @@
-import { render, screen } from '@testing-library/react';
-import App from './App';
+import { normaliseLists } from "./listOps";
 
-test('renders learn react link', () => {
-  render(<App />);
-  const linkElement = screen.getByText(/learn react/i);
-  expect(linkElement).toBeInTheDocument();
+// The original Create React App test looked for a "learn react" link that has never existed in the planner.
+// App itself needs Supabase and a signed-in user, so the real coverage lives in the feature tests.
+test("feature modules load", () => {
+  expect(typeof normaliseLists).toBe("function");
 });

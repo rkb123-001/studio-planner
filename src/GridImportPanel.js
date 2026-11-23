@@ -10,7 +10,7 @@ const btn = (on) => ({
 });
 
 /** Paste Claude's answer, preview what it will do, then apply it to the weekly grid. */
-export default function GridImport({ days, slots, modes, schedule, weekNote, deadlines = [], onApply, onClose, title = "Fill the grid from Claude", embedded = false }) {
+export default function GridImport({ days, slots, modes, schedule, weekNote, deadlines = [], onApply, onClose, title = "Import week", embedded = false }) {
   const [text, setText] = useState("");
   const [replace, setReplace] = useState(false);
   const [copied, setCopied] = useState(false);

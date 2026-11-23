@@ -51,7 +51,7 @@ test("every tab and view renders, with no crash", async () => {
   click(screen.getByText("Next")); click(screen.getByText("Next"));
   expect(screen.getByText("Copy prompt for Claude")).toBeTruthy();
   click(screen.getByLabelText("Close"));
-  click(screen.getByLabelText("Fill the grid from Claude"));
+  click(screen.getByLabelText("Import week"));
   fireEvent.change(screen.getByLabelText("Claude's reply"), { target: { value: '[{"day":"Wed","slot":"9–11am","mode":"making"}]' } });
   click(screen.getByText("Add to my week"));
   await waitFor(() => expect(screen.queryByText(/No Making time on the grid this week yet/)).toBeNull());

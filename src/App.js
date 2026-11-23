@@ -3106,8 +3106,12 @@ const [, setAuthTimestamp] = useState(0);
               style={{ fontFamily: TNR, fontSize: "13px", color: "#888", cursor: "pointer", alignSelf: "center", textDecoration: "underline", textUnderlineOffset: "2px" }}>
               clear
             </span>
-            <span role="button" aria-label="Fill the grid from Claude" title="Fill the grid from Claude" onClick={() => { setShowGridImport(v => !v); setShowWeekSetup(false); }}
-              style={{ width: "30px", height: "30px", boxSizing: "border-box", border: `1px solid ${showGridImport ? "#1a0dab" : "#1a1a1a"}`, color: showGridImport ? "#1a0dab" : "#1a1a1a", fontFamily: TNR, fontSize: "20px", lineHeight: "26px", textAlign: "center", cursor: "pointer", userSelect: "none", marginLeft: "6px", alignSelf: "center" }}>+</span>
+            <span className="rkb-plus" style={{ position: "relative", marginLeft: "6px", alignSelf: "center", display: "inline-flex" }}>
+              <style>{`.rkb-plus .rkb-plus-tip{opacity:0;transform:translate(-50%,-2px);transition:opacity .12s ease,transform .12s ease;pointer-events:none}.rkb-plus:hover .rkb-plus-tip{opacity:1;transform:translate(-50%,0)}`}</style>
+              <span role="button" aria-label="Import week" onClick={() => { setShowGridImport(v => !v); setShowWeekSetup(false); }}
+              style={{ width: "30px", height: "30px", boxSizing: "border-box", border: `1px solid ${showGridImport ? "#1a0dab" : "#1a1a1a"}`, color: showGridImport ? "#1a0dab" : "#1a1a1a", fontFamily: TNR, fontSize: "20px", lineHeight: "26px", textAlign: "center", cursor: "pointer", userSelect: "none", display: "inline-block" }}>+</span>
+              <span className="rkb-plus-tip" aria-hidden="true" style={{ position: "absolute", top: "calc(100% + 6px)", left: "50%", whiteSpace: "nowrap", background: "#fff", border: "1px solid #1a1a1a", padding: "3px 9px", fontFamily: TNR, fontSize: "12px", color: "#1a1a1a", zIndex: 5 }}>Import week</span>
+            </span>
           </div>
 
           {/* Rest subtype — smaller boxed */}

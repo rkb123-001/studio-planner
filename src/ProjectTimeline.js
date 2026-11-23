@@ -305,6 +305,8 @@ export default function ProjectTimeline({
           <p style={{ ...small, textAlign: "center", margin: "0 auto 18px", maxWidth: "760px" }}>{scale === "weeks" ? "Last week, this week and the next three. A blue edge marks where a new month begins. Long projects show as thin lines. Click a project to open it." : <>Click a project to open it. Drag it to move it to another day (on a phone, press and hold first), drag its edges to change its length, Esc to cancel. A bar that started earlier or has no start date set: dragging it sets when it starts. Dashed means no dates set yet.</>}</p>
       </>)}
 
+      {/* Plan views: one centred column, text still left-aligned */}
+      <div style={{ maxWidth: "820px", margin: "0 auto" }}>
       {view === "lists" && onTaskLists && <TaskLists lists={taskLists} onChange={onTaskLists} categories={categories} today={now} onAddGoal={onAddGoal} />}
       {isPanel && panels[view]}
 
@@ -405,6 +407,8 @@ export default function ProjectTimeline({
           </div>
         );
       })()}
+
+      </div>
 
       {view === "timeline" && (
         // fixed height, so showing or hiding it never shifts the calendar under the pointer mid-drag

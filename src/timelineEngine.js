@@ -44,7 +44,8 @@ export function rangePatch(raw, item, newFrom, newTo) {
       const [ty, tm] = newTo.split("-").map(Number);
       patch.dueMonth = `${MONTH_SHORT[tm - 1]} ${ty}`;
     }
-    patch.dueExact = true; // it now sits on a real day, not just a month
+    // A moved end sits on a real day; an untouched month-only end stays "sometime that month".
+    patch.dueExact = newTo !== item.toISO ? true : isISO(raw.endDate) && raw.dueExact !== false;
   }
   return patch;
 }
@@ -133,6 +134,7 @@ export function buildTimeline(data, view, today = new Date()) {
     const eISO = isISO(p.endDate) ? p.endDate : isISO(p.keyDate) ? p.keyDate : "";
     place(l, {
       datesExact: !!(sISO && eISO),
+      startGuessed: !sISO,
       fromISO: !aFromYM ? "" : sISO && toYM(sISO) === aFromYM ? sISO : monthStartISO(aFromYM),
       toISO: !toYMv ? "" : eISO && toYM(eISO) === toYMv ? eISO : monthEndISO(toYMv),
       fromFrac: sISO && toYM(sISO) === aFromYM ? dayFracStart(sISO) : 0,
@@ -165,6 +167,7 @@ export function buildTimeline(data, view, today = new Date()) {
     const gEISO = isISO(p.endDate) && p.dueExact !== false ? p.endDate : "";
     place(l, {
       datesExact: !!(gSISO && gEISO),
+      startGuessed: !gSISO,
       fromISO: !fromV ? "" : gSISO && toYM(gSISO) === fromV ? gSISO : monthStartISO(fromV),
       toISO: !toV ? "" : gEISO && toYM(gEISO) === toV ? gEISO : monthEndISO(toV),
       fromFrac: gSISO && toYM(gSISO) === fromV ? dayFracStart(gSISO) : 0,

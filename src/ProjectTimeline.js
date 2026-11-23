@@ -195,7 +195,9 @@ export default function ProjectTimeline({
     canEnd: (i) => movable(i) && !i.clippedEnd,
     body: (e, i) => {
       if (!movable(i) || (e.pointerType === "mouse" && e.button !== 0)) return;
-      const d = { mode: "move", item: i, x0: e.clientX, y0: e.clientY, active: false, touch: e.pointerType !== "mouse", grabISO: isoAt(e.clientX) || i.fromISO };
+      // A bar whose start is off-screen or only guessed (from its quarter) is about when it starts:
+      // dragging it sets the start and keeps the end.
+      const d = { mode: i.clippedStart || i.startGuessed ? "start" : "move", item: i, x0: e.clientX, y0: e.clientY, active: false, touch: e.pointerType !== "mouse", grabISO: isoAt(e.clientX) || i.fromISO };
       dragRef.current = d;
       if (d.touch) d.timer = setTimeout(() => { if (dragRef.current === d && !d.active) activate(d); }, 350);
     },
@@ -271,7 +273,7 @@ export default function ProjectTimeline({
   return (
     <div className="tl-root">
       <style>{CSS}</style>
-      {mode !== "timeline" && <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", marginBottom: "18px" }}>
+      {mode !== "timeline" && <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", justifyContent: "center", marginBottom: "22px" }}>
         {mode !== "plan" && <span onClick={() => setView("timeline")} style={btn(view === "timeline")} role="button">Timeline</span>}
         <span onClick={() => setView("list")} style={btn(view === "list")} role="button">By date</span>
         {onTaskLists && <span onClick={() => setView("lists")} style={btn(view === "lists")} role="button">Lists{taskLists.length ? ` (${taskLists.length})` : ""}</span>}
@@ -284,8 +286,8 @@ export default function ProjectTimeline({
         {onAddArt && <span onClick={onAddArt} style={btn(false)} role="button">+ Art project</span>}
         {onAddGoal && <span onClick={() => { if (isPanel) setView(mode === "plan" ? "list" : "timeline"); setPanel(panel === "import" && !isPanel ? null : "import"); }} style={btn(panel === "import" && !isPanel)} role="button">Import suggestions</span>}
       </div>}
-      {view === "timeline" && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", marginBottom: "18px" }}>
+      {view === "timeline" && (<>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", justifyContent: "center", marginBottom: "8px" }}>
           {scale === "weeks" ? <>
             <span onClick={() => setWeekOffset((o) => o - 1)} style={btn(false)} role="button" aria-label="Earlier">←</span>
             <span onClick={() => setWeekOffset(0)} style={btn(weekOffset === 0)} role="button">This week</span>
@@ -299,9 +301,9 @@ export default function ProjectTimeline({
           <span onClick={() => setScale("weeks")} style={btn(scale === "weeks")} role="button">Month in view</span>
           <span onClick={() => { setScale("months"); setMonths(6); }} style={btn(scale === "months" && months === 6)} role="button">6 months</span>
           <span onClick={() => { setScale("months"); setMonths(12); }} style={btn(scale === "months" && months === 12)} role="button">12 months</span>
-          <span style={{ ...small, marginLeft: "auto" }}>{scale === "weeks" ? "Last week, this week and the next three. A blue edge marks where a new month begins. Long projects show as thin lines. Click a project to open it." : <>Click a project to open it. Drag it to move it to another day (on a phone, press and hold first), drag its edges to change its length, Esc to cancel. Dashed means no dates set yet.</>}</span>
         </div>
-      )}
+          <p style={{ ...small, textAlign: "center", margin: "0 auto 18px", maxWidth: "760px" }}>{scale === "weeks" ? "Last week, this week and the next three. A blue edge marks where a new month begins. Long projects show as thin lines. Click a project to open it." : <>Click a project to open it. Drag it to move it to another day (on a phone, press and hold first), drag its edges to change its length, Esc to cancel. A bar that started earlier or has no start date set: dragging it sets when it starts. Dashed means no dates set yet.</>}</p>
+      </>)}
 
       {view === "lists" && onTaskLists && <TaskLists lists={taskLists} onChange={onTaskLists} categories={categories} today={now} onAddGoal={onAddGoal} />}
       {isPanel && panels[view]}

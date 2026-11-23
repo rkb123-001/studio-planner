@@ -58,3 +58,20 @@ test("pressing an edge grip without moving changes nothing (so a click near the 
   act(() => { window.dispatchEvent(ev("pointerup", 192)); });
   expect(onUpdateArt).not.toHaveBeenCalled();
 });
+
+test("dragging a bar whose start is off-screen sets its start and keeps its end", () => {
+  const onUpdateGoal = jest.fn();
+  render(<ProjectTimeline today={TODAY} mode="timeline" artProjects={[]} steps={[]} categories={CATS}
+    projects={[{ id: 5, title: "Robo-kah", category: "Practice development", quarter: "q4", dueMonth: "Apr 2027", status: "not-started" }]}
+    onUpdateArt={jest.fn()} onUpdateGoal={onUpdateGoal} onOpenArt={jest.fn()} onOpenGoal={jest.fn()} onOpenPath={jest.fn()} />);
+  document.querySelectorAll("[data-ym]").forEach((el, n) => {
+    el.getBoundingClientRect = () => ({ left: n * 100, right: n * 100 + 94, top: 0, bottom: 100, width: 94, height: 100 });
+  });
+  const bar = screen.getByRole("button", { name: /Robo-kah/ });
+  act(() => { bar.dispatchEvent(ev("pointerdown", 30)); });             // Nov band
+  act(() => { window.dispatchEvent(ev("pointermove", 220)); });         // Jan band (200-294): 8 Jan
+  act(() => { window.dispatchEvent(ev("pointerup", 220)); });
+  expect(onUpdateGoal).toHaveBeenCalledWith(5, "startDate", "2027-01-07");
+  expect(onUpdateGoal).toHaveBeenCalledWith(5, "endDate", "2027-04-30");
+  expect(onUpdateGoal).toHaveBeenCalledWith(5, "dueExact", false); // still "due sometime in April"
+});

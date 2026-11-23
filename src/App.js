@@ -2951,10 +2951,6 @@ const [, setAuthTimestamp] = useState(0);
 
       {/* ── Tabs as boxed buttons ── */}
       <div style={{ textAlign: "center", marginBottom: "52px", display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap", position: "relative", maxWidth: "922px", marginLeft: "auto", marginRight: "auto" }}>
-        {tab === "week" && (
-          <span role="button" aria-label="Fill the grid from Claude" title="Fill the grid from Claude" onClick={() => { setShowGridImport(v => !v); setShowWeekSetup(false); }}
-            style={{ position: "absolute", right: 0, top: 0, width: "32px", height: "32px", boxSizing: "border-box", border: `1px solid ${showGridImport ? "#1a0dab" : "#1a1a1a"}`, color: showGridImport ? "#1a0dab" : "#1a1a1a", fontFamily: TNR, fontSize: "20px", lineHeight: "28px", textAlign: "center", cursor: "pointer", userSelect: "none" }}>+</span>
-        )}
         {[["week","Week"],["reflect","Reflect"],["timeline","Timeline"],["plan","Plan"]].map(([key, lbl]) => (
           <span key={key} onClick={() => setTab(key)} style={boxBtn(tab === key)}>{lbl}</span>
         ))}
@@ -2967,9 +2963,6 @@ const [, setAuthTimestamp] = useState(0);
       )}
       {tab === "week" && showWeekSetup && (
         <WeekSetupPanel list={dueList} days={DAYS} slots={TIME_SLOTS} modes={MODES} schedule={schedule} weekNote={weekNote} onApply={importGridBlocks} onClose={() => setShowWeekSetup(false)} />
-      )}
-      {tab === "week" && showGridImport && (
-        <GridImportPanel days={DAYS} slots={TIME_SLOTS} modes={MODES} schedule={schedule} weekNote={weekNote} deadlines={dueList} onApply={importGridBlocks} onClose={() => setShowGridImport(false)} />
       )}
 
       {/* ════ TODAY ════ */}
@@ -3092,6 +3085,9 @@ const [, setAuthTimestamp] = useState(0);
             </div>
           )}
 
+          {showGridImport && (
+        <GridImportPanel days={DAYS} slots={TIME_SLOTS} modes={MODES} schedule={schedule} weekNote={weekNote} deadlines={dueList} onApply={importGridBlocks} onClose={() => setShowGridImport(false)} />
+          )}
           {/* Mode selector — boxed buttons, Eilidh style */}
           <div style={{ textAlign: "center", marginBottom: "12px", display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap" }}>
             {Object.entries(MODES).map(([key, m]) => (
@@ -3110,6 +3106,8 @@ const [, setAuthTimestamp] = useState(0);
               style={{ fontFamily: TNR, fontSize: "13px", color: "#888", cursor: "pointer", alignSelf: "center", textDecoration: "underline", textUnderlineOffset: "2px" }}>
               clear
             </span>
+            <span role="button" aria-label="Fill the grid from Claude" title="Fill the grid from Claude" onClick={() => { setShowGridImport(v => !v); setShowWeekSetup(false); }}
+              style={{ width: "30px", height: "30px", boxSizing: "border-box", border: `1px solid ${showGridImport ? "#1a0dab" : "#1a1a1a"}`, color: showGridImport ? "#1a0dab" : "#1a1a1a", fontFamily: TNR, fontSize: "20px", lineHeight: "26px", textAlign: "center", cursor: "pointer", userSelect: "none", marginLeft: "6px", alignSelf: "center" }}>+</span>
           </div>
 
           {/* Rest subtype — smaller boxed */}
@@ -3330,7 +3328,7 @@ const [, setAuthTimestamp] = useState(0);
       {tab === "week" && (
         <div style={{ maxWidth: "520px", margin: "44px auto 0" }}>
           <details>
-            <summary style={{ ...sml, cursor: "pointer", marginBottom: "18px" }}>Guides: energy matching, runway logic, install as app</summary>
+            <summary style={{ ...sml, cursor: "pointer", marginBottom: "18px", textAlign: "center" }}>Guides: energy matching, runway logic, install as app</summary>
           <div style={{ marginBottom: "44px" }}>
             <p style={{ ...sml, marginBottom: "18px" }}>Energy matching</p>
             {[
